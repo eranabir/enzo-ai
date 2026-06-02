@@ -1,0 +1,14 @@
+node_modules/
+dist/
+*.log
+
+# Enzo local data (conversations, memory). Never commit user data.
+data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.db
+
+# Env / secrets (external provider API keys live here later)
+.env
+.env.local

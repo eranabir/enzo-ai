@@ -1,0 +1,46 @@
+@import "tailwindcss";
+
+/* Enzo design tokens. Defining colors here generates utilities like
+   bg-bg, text-fg, border-border, bg-accent, etc. */
+@theme {
+  --color-bg: #0e0f13;
+  --color-surface: #16181f;
+  --color-surface-2: #1d2029;
+  --color-border: #2a2e3a;
+  --color-fg: #e7e9ee;
+  --color-muted: #9aa0ad;
+  --color-accent: #6d5efc;
+  --color-accent-2: #8b7dff;
+  --color-user: #232734;
+  --color-danger: #ff5c5c;
+  --color-ok: #3ddc84;
+
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --animate-blink: blink 1s steps(2) infinite;
+  @keyframes blink {
+    50% {
+      opacity: 0;
+    }
+  }
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  font-size: 15px;
+}
+
+/* Slim dark scrollbars to match the UI. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}

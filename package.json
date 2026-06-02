@@ -1,0 +1,21 @@
+{
+  "name": "enzo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Enzo - a self-hosted, local-first AI chat experience",
+  "workspaces": [
+    "server",
+    "web"
+  ],
+  "packageManager": "yarn@1.22.22",
+  "scripts": {
+    "dev": "concurrently -n server,web -c blue,magenta \"yarn dev:server\" \"yarn dev:web\"",
+    "dev:server": "yarn workspace @enzo/server dev",
+    "dev:web": "yarn workspace @enzo/web dev",
+    "build": "yarn workspace @enzo/web build",
+    "start": "yarn dev"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}
