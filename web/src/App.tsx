@@ -6,6 +6,7 @@ import { ChatView } from "./components/ChatView";
 import { Composer } from "./components/Composer";
 import { Header } from "./components/Header";
 import { AuthScreen } from "./components/AuthScreen";
+import { AdminPanel } from "./components/AdminPanel";
 
 export function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -17,6 +18,7 @@ export function App() {
   const [model, setModel] = useState<string>("");
   const [online, setOnline] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
   // Restore an existing session on load, if any.
@@ -158,12 +160,30 @@ export function App() {
 
   const stop = useCallback(() => abortRef.current?.abort(), []);
 
+  const activeConversation = conversations.find((c) => c.id === activeId) ?? null;
+
+  const toggleMemory = useCallback(
+    async (enabled: boolean) => {
+      if (!activeId) return;
+      const updated = await api.setMemory(activeId, enabled).catch(() => null);
+      if (updated) {
+        setConversations((prev) =>
+          prev.map((c) => (c.id === activeId ? { ...c, memory_enabled: enabled ? 1 : 0 } : c)),
+        );
+      }
+    },
+    [activeId],
+  );
+
   // Wait until we know whether a session exists, then gate on auth.
   if (!authChecked) return <div className="h-screen bg-bg" />;
   if (!user) return <AuthScreen onAuthed={setUser} online={online} />;
 
   return (
     <div className="grid grid-cols-[264px_1fr] h-screen">
+      {adminOpen && user.isAdmin && (
+        <AdminPanel currentUser={user} onClose={() => setAdminOpen(false)} />
+      )}
       <Sidebar
         conversations={conversations}
         activeId={activeId}
@@ -173,13 +193,17 @@ export function App() {
         onSelect={openConversation}
         onDelete={deleteConversation}
         onLogout={logout}
+        onAdminOpen={() => setAdminOpen(true)}
+        onUserUpdated={setUser}
       />
       <main className="flex flex-col min-w-0">
         <Header
           models={models}
           model={model}
           online={online}
+          activeConversation={activeConversation}
           onModelChange={setModel}
+          onToggleMemory={toggleMemory}
         />
         <ChatView messages={messages} busy={busy} online={online} />
         <Composer busy={busy} disabled={online === false} onSend={send} onStop={stop} />

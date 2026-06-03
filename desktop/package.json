@@ -1,0 +1,26 @@
+{
+  "name": "@enzo/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Enzo — self-hosted local AI assistant",
+  "author": "Enzo",
+  "main": "dist/main.js",
+  "scripts": {
+    "dev": "tsc --watch",
+    "build": "tsc",
+    "start": "yarn build && electron .",
+    "dist": "yarn build && electron-builder",
+    "dist:win": "yarn build && electron-builder --win",
+    "dist:mac": "yarn build && electron-builder --mac",
+    "dist:linux": "yarn build && electron-builder --linux"
+  },
+  "dependencies": {
+    "electron-squirrel-startup": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "electron": "^34.0.0",
+    "electron-builder": "^25.0.0",
+    "typescript": "^5.7.3"
+  }
+}

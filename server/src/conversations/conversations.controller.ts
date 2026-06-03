@@ -40,13 +40,14 @@ export class ConversationsController {
   update(
     @UserId() userId: string,
     @Param("id") id: string,
-    @Body() body: { title?: string; model?: string },
+    @Body() body: { title?: string; model?: string; memoryEnabled?: boolean },
   ) {
     const convo = this.convos.get(id, userId);
     if (!convo) throw new NotFoundException("not found");
     if (typeof body?.title === "string") this.convos.rename(convo.id, body.title);
-    if (typeof body?.model === "string")
-      this.convos.setModel(convo.id, body.model);
+    if (typeof body?.model === "string") this.convos.setModel(convo.id, body.model);
+    if (typeof body?.memoryEnabled === "boolean")
+      this.convos.setMemoryEnabled(convo.id, body.memoryEnabled);
     return this.convos.get(convo.id, userId);
   }
 

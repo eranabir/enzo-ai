@@ -35,7 +35,10 @@ export class AuthController {
     body: {
       username?: string;
       password?: string;
-      displayName?: string;
+      firstName?: string;
+      lastName?: string;
+      nickname?: string;
+      superPowers?: string;
       about?: string;
       assistantStyle?: string;
       pin?: string;
@@ -53,7 +56,11 @@ export class AuthController {
     const user = this.users.create({
       username,
       password,
-      displayName: String(body?.displayName ?? "").trim() || username,
+      displayName: "",           // auto-derived from name fields in UsersService
+      firstName: body?.firstName,
+      lastName: body?.lastName,
+      nickname: body?.nickname,
+      superPowers: body?.superPowers,
       about: body?.about,
       assistantStyle: body?.assistantStyle,
       pin: body?.pin,
@@ -82,13 +89,21 @@ export class AuthController {
     return { user: this.users.toPublic(user) };
   }
 
-  /** Update the onboarding profile (editable later in settings). */
+  /** Update the profile (settings panel). */
   @Patch("me")
   @UseGuards(AuthGuard)
   updateMe(
     @UserId() userId: string,
     @Body()
-    body: { displayName?: string; about?: string; assistantStyle?: string },
+    body: {
+      displayName?: string;
+      firstName?: string;
+      lastName?: string;
+      nickname?: string;
+      superPowers?: string;
+      about?: string;
+      assistantStyle?: string;
+    },
   ) {
     this.users.updateProfile(userId, body ?? {});
     return { user: this.users.toPublic(this.users.findById(userId)!) };

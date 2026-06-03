@@ -1,0 +1,114 @@
+name: Release
+
+on:
+  # Run when you push a version tag: git tag v0.2.0 && git push --tags
+  push:
+    tags:
+      - "v*"
+  # Or trigger manually from the GitHub UI for a test build
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false          # let other platforms finish even if one fails
+      matrix:
+        include:
+          - os: windows-latest
+            platform: win32
+            artifact_glob: "desktop/dist/*.exe"
+          - os: macos-latest
+            platform: darwin
+            artifact_glob: "desktop/dist/*.dmg"
+          - os: ubuntu-latest
+            platform: linux
+            artifact_glob: "desktop/dist/*.AppImage desktop/dist/*.deb"
+
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      # Linux needs extra libs for electron-builder
+      - name: Linux build deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y rpm fakeroot dpkg
+
+      - name: Download Ollama binary
+        run: yarn download:ollama
+        env:
+          OLLAMA_PLATFORM: ${{ matrix.platform }}
+
+      - name: Build server
+        run: yarn build:server
+
+      - name: Build web
+        run: yarn build:web
+
+      - name: Build desktop
+        run: yarn build:desktop
+
+      - name: Package installer
+        run: yarn workspace @enzo/desktop dist
+        env:
+          # macOS code signing (set these secrets in GitHub repo settings)
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Windows code signing
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+          # GitHub token for publishing to a Release (auto-provided)
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload installer artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: enzo-${{ matrix.os }}
+          path: desktop/dist/
+          if-no-files-found: error
+          retention-days: 30
+
+  # After all three builds succeed, attach everything to a GitHub Release
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Enzo ${{ github.ref_name }}"
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}  # v1.0.0-beta → pre-release
+          files: |
+            artifacts/**/*.exe
+            artifacts/**/*.dmg
+            artifacts/**/*.AppImage
+            artifacts/**/*.deb
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

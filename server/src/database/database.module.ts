@@ -27,6 +27,10 @@ export type DatabaseConnection = Database.Database;
             id               TEXT PRIMARY KEY,
             username         TEXT NOT NULL UNIQUE,
             display_name     TEXT NOT NULL,
+            first_name       TEXT,
+            last_name        TEXT,
+            nickname         TEXT,
+            super_powers     TEXT,
             password_hash    TEXT NOT NULL,
             pin_hash         TEXT,
             about            TEXT,
@@ -63,18 +67,50 @@ export type DatabaseConnection = Database.Database;
             created_at      INTEGER NOT NULL
           );
 
+          CREATE TABLE IF NOT EXISTS memories (
+            id                     TEXT PRIMARY KEY,
+            user_id                TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            type                   TEXT NOT NULL CHECK (type IN ('fact','decision','preference','work_context')),
+            content                TEXT NOT NULL,
+            source_conversation_id TEXT REFERENCES conversations(id) ON DELETE SET NULL,
+            created_at             INTEGER NOT NULL
+          );
+
+          CREATE TABLE IF NOT EXISTS conversation_summaries (
+            conversation_id  TEXT PRIMARY KEY REFERENCES conversations(id) ON DELETE CASCADE,
+            summary          TEXT NOT NULL,
+            created_at       INTEGER NOT NULL
+          );
+
           CREATE INDEX IF NOT EXISTS idx_messages_conversation
             ON messages(conversation_id, created_at);
+          CREATE INDEX IF NOT EXISTS idx_memories_user
+            ON memories(user_id, created_at);
         `);
 
-        // Migration: add user_id to conversations created before multi-user.
-        // Must run before any index that references the column, because for a
-        // pre-existing table `CREATE TABLE IF NOT EXISTS` above is a no-op.
-        const cols = db
-          .prepare(`PRAGMA table_info(conversations)`)
-          .all() as { name: string }[];
-        if (!cols.some((c) => c.name === "user_id")) {
+        // Migrations — run before any indexes that reference the new columns.
+        const convCols = db.prepare(`PRAGMA table_info(conversations)`).all() as { name: string }[];
+        if (!convCols.some((c) => c.name === "user_id")) {
           db.exec(`ALTER TABLE conversations ADD COLUMN user_id TEXT`);
+        }
+        if (!convCols.some((c) => c.name === "memory_enabled")) {
+          db.exec(`ALTER TABLE conversations ADD COLUMN memory_enabled INTEGER NOT NULL DEFAULT 1`);
+        }
+
+        const userCols = db.prepare(`PRAGMA table_info(users)`).all() as { name: string }[];
+        if (!userCols.some((c) => c.name === "role")) {
+          db.exec(`ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'`);
+        }
+        for (const col of ["first_name", "last_name", "nickname", "super_powers"] as const) {
+          if (!userCols.some((c) => c.name === col)) {
+            db.exec(`ALTER TABLE users ADD COLUMN ${col} TEXT`);
+          }
+        }
+
+        // Promote the oldest user to admin if no admin exists yet.
+        const hasAdmin = db.prepare(`SELECT 1 FROM users WHERE role = 'admin' LIMIT 1`).get();
+        if (!hasAdmin) {
+          db.prepare(`UPDATE users SET role = 'admin' WHERE id = (SELECT id FROM users ORDER BY created_at ASC LIMIT 1)`).run();
         }
 
         db.exec(`

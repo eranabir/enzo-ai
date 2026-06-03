@@ -1,0 +1,68 @@
+appId: com.enzo.app
+productName: Enzo
+copyright: "© 2025 Enzo"
+electronVersion: "34.5.8"
+
+files:
+  - dist/**/*
+  - package.json
+
+extraResources:
+  - from: "../server/dist"
+    to: "server/dist"
+    filter: ["**/*"]
+  - from: "../web/dist"
+    to: "web/dist"
+    filter: ["**/*"]
+  - from: "resources/ollama"
+    to: "ollama"
+    filter: ["**/*"]
+
+# Rebuild native modules (better-sqlite3) for Electron's Node version
+npmRebuild: true
+buildDependenciesFromSource: false
+
+publish:
+  - provider: github
+    releaseType: release
+
+# ── macOS ────────────────────────────────────────────────────────────────────
+mac:
+  category: public.app-category.productivity
+  # icon: assets/icon.icns   ← add when icon is ready
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+
+dmg:
+  title: "Install Enzo"
+  window:
+    width: 540
+    height: 380
+
+# ── Windows ──────────────────────────────────────────────────────────────────
+win:
+  # icon: assets/icon.ico   ← add when icon is ready
+  target:
+    # nsis (proper installer) requires Developer Mode on Windows for winCodeSign.
+    # Enable: Settings → Privacy & security → For developers → Developer Mode
+    # Then change target back to nsis for the full installer.
+    - target: zip          # portable zip for local testing without Developer Mode
+      arch: [x64]
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  runAfterFinish: true
+
+# ── Linux ────────────────────────────────────────────────────────────────────
+linux:
+  # icon: assets/icon.png   ← add when icon is ready
+  category: Utility
+  target:
+    - target: AppImage
+      arch: [x64, arm64]
+    - target: deb
+      arch: [x64]

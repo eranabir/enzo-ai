@@ -1,9 +1,12 @@
 export type Role = "system" | "user" | "assistant";
+export type MemoryType = "fact" | "decision" | "preference" | "work_context";
 
 export interface ConversationRow {
   id: string;
+  user_id: string | null;
   title: string;
   model: string | null;
+  memory_enabled: number; // SQLite boolean: 1 = on, 0 = off
   created_at: number;
   updated_at: number;
 }
@@ -13,5 +16,20 @@ export interface MessageRow {
   conversation_id: string;
   role: Role;
   content: string;
+  created_at: number;
+}
+
+export interface MemoryRow {
+  id: string;
+  user_id: string;
+  type: MemoryType;
+  content: string;
+  source_conversation_id: string | null;
+  created_at: number;
+}
+
+export interface ConversationSummaryRow {
+  conversation_id: string;
+  summary: string;
   created_at: number;
 }

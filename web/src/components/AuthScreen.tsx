@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, setToken } from "../api";
 import type { ProfileSummary, User } from "../types";
+import { Label } from "./ui/Label";
 
 const inputCls =
   "w-full rounded-lg border border-border bg-surface-2 px-3.5 py-2.5 text-fg outline-none placeholder:text-muted focus:border-accent";
@@ -35,7 +36,10 @@ export function AuthScreen({
   const [reg, setReg] = useState({
     username: "",
     password: "",
-    displayName: "",
+    firstName: "",
+    lastName: "",
+    nickname: "",
+    superPowers: "",
     about: "",
     assistantStyle: "",
     pin: "",
@@ -94,9 +98,12 @@ export function AuthScreen({
       const { token, user } = await api.register({
         username: reg.username,
         password: reg.password,
-        displayName: reg.displayName || reg.username,
-        about: reg.about,
-        assistantStyle: reg.assistantStyle,
+        firstName: reg.firstName || undefined,
+        lastName: reg.lastName || undefined,
+        nickname: reg.nickname || undefined,
+        superPowers: reg.superPowers || undefined,
+        about: reg.about || undefined,
+        assistantStyle: reg.assistantStyle || undefined,
         pin: reg.pin || undefined,
       });
       finish(token, user);
@@ -149,7 +156,14 @@ export function AuthScreen({
                   >
                     <Avatar name={p.displayName} />
                     <div className="min-w-0">
-                      <div className="truncate font-semibold">{p.displayName}</div>
+                      <div className="flex items-center gap-2">
+                        <span className="truncate font-semibold">{p.displayName}</span>
+                        {p.role === "admin" && (
+                          <span className="flex-shrink-0 rounded-full bg-accent/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-accent-2">
+                            Admin
+                          </span>
+                        )}
+                      </div>
                       <div className="truncate text-xs text-muted">
                         @{p.username}
                         {p.hasPin ? " · PIN" : ""}
@@ -232,110 +246,105 @@ export function AuthScreen({
 
           {/* ---------- Register ---------- */}
           {mode === "register" && (
-            <form onSubmit={doRegister} className="flex flex-col gap-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-1 block text-xs font-semibold text-muted">
-                    Username
-                  </label>
-                  <input
-                    className={inputCls}
-                    value={reg.username}
-                    onChange={(e) => setReg({ ...reg, username: e.target.value })}
-                    placeholder="jane"
-                    autoFocus
-                  />
+            <form onSubmit={doRegister} className="flex flex-col gap-4">
+
+              {/* First-user admin notice */}
+              {profiles.length === 0 && (
+                <div className="flex items-start gap-2.5 rounded-lg border border-accent/30 bg-accent/10 px-3 py-2.5">
+                  <span className="mt-0.5 flex-shrink-0 text-sm text-accent-2">⬡</span>
+                  <div>
+                    <p className="text-xs font-semibold text-accent-2">You're the first user — you'll be the admin</p>
+                    <p className="mt-0.5 text-[11px] text-muted leading-relaxed">
+                      The first account created on this machine gets admin access: manage users, install models, and set system defaults.
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <label className="mb-1 block text-xs font-semibold text-muted">
-                    Display name
-                  </label>
-                  <input
-                    className={inputCls}
-                    value={reg.displayName}
-                    onChange={(e) =>
-                      setReg({ ...reg, displayName: e.target.value })
-                    }
-                    placeholder="Jane"
-                  />
+              )}
+
+              {/* ── Identity ── */}
+              <div className="flex flex-col gap-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="reg-first">First name</Label>
+                    <input id="reg-first" className={inputCls} placeholder="Jane" autoFocus
+                      value={reg.firstName} onChange={(e) => setReg({ ...reg, firstName: e.target.value })} />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="reg-last">Last name</Label>
+                    <input id="reg-last" className={inputCls} placeholder="Smith"
+                      value={reg.lastName} onChange={(e) => setReg({ ...reg, lastName: e.target.value })} />
+                  </div>
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-1 block text-xs font-semibold text-muted">
-                    Password
-                  </label>
-                  <input
-                    className={inputCls}
-                    type="password"
-                    value={reg.password}
-                    onChange={(e) => setReg({ ...reg, password: e.target.value })}
-                    placeholder="At least 4 characters"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-semibold text-muted">
-                    Quick PIN <span className="font-normal">(optional)</span>
-                  </label>
-                  <input
-                    className={inputCls}
-                    type="password"
-                    inputMode="numeric"
-                    value={reg.pin}
-                    onChange={(e) =>
-                      setReg({ ...reg, pin: e.target.value.replace(/\D/g, "") })
-                    }
-                    placeholder="4–8 digits"
-                  />
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="reg-nickname">
+                      Nickname <span className="font-normal text-muted/70">(optional)</span>
+                    </Label>
+                    <input id="reg-nickname" className={inputCls} placeholder="How Enzo calls you"
+                      value={reg.nickname} onChange={(e) => setReg({ ...reg, nickname: e.target.value })} />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="reg-username">Username</Label>
+                    <input id="reg-username" className={inputCls} placeholder="jane"
+                      value={reg.username} onChange={(e) => setReg({ ...reg, username: e.target.value })} />
+                  </div>
                 </div>
               </div>
 
-              <div className="mt-1 border-t border-border pt-3">
-                <div className="mb-2 text-xs font-semibold text-accent-2">
-                  Help Enzo get to know you
+              {/* ── Security ── */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="reg-pw">Password</Label>
+                  <input id="reg-pw" className={inputCls} type="password" placeholder="At least 4 characters"
+                    value={reg.password} onChange={(e) => setReg({ ...reg, password: e.target.value })} />
                 </div>
-                <label className="mb-1 block text-xs font-semibold text-muted">
-                  About you
-                </label>
-                <textarea
-                  className={`${inputCls} resize-none`}
-                  rows={2}
-                  value={reg.about}
-                  onChange={(e) => setReg({ ...reg, about: e.target.value })}
-                  placeholder="e.g. I'm a backend developer who loves hiking and is learning Rust."
-                />
-                <label className="mb-1 mt-3 block text-xs font-semibold text-muted">
-                  How should Enzo respond to you?
-                </label>
-                <textarea
-                  className={`${inputCls} resize-none`}
-                  rows={2}
-                  value={reg.assistantStyle}
-                  onChange={(e) =>
-                    setReg({ ...reg, assistantStyle: e.target.value })
-                  }
-                  placeholder="e.g. Be concise and direct, use examples, avoid jargon."
-                />
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="reg-pin">
+                    Quick PIN <span className="font-normal text-muted/70">(optional)</span>
+                  </Label>
+                  <input id="reg-pin" className={inputCls} type="password" inputMode="numeric" placeholder="4–8 digits"
+                    value={reg.pin} onChange={(e) => setReg({ ...reg, pin: e.target.value.replace(/\D/g, "") })} />
+                </div>
               </div>
 
-              <div className="mt-2 flex gap-2">
+              {/* ── AI context ── */}
+              <div className="flex flex-col gap-3 border-t border-border pt-3">
+                <p className="text-xs font-semibold text-accent-2">Help Enzo get to know you</p>
+
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="reg-powers">
+                    ⚡ Super powers
+                    <span className="ml-1 font-normal text-muted/70">— your skills & expertise</span>
+                  </Label>
+                  <input id="reg-powers" className={inputCls}
+                    placeholder="e.g. Full-stack dev, system design, coffee brewing, astrophysics"
+                    value={reg.superPowers} onChange={(e) => setReg({ ...reg, superPowers: e.target.value })} />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="reg-about">About you</Label>
+                  <textarea id="reg-about" className={`${inputCls} resize-none`} rows={2}
+                    placeholder="e.g. Backend developer, loves hiking, learning Rust on weekends."
+                    value={reg.about} onChange={(e) => setReg({ ...reg, about: e.target.value })} />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="reg-style">How should Enzo respond to you?</Label>
+                  <textarea id="reg-style" className={`${inputCls} resize-none`} rows={2}
+                    placeholder="e.g. Be concise, use code examples, skip the fluff."
+                    value={reg.assistantStyle} onChange={(e) => setReg({ ...reg, assistantStyle: e.target.value })} />
+                </div>
+              </div>
+
+              <div className="flex gap-2">
                 {profiles.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMode("picker");
-                      setError(null);
-                    }}
-                    className="rounded-lg border border-border px-4 py-2.5 text-sm text-muted hover:text-fg"
-                  >
+                  <button type="button" onClick={() => { setMode("picker"); setError(null); }}
+                    className="rounded-lg border border-border px-4 py-2.5 text-sm text-muted hover:text-fg">
                     Back
                   </button>
                 )}
-                <button
-                  type="submit"
-                  disabled={busy || !reg.username || !reg.password}
-                  className="flex-1 rounded-lg bg-accent py-2.5 font-semibold text-white hover:bg-accent-2 disabled:opacity-40"
-                >
+                <button type="submit" disabled={busy || !reg.username || !reg.password}
+                  className="flex-1 rounded-lg bg-accent py-2.5 font-semibold text-white hover:bg-accent-2 disabled:opacity-40">
                   {busy ? "Creating…" : "Create account"}
                 </button>
               </div>

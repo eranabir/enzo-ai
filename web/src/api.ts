@@ -50,7 +50,10 @@ export const api = {
   register: (body: {
     username: string;
     password: string;
-    displayName: string;
+    firstName?: string;
+    lastName?: string;
+    nickname?: string;
+    superPowers?: string;
     about?: string;
     assistantStyle?: string;
     pin?: string;
@@ -94,6 +97,58 @@ export const api = {
     fetch("/api/models").then(parse<{ models: ModelInfo[]; default: string }>),
 
   status: () => fetch("/api/models/status").then(parse<{ ollama: boolean }>),
+
+  // ---- memories ----
+  memories: {
+    list: () =>
+      fetch("/api/memories", { headers: headers() }).then(parse<import("./types").Memory[]>),
+    deleteOne: (id: string) =>
+      fetch(`/api/memories/${id}`, { method: "DELETE", headers: headers() }),
+    clearAll: () =>
+      fetch("/api/memories", { method: "DELETE", headers: headers() }),
+  },
+
+  // ---- conversations: toggle memory ----
+  setMemory: (conversationId: string, enabled: boolean) =>
+    fetch(`/api/conversations/${conversationId}`, {
+      method: "PATCH",
+      headers: headers(true),
+      body: JSON.stringify({ memoryEnabled: enabled }),
+    }).then(parse<import("./types").Conversation>),
+
+  // ---- admin ----
+  admin: {
+    listUsers: () =>
+      fetch("/api/admin/users", { headers: headers() }).then(parse<User[]>),
+
+    deleteUser: (id: string) =>
+      fetch(`/api/admin/users/${id}`, { method: "DELETE", headers: headers() }).then(parse<{ ok: boolean }>),
+
+    resetPassword: (id: string, password: string) =>
+      fetch(`/api/admin/users/${id}/password`, {
+        method: "PUT",
+        headers: headers(true),
+        body: JSON.stringify({ password }),
+      }).then(parse<{ ok: boolean }>),
+
+    listModels: () =>
+      fetch("/api/admin/models", { headers: headers() }).then(
+        parse<{ models: ModelInfo[]; ollamaOnline: boolean; defaultModel: string }>
+      ),
+
+    setDefaultModel: (model: string) =>
+      fetch("/api/admin/models/default", {
+        method: "PUT",
+        headers: headers(true),
+        body: JSON.stringify({ model }),
+      }).then(parse<{ defaultModel: string }>),
+
+    deleteModel: (name: string) =>
+      fetch(`/api/admin/models/${encodeURIComponent(name)}`, {
+        method: "DELETE",
+        headers: headers(),
+      }).then(parse<{ ok: boolean }>),
+  },
 };
 
 export interface ChatHandlers {
@@ -101,6 +156,39 @@ export interface ChatHandlers {
   onTitle?: (title: string) => void;
   onError?: (message: string) => void;
   onDone?: () => void;
+}
+
+/** Stream a model pull with progress events (admin only). */
+export async function streamPullModel(
+  model: string,
+  onStatus: (s: string) => void,
+  onDone: () => void,
+  onError: (e: string) => void,
+): Promise<void> {
+  const res = await fetch("/api/admin/models/pull", {
+    method: "POST",
+    headers: headers(true),
+    body: JSON.stringify({ model }),
+  });
+  if (!res.ok || !res.body) { onError(`Pull failed: ${res.status}`); return; }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let sep: number;
+    while ((sep = buf.indexOf("\n\n")) >= 0) {
+      const line = buf.slice(0, sep).split("\n").find((l) => l.startsWith("data:"));
+      buf = buf.slice(sep + 2);
+      if (!line) continue;
+      const p = JSON.parse(line.slice(5).trim());
+      if (p.status) onStatus(p.status);
+      if (p.done) onDone();
+      if (p.error) onError(p.error);
+    }
+  }
 }
 
 /**

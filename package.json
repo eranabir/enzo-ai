@@ -5,17 +5,30 @@
   "description": "Enzo - a self-hosted, local-first AI chat experience",
   "workspaces": [
     "server",
-    "web"
+    "web",
+    "desktop"
   ],
   "packageManager": "yarn@1.22.22",
   "scripts": {
     "dev": "concurrently -n server,web -c blue,magenta \"yarn dev:server\" \"yarn dev:web\"",
     "dev:server": "yarn workspace @enzo/server dev",
     "dev:web": "yarn workspace @enzo/web dev",
-    "build": "yarn workspace @enzo/web build",
-    "start": "yarn dev"
+    "start": "yarn dev",
+
+    "build:server": "yarn workspace @enzo/server build",
+    "build:web": "yarn workspace @enzo/web build",
+    "build:desktop": "yarn workspace @enzo/desktop build",
+    "build": "yarn build:server && yarn build:web",
+
+    "download:ollama": "npx tsx scripts/download-ollama.ts",
+
+    "dist": "yarn build && yarn build:desktop && yarn workspace @enzo/desktop dist",
+    "dist:win": "yarn build && yarn build:desktop && yarn workspace @enzo/desktop dist:win",
+    "dist:mac": "yarn build && yarn build:desktop && yarn workspace @enzo/desktop dist:mac",
+    "dist:linux": "yarn build && yarn build:desktop && yarn workspace @enzo/desktop dist:linux"
   },
   "devDependencies": {
-    "concurrently": "^9.1.0"
+    "concurrently": "^9.1.0",
+    "tsx": "^4.19.2"
   }
 }

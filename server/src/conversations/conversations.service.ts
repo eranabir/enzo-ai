@@ -55,6 +55,12 @@ export class ConversationsService {
       .run(model, now(), id);
   }
 
+  setMemoryEnabled(id: string, enabled: boolean): void {
+    this.db
+      .prepare(`UPDATE conversations SET memory_enabled = ? WHERE id = ?`)
+      .run(enabled ? 1 : 0, id);
+  }
+
   delete(id: string): void {
     // messages are removed via ON DELETE CASCADE (foreign_keys pragma on)
     this.db.prepare(`DELETE FROM messages WHERE conversation_id = ?`).run(id);
