@@ -1,5 +1,5 @@
 /**
- * Generate all Enzo icon assets from code.
+ * Generate all Enzo AI icon assets from code.
  * Run: npx tsx scripts/create-icons.ts
  *
  * Produces in desktop/assets/:

@@ -3,6 +3,10 @@ import type { Role } from "../database/database.types";
 export interface ChatMessage {
   role: Role;
   content: string;
+  /** Base64-encoded image data (without data-URI prefix), if any. */
+  imageData?: string;
+  /** MIME type of the image, e.g. "image/jpeg". */
+  imageMime?: string;
 }
 
 export interface ModelInfo {
@@ -11,6 +15,10 @@ export interface ModelInfo {
   provider: string;
   /** Optional human label / size hint. */
   label?: string;
+  /** Whether the model supports function/tool calling. */
+  supportsTools: boolean;
+  /** Whether the model can understand image inputs. */
+  supportsVision: boolean;
 }
 
 export interface ChatOptions {
@@ -22,7 +30,7 @@ export interface ChatOptions {
 /**
  * The single interface every model backend implements. The UI never knows
  * whether it is talking to a local Ollama model or an external API later —
- * it just asks Enzo to chat. To add OpenAI/Anthropic, create an @Injectable
+ * it just asks Enzo AI to chat. To add OpenAI/Anthropic, create an @Injectable
  * implementing this and register it in LlmService; nothing else changes.
  */
 export interface ChatProvider {

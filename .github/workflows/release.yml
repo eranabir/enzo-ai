@@ -58,6 +58,9 @@ jobs:
       - name: Build web
         run: yarn build:web
 
+      - name: Build CLI bundle
+        run: yarn build:cli
+
       - name: Build desktop
         run: yarn build:desktop
 

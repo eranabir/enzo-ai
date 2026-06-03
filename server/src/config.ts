@@ -1,7 +1,7 @@
 import * as path from "node:path";
 
 /**
- * Central config for the Enzo local engine.
+ * Central config for the Enzo AI local engine.
  * Everything is local-first; values can be overridden by env vars so the
  * same code works in dev and inside a packaged desktop app later.
  */
@@ -19,4 +19,4 @@ export const config = {
   defaultModel: process.env.ENZO_DEFAULT_MODEL ?? "llama3.2:3b",
 } as const;
 
-export const dbPath = path.join(config.dataDir, "enzo.sqlite");
+export const dbPath = path.join(config.dataDir, "enzo-ai.sqlite");

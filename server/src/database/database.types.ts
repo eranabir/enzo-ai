@@ -16,6 +16,7 @@ export interface MessageRow {
   conversation_id: string;
   role: Role;
   content: string;
+  image_mime: string | null;
   created_at: number;
 }
 

@@ -4,7 +4,7 @@ import type { ChatOptions, ChatProvider, ModelInfo } from "./provider.types";
 
 /**
  * Local Ollama provider. Talks to the Ollama daemon over its native HTTP API.
- * Ollama is installed/managed as a dependency of Enzo.
+ * Ollama is installed/managed as a dependency of Enzo AI.
  */
 @Injectable()
 export class OllamaProvider implements ChatProvider {
@@ -28,11 +28,67 @@ export class OllamaProvider implements ChatProvider {
     const data = (await res.json()) as {
       models?: { name: string; size?: number }[];
     };
-    return (data.models ?? []).map((m) => ({
-      id: m.name,
-      provider: this.id,
-      label: m.size ? `${(m.size / 1e9).toFixed(1)} GB` : undefined,
-    }));
+    const models = data.models ?? [];
+
+    // Fetch capabilities for each model in parallel (Ollama v0.3+ returns a
+    // `capabilities` array from /api/show; older versions fall back to a
+    // name-based heuristic).
+    return Promise.all(
+      models.map(async (m) => ({
+        id: m.name,
+        provider: this.id,
+        label: m.size ? `${(m.size / 1e9).toFixed(1)} GB` : undefined,
+        supportsTools: await this.checkToolSupport(m.name),
+        supportsVision: await this.checkVisionSupport(m.name),
+      })),
+    );
+  }
+
+  /** Ask Ollama whether this model supports tool/function calling. */
+  private async checkToolSupport(modelName: string): Promise<boolean> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/show`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: modelName }),
+        signal: AbortSignal.timeout(3000),
+      });
+      if (res.ok) {
+        const info = (await res.json()) as { capabilities?: string[] };
+        if (Array.isArray(info.capabilities)) {
+          return info.capabilities.includes("tools");
+        }
+      }
+    } catch { /* fall through */ }
+    // Older Ollama without capabilities field — use known model families
+    return this.nameBasedToolsGuess(modelName);
+  }
+
+  private nameBasedToolsGuess(name: string): boolean {
+    const lower = name.toLowerCase();
+    return ["llama3.1", "llama3.2", "qwen2", "mistral", "mixtral",
+            "command-r", "firefunction"].some(m => lower.includes(m));
+  }
+
+  private async checkVisionSupport(modelName: string): Promise<boolean> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/show`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: modelName }),
+        signal: AbortSignal.timeout(3000),
+      });
+      if (res.ok) {
+        const info = (await res.json()) as { capabilities?: string[] };
+        if (Array.isArray(info.capabilities)) {
+          return info.capabilities.includes("vision");
+        }
+      }
+    } catch { /* fall through */ }
+    // Name-based fallback for known vision models
+    const lower = modelName.toLowerCase();
+    return ["llava", "llava-llama", "bakllava", "moondream", "minicpm-v",
+            "llama3.2-vision", "qwen2-vl", "gemma3"].some(m => lower.includes(m));
   }
 
   /** Pull a model, yielding human-readable progress lines (NDJSON stream). */
@@ -51,14 +107,17 @@ export class OllamaProvider implements ChatProvider {
   }
 
   async *streamChat(opts: ChatOptions): AsyncIterable<string> {
+    // Ollama expects images as a plain base64 string array alongside the message
+    const messages = opts.messages.map((m) => {
+      const msg: Record<string, unknown> = { role: m.role, content: m.content };
+      if (m.imageData) msg.images = [m.imageData];
+      return msg;
+    });
+
     const res = await fetch(`${this.baseUrl}/api/chat`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        model: opts.model,
-        messages: opts.messages,
-        stream: true,
-      }),
+      body: JSON.stringify({ model: opts.model, messages, stream: true }),
       signal: opts.signal,
     });
 

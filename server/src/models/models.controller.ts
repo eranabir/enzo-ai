@@ -4,8 +4,11 @@ import {
   Get,
   Post,
   Res,
+  UseGuards,
 } from "@nestjs/common";
 import type { Response } from "express";
+import { AuthGuard } from "../auth/auth.guard";
+import { UserId } from "../auth/current-user.decorator";
 import { config } from "../config";
 import { LlmService } from "../llm/llm.service";
 
@@ -13,10 +16,11 @@ import { LlmService } from "../llm/llm.service";
 export class ModelsController {
   constructor(private readonly llm: LlmService) {}
 
-  /** List every model available across providers, plus the default. */
+  /** List models for the authenticated user (local + their configured external providers). */
   @Get()
-  async list() {
-    return { models: await this.llm.listAllModels(), default: config.defaultModel };
+  @UseGuards(AuthGuard)
+  async list(@UserId() userId: string) {
+    return { models: await this.llm.listAllModels(userId), default: config.defaultModel };
   }
 
   /** Is the local engine (Ollama) reachable? Drives the UI status indicator. */
@@ -27,7 +31,7 @@ export class ModelsController {
 
   /**
    * Pull a model, streaming progress to the UI via SSE. Lets a user download
-   * a new local model without leaving Enzo.
+   * a new local model without leaving Enzo AI.
    */
   @Post("pull")
   async pull(@Body() body: { model?: string }, @Res() res: Response) {

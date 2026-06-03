@@ -10,7 +10,7 @@ import type {
 
 const now = () => Date.now();
 
-/** Reads/writes conversations + messages — Enzo's local memory. */
+/** Reads/writes conversations + messages — Enzo's AI local memory. */
 @Injectable()
 export class ConversationsService {
   constructor(@Inject(DATABASE) private readonly db: DatabaseConnection) {}
@@ -31,15 +31,15 @@ export class ConversationsService {
       .get(id, userId) as ConversationRow | undefined;
   }
 
-  create(userId: string, model?: string): ConversationRow {
+  create(userId: string, model?: string, agentId?: string): ConversationRow {
     const id = randomUUID();
     const t = now();
     this.db
       .prepare(
-        `INSERT INTO conversations (id, user_id, title, model, created_at, updated_at)
-         VALUES (?, ?, 'New chat', ?, ?, ?)`,
+        `INSERT INTO conversations (id, user_id, title, model, agent_id, created_at, updated_at)
+         VALUES (?, ?, 'New chat', ?, ?, ?, ?)`,
       )
-      .run(id, userId, model ?? null, t, t);
+      .run(id, userId, model ?? null, agentId ?? null, t, t);
     return this.get(id, userId)!;
   }
 
@@ -75,18 +75,25 @@ export class ConversationsService {
       .all(conversationId) as MessageRow[];
   }
 
-  addMessage(conversationId: string, role: Role, content: string): MessageRow {
+  addMessage(conversationId: string, role: Role, content: string, imageMime?: string): MessageRow {
     const id = randomUUID();
     const t = now();
     this.db
       .prepare(
-        `INSERT INTO messages (id, conversation_id, role, content, created_at)
-         VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO messages (id, conversation_id, role, content, image_mime, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
       )
-      .run(id, conversationId, role, content, t);
+      .run(id, conversationId, role, content, imageMime ?? null, t);
     this.db
       .prepare(`UPDATE conversations SET updated_at = ? WHERE id = ?`)
       .run(t, conversationId);
-    return { id, conversation_id: conversationId, role, content, created_at: t };
+    return { id, conversation_id: conversationId, role, content, image_mime: imageMime ?? null, created_at: t } as MessageRow;
+  }
+
+  /** Look up which conversation a message belongs to (for auth checks). */
+  getMessageConversation(messageId: string): { conversation_id: string } | undefined {
+    return this.db
+      .prepare(`SELECT conversation_id FROM messages WHERE id = ?`)
+      .get(messageId) as { conversation_id: string } | undefined;
   }
 }

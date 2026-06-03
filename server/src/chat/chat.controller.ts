@@ -2,7 +2,9 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Get,
   NotFoundException,
+  Param,
   Post,
   Res,
   UseGuards,
@@ -28,7 +30,13 @@ export class ChatController {
   @Post()
   async send(
     @UserId() userId: string,
-    @Body() body: { conversationId?: string; content?: string; model?: string },
+    @Body() body: {
+      conversationId?: string;
+      content?: string;
+      model?: string;
+      imageBase64?: string;
+      imageMime?: string;
+    },
     @Res() res: Response,
   ) {
     const convo = this.convos.get(String(body?.conversationId ?? ""), userId);
@@ -41,7 +49,6 @@ export class ChatController {
     res.setHeader("Connection", "keep-alive");
     res.flushHeaders?.();
 
-    // Abort the upstream model call only if the client disconnects mid-stream.
     const controller = new AbortController();
     res.on("close", () => {
       if (!res.writableFinished) controller.abort();
@@ -53,9 +60,37 @@ export class ChatController {
       content,
       body?.model,
       controller.signal,
+      body?.imageBase64,
+      body?.imageMime,
     )) {
       res.write(`data: ${JSON.stringify(event)}\n\n`);
     }
     res.end();
+  }
+
+  /** Serve a message's attached image (auth-gated via conversation ownership). */
+  @Get("image/:messageId")
+  async getImage(
+    @UserId() userId: string,
+    @Param("messageId") messageId: string,
+    @Res() res: Response,
+  ) {
+    // Verify message belongs to a conversation owned by this user
+    const ref = this.convos.getMessageConversation(messageId);
+    if (!ref) throw new NotFoundException("Message not found");
+    const convo = this.convos.get(ref.conversation_id, userId);
+    if (!convo) throw new NotFoundException("Not authorized");
+
+    // Get the mime from the messages table
+    const msgRow = this.convos.listMessages(ref.conversation_id)
+      .find((m) => m.id === messageId);
+    if (!msgRow?.image_mime) throw new NotFoundException("No image on this message");
+
+    const buffer = await this.chat.getImageBuffer(messageId, msgRow.image_mime);
+    if (!buffer) throw new NotFoundException("Image file not found");
+
+    res.setHeader("Content-Type", msgRow.image_mime);
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    res.send(buffer);
   }
 }

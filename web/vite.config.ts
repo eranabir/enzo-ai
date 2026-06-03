@@ -2,7 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
-// The UI calls the local Enzo engine via relative /api paths. In dev, Vite
+// The UI calls the local Enzo AI engine via relative /api paths. In dev, Vite
 // proxies those to the backend so there are no CORS quirks and the same paths
 // keep working when the app is packaged later.
 export default defineConfig({

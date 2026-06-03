@@ -8,7 +8,13 @@ import type {
 
 const TOKEN_KEY = "enzo_token";
 
-let token: string | null = localStorage.getItem(TOKEN_KEY);
+// Guard against environments where localStorage may throw
+// (strict browser privacy settings, sandboxed iframes, etc.)
+function safeStorage() {
+  try { return localStorage; } catch { return null; }
+}
+
+let token: string | null = safeStorage()?.getItem(TOKEN_KEY) ?? null;
 
 export function getToken() {
   return token;
@@ -16,15 +22,17 @@ export function getToken() {
 
 export function setToken(value: string | null) {
   token = value;
-  if (value) localStorage.setItem(TOKEN_KEY, value);
-  else localStorage.removeItem(TOKEN_KEY);
+  try {
+    const s = safeStorage();
+    if (s) value ? s.setItem(TOKEN_KEY, value) : s.removeItem(TOKEN_KEY);
+  } catch { /* ignore */ }
 }
 
 /** Build headers, including the session token when signed in. */
 function headers(json = false): Record<string, string> {
   const h: Record<string, string> = {};
   if (json) h["content-type"] = "application/json";
-  if (token) h["x-enzo-token"] = token;
+  if (token) h["x-enzo-ai-token"] = token;
   return h;
 }
 
@@ -79,10 +87,12 @@ export const api = {
   listConversations: () =>
     fetch("/api/conversations", { headers: headers() }).then(parse<Conversation[]>),
 
-  createConversation: () =>
-    fetch("/api/conversations", { method: "POST", headers: headers() }).then(
-      parse<Conversation>,
-    ),
+  createConversation: (agentId?: string) =>
+    fetch("/api/conversations", {
+      method: "POST",
+      headers: headers(true),
+      body: JSON.stringify(agentId ? { agentId } : {}),
+    }).then(parse<Conversation>),
 
   getConversation: (id: string) =>
     fetch(`/api/conversations/${id}`, { headers: headers() }).then(
@@ -92,11 +102,37 @@ export const api = {
   deleteConversation: (id: string) =>
     fetch(`/api/conversations/${id}`, { method: "DELETE", headers: headers() }),
 
-  // ---- models (public) ----
+  // ---- models (auth required — returns local + user's external providers) ----
   models: () =>
-    fetch("/api/models").then(parse<{ models: ModelInfo[]; default: string }>),
+    fetch("/api/models", { headers: headers() }).then(parse<{ models: ModelInfo[]; default: string }>),
 
   status: () => fetch("/api/models/status").then(parse<{ ollama: boolean }>),
+
+  // ---- agents ----
+  agents: {
+    list: () => fetch("/api/agents", { headers: headers() }).then(parse<import("./types").Agent[]>),
+    get: (id: string) => fetch(`/api/agents/${id}`, { headers: headers() }).then(parse<import("./types").Agent>),
+    create: (body: Partial<import("./types").Agent> & { name: string; instructions: string }) =>
+      fetch("/api/agents", { method: "POST", headers: headers(true), body: JSON.stringify(body) }).then(parse<import("./types").Agent>),
+    update: (id: string, body: Partial<import("./types").Agent>) =>
+      fetch(`/api/agents/${id}`, { method: "PATCH", headers: headers(true), body: JSON.stringify(body) }).then(parse<import("./types").Agent>),
+    delete: (id: string) => fetch(`/api/agents/${id}`, { method: "DELETE", headers: headers() }),
+    tools: () => fetch("/api/agents/tools", { headers: headers() }).then(parse<import("./types").ToolDefinition[]>),
+  },
+
+  // ---- api keys ----
+  keys: {
+    list: () =>
+      fetch("/api/keys", { headers: headers() }).then(parse<{ configured: string[] }>),
+    save: (provider: string, key: string) =>
+      fetch(`/api/keys/${provider}`, {
+        method: "PUT",
+        headers: headers(true),
+        body: JSON.stringify({ key }),
+      }).then(parse<{ ok: boolean }>),
+    remove: (provider: string) =>
+      fetch(`/api/keys/${provider}`, { method: "DELETE", headers: headers() }),
+  },
 
   // ---- memories ----
   memories: {
@@ -148,6 +184,17 @@ export const api = {
         method: "DELETE",
         headers: headers(),
       }).then(parse<{ ok: boolean }>),
+
+    listTools: () =>
+      fetch("/api/admin/tools", { headers: headers() })
+        .then(parse<import("./types").ToolDefinition[]>),
+
+    setToolEnabled: (name: string, enabled: boolean) =>
+      fetch(`/api/admin/tools/${name}`, {
+        method: "PATCH",
+        headers: headers(true),
+        body: JSON.stringify({ enabled }),
+      }).then(parse<import("./types").ToolDefinition[]>),
   },
 };
 
@@ -196,7 +243,7 @@ export async function streamPullModel(
  * Uses fetch (not EventSource) so we can POST the body + auth header.
  */
 export async function streamChat(
-  body: { conversationId: string; content: string; model?: string },
+  body: { conversationId: string; content: string; model?: string; imageBase64?: string; imageMime?: string },
   handlers: ChatHandlers,
   signal?: AbortSignal,
 ): Promise<void> {

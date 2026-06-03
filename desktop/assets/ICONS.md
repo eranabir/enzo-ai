@@ -27,4 +27,4 @@ convert -size 22x22 xc:none -fill "#6d5efc" -draw "polygon 11,1 19,6 19,16 11,21
 convert -size 512x512 xc:none -fill "#6d5efc" -draw "polygon 256,10 450,128 450,384 256,502 62,384 62,128" icon.png
 ```
 
-Or use any design tool — the hexagon (⬡) is the enzo brand mark.
+Or use any design tool — the hexagon (⬡) is the enzo-ai brand mark.

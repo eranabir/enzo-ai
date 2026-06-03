@@ -84,7 +84,7 @@ export class MemoryExtractionService {
     // Format messages for the prompts (exclude system messages)
     const formatted = messages
       .filter((m) => m.role !== "system")
-      .map((m) => `${m.role === "user" ? "User" : "Enzo"}: ${m.content}`)
+      .map((m) => `${m.role === "user" ? "User" : "Enzo AI"}: ${m.content}`)
       .join("\n");
 
     // 1. Generate summary

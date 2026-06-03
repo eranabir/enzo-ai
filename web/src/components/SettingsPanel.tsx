@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { User, Settings, Zap, MessageSquare, Brain, Trash2, RotateCcw } from "lucide-react";
+import { Settings, Zap, MessageSquare, Brain, Trash2, RotateCcw, User } from "lucide-react";
 import { api, getToken } from "../api";
 import type { Memory, User as UserType } from "../types";
 import {
@@ -26,8 +26,6 @@ function toForm(u: UserType) {
   return {
     firstName: u.firstName ?? "",
     lastName: u.lastName ?? "",
-    // Nickname falls back to displayName so the user always sees their name
-    nickname: u.nickname ?? u.displayName ?? "",
     superPowers: u.superPowers ?? "",
     about: u.about ?? "",
     assistantStyle: u.assistantStyle ?? "",
@@ -86,11 +84,10 @@ export function SettingsPanel({ open, user, onClose, onUpdated }: Props) {
         method: "PATCH",
         headers: {
           "content-type": "application/json",
-          "x-enzo-token": getToken() ?? "",
+          "x-enzo-ai-token": getToken() ?? "",
         },
         body: JSON.stringify({
           displayName:
-            form.nickname.trim() ||
             [form.firstName, form.lastName].filter(Boolean).join(" ") ||
             user.username,
           ...form,
@@ -118,7 +115,7 @@ export function SettingsPanel({ open, user, onClose, onUpdated }: Props) {
             <DialogTitle>Settings</DialogTitle>
           </div>
           <DialogDescription>
-            Manage your profile and Enzo's memory.
+            Manage your profile and Enzo AI's memory.
           </DialogDescription>
         </DialogHeader>
 
@@ -199,11 +196,10 @@ export function SettingsPanel({ open, user, onClose, onUpdated }: Props) {
           )}
 
           {/* ── Identity ── */}
-          <fieldset className="flex flex-col gap-4">
-            <legend className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted">
               <User className="h-3.5 w-3.5" /> Identity
-            </legend>
-
+            </div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-4">
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="s-first">First name</Label>
@@ -215,16 +211,8 @@ export function SettingsPanel({ open, user, onClose, onUpdated }: Props) {
                 <input id="s-last" className={inputCls} placeholder="Smith"
                   value={form.lastName} onChange={(e) => set("lastName", e.target.value)} />
               </div>
-              <div className="col-span-2 flex flex-col gap-1.5">
-                <Label htmlFor="s-nick">
-                  Nickname
-                  <span className="ml-1.5 font-normal text-muted/60">— how Enzo calls you</span>
-                </Label>
-                <input id="s-nick" className={inputCls} placeholder="How you like to be called"
-                  value={form.nickname} onChange={(e) => set("nickname", e.target.value)} />
-              </div>
             </div>
-          </fieldset>
+          </div>
 
           {/* ── AI context ── */}
           <div className="flex flex-col gap-3 border-t border-border pt-4">
@@ -243,14 +231,14 @@ export function SettingsPanel({ open, user, onClose, onUpdated }: Props) {
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="s-about">About you</Label>
               <textarea id="s-about" className={`${inputCls} resize-none`} rows={2}
-                placeholder="Background, interests, context for Enzo…"
+                placeholder="Background, interests, context for Enzo AI…"
                 value={form.about} onChange={(e) => set("about", e.target.value)} />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="s-style">
                 <span className="flex items-center gap-1.5">
                   <MessageSquare className="h-3 w-3" />
-                  How should Enzo respond to you?
+                  How should Enzo AI respond to you?
                 </span>
               </Label>
               <textarea id="s-style" className={`${inputCls} resize-none`} rows={2}

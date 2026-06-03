@@ -1,9 +1,10 @@
 import { Module } from "@nestjs/common";
+import { ApiKeysModule } from "../api-keys/api-keys.module";
 import { OllamaProvider } from "./ollama.provider";
 import { LlmService } from "./llm.service";
 
-/** Bundles model providers and the registry; exported for chat + models. */
 @Module({
+  imports: [ApiKeysModule],
   providers: [OllamaProvider, LlmService],
   exports: [LlmService, OllamaProvider],
 })

@@ -2,7 +2,7 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "enzo",
+      "name": "enzo-ai",
       "runtimeExecutable": "yarn",
       "runtimeArgs": ["dev"],
       "port": 5310

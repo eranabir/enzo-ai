@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Enzo design tokens. Defining colors here generates utilities like
+/* Enzo AI design tokens. Defining colors here generates utilities like
    bg-bg, text-fg, border-border, bg-accent, etc. */
 @theme {
   --color-bg: #0e0f13;

@@ -7,14 +7,14 @@ import {
 import type { Request } from "express";
 import { AuthService } from "./auth.service";
 
-/** Reads the x-enzo-token header, resolves the session, attaches req.userId. */
+/** Reads the x-enzo-ai-token header, resolves the session, attaches req.userId. */
 @Injectable()
 export class AuthGuard implements CanActivate {
   constructor(private readonly auth: AuthService) {}
 
   canActivate(ctx: ExecutionContext): boolean {
     const req = ctx.switchToHttp().getRequest<Request & { userId?: string }>();
-    const header = req.headers["x-enzo-token"];
+    const header = req.headers["x-enzo-ai-token"];
     const token = Array.isArray(header) ? header[0] : header;
     const userId = this.auth.resolveUserId(token);
     if (!userId) throw new UnauthorizedException("Not signed in");

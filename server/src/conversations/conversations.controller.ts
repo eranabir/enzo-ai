@@ -25,8 +25,8 @@ export class ConversationsController {
   }
 
   @Post()
-  create(@UserId() userId: string, @Body() body: { model?: string }) {
-    return this.convos.create(userId, body?.model);
+  create(@UserId() userId: string, @Body() body: { model?: string; agentId?: string }) {
+    return this.convos.create(userId, body?.model, body?.agentId);
   }
 
   @Get(":id")

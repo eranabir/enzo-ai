@@ -28,6 +28,20 @@ export class SettingsService {
     this.set("default_model", model);
   }
 
+  getDisabledTools(): string[] {
+    const raw = this.get("disabled_tools");
+    if (!raw) return [];
+    try { return JSON.parse(raw) as string[]; } catch { return []; }
+  }
+
+  setDisabledTools(tools: string[]): void {
+    this.set("disabled_tools", JSON.stringify(tools));
+  }
+
+  isToolEnabled(name: string): boolean {
+    return !this.getDisabledTools().includes(name);
+  }
+
   all(): Record<string, string> {
     const rows = this.db.prepare(`SELECT key, value FROM settings`).all() as { key: string; value: string }[];
     return Object.fromEntries(rows.map((r) => [r.key, r.value]));

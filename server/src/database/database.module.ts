@@ -50,6 +50,15 @@ export type DatabaseConnection = Database.Database;
             created_at  INTEGER NOT NULL
           );
 
+          CREATE TABLE IF NOT EXISTS api_keys (
+            id           TEXT PRIMARY KEY,
+            user_id      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            provider     TEXT NOT NULL CHECK (provider IN ('openai','anthropic','google')),
+            key_enc      TEXT NOT NULL,
+            created_at   INTEGER NOT NULL,
+            UNIQUE(user_id, provider)
+          );
+
           CREATE TABLE IF NOT EXISTS conversations (
             id          TEXT PRIMARY KEY,
             user_id     TEXT REFERENCES users(id) ON DELETE CASCADE,
@@ -82,8 +91,27 @@ export type DatabaseConnection = Database.Database;
             created_at       INTEGER NOT NULL
           );
 
+          CREATE TABLE IF NOT EXISTS agents (
+            id               TEXT PRIMARY KEY,
+            user_id          TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            name             TEXT NOT NULL,
+            emoji            TEXT NOT NULL DEFAULT '🤖',
+            description      TEXT,
+            instructions     TEXT NOT NULL,
+            model            TEXT,
+            tools            TEXT NOT NULL DEFAULT '[]',
+            schedule         TEXT,
+            schedule_prompt  TEXT,
+            schedule_enabled INTEGER NOT NULL DEFAULT 0,
+            last_run_at      INTEGER,
+            created_at       INTEGER NOT NULL,
+            updated_at       INTEGER NOT NULL
+          );
+
           CREATE INDEX IF NOT EXISTS idx_messages_conversation
             ON messages(conversation_id, created_at);
+          CREATE INDEX IF NOT EXISTS idx_agents_user
+            ON agents(user_id, created_at);
           CREATE INDEX IF NOT EXISTS idx_memories_user
             ON memories(user_id, created_at);
         `);
@@ -95,6 +123,15 @@ export type DatabaseConnection = Database.Database;
         }
         if (!convCols.some((c) => c.name === "memory_enabled")) {
           db.exec(`ALTER TABLE conversations ADD COLUMN memory_enabled INTEGER NOT NULL DEFAULT 1`);
+        }
+        if (!convCols.some((c) => c.name === "agent_id")) {
+          db.exec(`ALTER TABLE conversations ADD COLUMN agent_id TEXT`);
+        }
+
+        // Add image_mime to messages for vision / image-upload support
+        const msgCols = db.prepare(`PRAGMA table_info(messages)`).all() as { name: string }[];
+        if (!msgCols.some((c) => c.name === "image_mime")) {
+          db.exec(`ALTER TABLE messages ADD COLUMN image_mime TEXT`);
         }
 
         const userCols = db.prepare(`PRAGMA table_info(users)`).all() as { name: string }[];

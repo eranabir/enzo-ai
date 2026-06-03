@@ -4,7 +4,11 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  Inject,
+  NotFoundException,
   Param,
+  Patch,
   Post,
   Put,
   Res,
@@ -12,9 +16,14 @@ import {
 } from "@nestjs/common";
 import type { Response } from "express";
 import { AdminGuard } from "../auth/admin.guard";
+import { UserId } from "../auth/current-user.decorator";
+import { DATABASE } from "../database/database.module";
+import type { DatabaseConnection } from "../database/database.module";
+import { ApiKeysService } from "../api-keys/api-keys.service";
 import { UsersService } from "../users/users.service";
 import { SettingsService } from "../settings/settings.service";
 import { LlmService } from "../llm/llm.service";
+import { ToolsService } from "../agents/tools.service";
 
 @Controller("admin")
 @UseGuards(AdminGuard)
@@ -23,6 +32,9 @@ export class AdminController {
     private readonly users: UsersService,
     private readonly settings: SettingsService,
     private readonly llm: LlmService,
+    private readonly apiKeys: ApiKeysService,
+    private readonly toolsSvc: ToolsService,
+    @Inject(DATABASE) private readonly db: DatabaseConnection,
   ) {}
 
   // ---- User management ----
@@ -52,15 +64,17 @@ export class AdminController {
   // ---- Model management ----
 
   @Get("models")
-  async listModels() {
-    const [models, status] = await Promise.all([
-      this.llm.listAllModels(),
+  async listModels(@UserId() userId: string) {
+    const [models, status, configuredProviders] = await Promise.all([
+      this.llm.listAllModels(userId),
       this.llm.ollama.isAvailable(),
+      Promise.resolve(this.apiKeys.listProviders(userId)),
     ]);
     return {
       models,
       ollamaOnline: status,
       defaultModel: this.settings.getDefaultModel(),
+      configuredProviders,
     };
   }
 
@@ -115,5 +129,50 @@ export class AdminController {
   @Get("settings")
   getSettings() {
     return { defaultModel: this.settings.getDefaultModel() };
+  }
+
+  // ---- Tool management ----
+
+  @Get("tools")
+  listTools() {
+    return this.toolsSvc.getAllWithStatus();
+  }
+
+  @Patch("tools/:name")
+  toggleTool(@Param("name") name: string, @Body() body: { enabled: boolean }) {
+    const all = this.toolsSvc.getAllWithStatus();
+    if (!all.find((t) => t.name === name)) throw new NotFoundException(`Tool "${name}" not found`);
+    const disabled = this.settings.getDisabledTools();
+    if (body.enabled) {
+      this.settings.setDisabledTools(disabled.filter((t) => t !== name));
+    } else {
+      if (!disabled.includes(name)) this.settings.setDisabledTools([...disabled, name]);
+    }
+    return this.toolsSvc.getAllWithStatus();
+  }
+
+  // ── Danger zone ───────────────────────────────────────────────────────────
+
+  /**
+   * Wipe ALL user data and return to a clean slate.
+   * Schema is preserved — the app recreates tables on next boot.
+   * Requires the admin to confirm with the word "reset".
+   */
+  @Delete("reset")
+  @HttpCode(200)
+  resetAll(@Body() body: { confirm?: string }) {
+    if (body?.confirm !== "reset") {
+      throw new BadRequestException('Send { "confirm": "reset" } to confirm');
+    }
+    // Delete in dependency order (foreign keys are ON)
+    this.db.pragma("foreign_keys = OFF");
+    for (const table of [
+      "memories", "conversation_summaries", "messages",
+      "conversations", "api_keys", "sessions", "settings", "users",
+    ]) {
+      this.db.prepare(`DELETE FROM ${table}`).run();
+    }
+    this.db.pragma("foreign_keys = ON");
+    return { ok: true, message: "All data wiped. The app is ready for a fresh start." };
   }
 }

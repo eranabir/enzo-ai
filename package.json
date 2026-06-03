@@ -6,7 +6,8 @@
   "workspaces": [
     "server",
     "web",
-    "desktop"
+    "desktop",
+    "cli"
   ],
   "packageManager": "yarn@1.22.22",
   "scripts": {
@@ -17,13 +18,17 @@
     "build:server": "yarn workspace @enzo-ai/server build",
     "build:web": "yarn workspace @enzo-ai/web build",
     "build:desktop": "yarn workspace @enzo-ai/desktop build",
-    "build": "yarn build:server && yarn build:web",
+    "cli": "node cli/dist/index.js",
+    "build:cli": "yarn workspace @enzo-ai/cli build && ncc build cli/dist/index.js -o cli/dist/bundle -q",
+    "build": "yarn build:server && yarn build:web && yarn build:cli",
     "create:icons": "npx tsx scripts/create-icons.ts",
     "download:ollama": "npx tsx scripts/download-ollama.ts",
-    "dist": "yarn build && yarn build:desktop && yarn workspace @enzo-ai/desktop dist",
-    "dist:win": "yarn build && yarn build:desktop && yarn workspace @enzo-ai/desktop dist:win",
-    "dist:mac": "yarn build && yarn build:desktop && yarn workspace @enzo-ai/desktop dist:mac",
-    "dist:linux": "yarn build && yarn build:desktop && yarn workspace @enzo-ai/desktop dist:linux"
+    "fix:sqlite": "node -e \"process.chdir('node_modules/better-sqlite3'); require('child_process').execSync('node ../../prebuild-install/bin.js', {stdio:'inherit'})\"",
+    "dist": "yarn build && yarn build:desktop && yarn workspace @enzo-ai/desktop dist && yarn fix:sqlite",
+    "dist:win": "yarn build && yarn build:desktop && yarn workspace @enzo-ai/desktop dist:win && yarn fix:sqlite",
+    "dist:mac": "yarn build && yarn build:desktop && yarn workspace @enzo-ai/desktop dist:mac && yarn fix:sqlite",
+    "dist:linux": "yarn build && yarn build:desktop && yarn workspace @enzo-ai/desktop dist:linux && yarn fix:sqlite"
+
   },
   "devDependencies": {
     "@vercel/ncc": "^0.38.4",

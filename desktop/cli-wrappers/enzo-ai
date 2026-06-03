@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Enzo AI CLI wrapper — macOS / Linux
+# Uses the bundled Electron binary with ELECTRON_RUN_AS_NODE=1 to run the CLI.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+if [[ "$(uname)" == "Darwin" ]]; then
+  # macOS: binary is inside the .app bundle
+  APP_DIR="$(dirname "$SCRIPT_DIR")"
+  ELECTRON="$APP_DIR/MacOS/Enzo AI"
+  CLI_BUNDLE="$APP_DIR/Resources/cli/bundle/index.js"
+else
+  # Linux: binary is in the same dir as this script
+  ELECTRON="$SCRIPT_DIR/enzo-ai"
+  CLI_BUNDLE="$SCRIPT_DIR/resources/cli/bundle/index.js"
+fi
+
+ELECTRON_RUN_AS_NODE=1 "$ELECTRON" "$CLI_BUNDLE" "$@"

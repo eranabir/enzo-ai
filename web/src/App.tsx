@@ -3,10 +3,11 @@ import { api, getToken, setToken, streamChat } from "./api";
 import type { Conversation, Message, ModelInfo, User } from "./types";
 import { Sidebar } from "./components/Sidebar";
 import { ChatView } from "./components/ChatView";
-import { Composer } from "./components/Composer";
+import { Composer, type AttachedImage } from "./components/Composer";
 import { Header } from "./components/Header";
 import { AuthScreen } from "./components/AuthScreen";
 import { AdminPanel } from "./components/AdminPanel";
+import { AgentsPanel } from "./components/AgentsPanel";
 
 export function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -19,6 +20,7 @@ export function App() {
   const [online, setOnline] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
+  const [agentsOpen, setAgentsOpen] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
   // Restore an existing session on load, if any.
@@ -45,9 +47,8 @@ export function App() {
 
   // Load this user's conversations + the model list once signed in and the
   // engine is reachable (handles the UI opening before Ollama has started).
-  useEffect(() => {
+  const refreshModels = useCallback(() => {
     if (!online || !user) return;
-    api.listConversations().then(setConversations).catch(() => {});
     api
       .models()
       .then(({ models, default: def }) => {
@@ -56,6 +57,19 @@ export function App() {
       })
       .catch(() => {});
   }, [online, user]);
+
+  useEffect(() => {
+    if (!online || !user) return;
+    api.listConversations().then(setConversations).catch(() => {});
+    refreshModels();
+  }, [online, user]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Re-fetch models when the tab regains focus (picks up server changes, new pulled models, etc.)
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === "visible") refreshModels(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [refreshModels]);
 
   const logout = useCallback(async () => {
     await api.logout().catch(() => {});
@@ -92,8 +106,29 @@ export function App() {
     [activeId],
   );
 
+  const renameConversation = useCallback(async (id: string, title: string) => {
+    // Optimistic update first so the UI feels instant
+    setConversations((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, title } : c)),
+    );
+    // Persist to the server
+    await fetch(`/api/conversations/${id}`, {
+      method: "PATCH",
+      headers: {
+        "content-type": "application/json",
+        "x-enzo-ai-token": getToken() ?? "",
+      },
+      body: JSON.stringify({ title }),
+    }).catch(() => {
+      // Revert on failure
+      setConversations((prev) =>
+        prev.map((c) => (c.id === id && c.title === title ? { ...c, title: c.title } : c)),
+      );
+    });
+  }, []);
+
   const send = useCallback(
-    async (content: string) => {
+    async (content: string, image?: AttachedImage) => {
       if (busy) return;
       let convoId = activeId;
 
@@ -110,6 +145,7 @@ export function App() {
         conversation_id: convoId,
         role: "user",
         content,
+        image_mime: image?.mime ?? null,
         created_at: Date.now(),
       };
       const assistantMsg: Message = {
@@ -126,7 +162,7 @@ export function App() {
       abortRef.current = controller;
 
       await streamChat(
-        { conversationId: convoId, content, model },
+        { conversationId: convoId, content, model, imageBase64: image?.base64, imageMime: image?.mime },
         {
           onToken: (token) =>
             setMessages((prev) =>
@@ -181,8 +217,29 @@ export function App() {
 
   return (
     <div className="grid grid-cols-[264px_1fr] h-screen">
+      {agentsOpen && (
+        <AgentsPanel
+          onStartChat={async (agentId) => {
+            const c = await api.createConversation(agentId);
+            setConversations(prev => [c, ...prev]);
+            setActiveId(c.id);
+            setMessages([]);
+          }}
+          onClose={() => setAgentsOpen(false)}
+        />
+      )}
       {adminOpen && user.isAdmin && (
-        <AdminPanel currentUser={user} onClose={() => setAdminOpen(false)} />
+        <AdminPanel
+          currentUser={user}
+          onClose={() => {
+            setAdminOpen(false);
+            // Refresh models in case something was pulled or the default changed
+            api.models().then(({ models: m, default: def }) => {
+              setModels(m);
+              setModel((cur) => m.find(x => x.id === cur) ? cur : m[0]?.id || def);
+            }).catch(() => {});
+          }}
+        />
       )}
       <Sidebar
         conversations={conversations}
@@ -192,8 +249,10 @@ export function App() {
         onNew={newConversation}
         onSelect={openConversation}
         onDelete={deleteConversation}
+        onRename={renameConversation}
         onLogout={logout}
         onAdminOpen={() => setAdminOpen(true)}
+        onAgentsOpen={() => setAgentsOpen(true)}
         onUserUpdated={setUser}
       />
       <main className="flex flex-col min-w-0">
@@ -205,8 +264,20 @@ export function App() {
           onModelChange={setModel}
           onToggleMemory={toggleMemory}
         />
-        <ChatView messages={messages} busy={busy} online={online} />
-        <Composer busy={busy} disabled={online === false} onSend={send} onStop={stop} />
+        <ChatView
+          messages={messages}
+          busy={busy}
+          online={online}
+          hasActiveConversation={activeId !== null}
+          onNewChat={newConversation}
+        />
+        <Composer
+          busy={busy}
+          disabled={online === false}
+          canAttachImage={models.find(m => m.id === model)?.supportsVision ?? false}
+          onSend={send}
+          onStop={stop}
+        />
       </main>
     </div>
   );

@@ -57,12 +57,12 @@ const SelectContent = React.forwardRef<
         "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
         "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
         "data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2",
-        position === "popper" && "w-[var(--radix-select-trigger-width)]",
+        position === "popper" && "min-w-[var(--radix-select-trigger-width)]",
         className,
       )}
       {...props}
     >
-      <RadixSelect.Viewport className="p-1">{children}</RadixSelect.Viewport>
+      <RadixSelect.Viewport className="p-1 max-h-60 overflow-y-auto">{children}</RadixSelect.Viewport>
     </RadixSelect.Content>
   </RadixSelect.Portal>
 ));
@@ -86,12 +86,16 @@ SelectLabel.displayName = "SelectLabel";
 
 const SelectItem = React.forwardRef<
   React.ElementRef<typeof RadixSelect.Item>,
-  React.ComponentPropsWithoutRef<typeof RadixSelect.Item>
->(({ className, children, ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof RadixSelect.Item> & {
+    /** Text shown in the trigger when this item is selected.
+     *  When omitted, `children` is used for both trigger and dropdown. */
+    label?: React.ReactNode;
+  }
+>(({ className, children, label, ...props }, ref) => (
   <RadixSelect.Item
     ref={ref}
     className={cn(
-      "relative flex w-full cursor-pointer select-none items-center rounded-lg py-2 pl-8 pr-3 text-sm text-fg outline-none",
+      "relative flex w-full cursor-pointer select-none items-center rounded-lg py-2 pl-8 pr-3 text-sm text-fg outline-none whitespace-nowrap",
       "focus:bg-surface-2 focus:text-fg",
       "data-[state=checked]:text-accent-2",
       "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
@@ -105,7 +109,14 @@ const SelectItem = React.forwardRef<
         <Check className="h-3.5 w-3.5 text-accent-2" />
       </RadixSelect.ItemIndicator>
     </span>
-    <RadixSelect.ItemText>{children}</RadixSelect.ItemText>
+    {/* ItemText is copied into the trigger — when label is given, only label shows there */}
+    <RadixSelect.ItemText>
+      <span className="flex-1">{label ?? children}</span>
+    </RadixSelect.ItemText>
+    {/* Badge / size suffix — only in dropdown, pushed to the right */}
+    {label && children && (
+      <span className="ml-auto flex flex-shrink-0 items-center gap-1.5 pl-4">{children}</span>
+    )}
   </RadixSelect.Item>
 ));
 SelectItem.displayName = "SelectItem";

@@ -112,7 +112,7 @@ export class AuthController {
   @Post("logout")
   @HttpCode(204)
   @UseGuards(AuthGuard)
-  logout(@Headers("x-enzo-token") token: string) {
+  logout(@Headers("x-enzo-ai-token") token: string) {
     if (token) this.auth.destroySession(token);
   }
 }

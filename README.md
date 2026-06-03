@@ -1,6 +1,6 @@
-# Enzo
+# Enzo AI
 
-A self-hosted, **local-first AI chat** experience. Enzo runs models on your own
+A self-hosted, **local-first AI chat** experience. Enzo AI runs models on your own
 machine — your conversations and memory never leave your computer.
 
 ## What's here (MVP)
@@ -9,7 +9,7 @@ machine — your conversations and memory never leave your computer.
   (scrypt-hashed) and optional PIN. Multiple users on one machine, each with
   their own isolated chats.
 - **Personalised AI** — each user's onboarding profile ("about you" + "how
-  should Enzo respond") is injected into their system prompt, so Enzo has
+  should Enzo AI respond") is injected into their system prompt, so Enzo AI has
   context about who it's talking to.
 - **Chat UI** — Vite + React + Tailwind, streaming responses, conversation history.
 - **Local engine** — a NestJS backend that proxies to your local models and

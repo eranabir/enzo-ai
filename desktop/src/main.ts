@@ -1,14 +1,34 @@
 import { app, Menu, nativeImage, shell, Tray } from "electron";
 import { join } from "node:path";
+import { appendFileSync, mkdirSync } from "node:fs";
 import { ensureDefaultModel, ensureOllama, stopOllama } from "./ollama";
 import {
   SERVER_URL,
+  setLogger,
   startServer,
   stopServer,
   waitForServer,
 } from "./server";
 
-// Single instance guard — if another enzo is already running, focus it.
+// Set the app name before anything uses app.getPath() so userData is
+// stored as %APPDATA%\Enzo AI\ (not the scoped package name).
+app.setName("Enzo AI");
+
+/** Write timestamped log to %APPDATA%\Enzo AI\app.log — visible even in prod. */
+function log(...args: unknown[]): void {
+  const line = `[${new Date().toISOString()}] ${args.map(String).join(" ")}\n`;
+  process.stdout.write(line);
+  try {
+    const logDir = app.getPath("userData");
+    mkdirSync(logDir, { recursive: true });
+    appendFileSync(join(logDir, "app.log"), line);
+  } catch { /* ignore log write failures */ }
+}
+
+// Wire our logger into the server module so server crashes appear in app.log.
+setLogger((...args) => log(...args));
+
+// Single instance guard — if another enzo-ai is already running, focus it.
 if (!app.requestSingleInstanceLock()) {
   app.quit();
   process.exit(0);
@@ -36,12 +56,20 @@ function buildMenu(status: "starting" | "ready" | "error") {
         : "○ Starting…";
 
   return Menu.buildFromTemplate([
-    { label: "Open Enzo", click: openBrowser, enabled: status === "ready" },
+    { label: "Open Enzo AI", click: openBrowser, enabled: status === "ready" },
     { type: "separator" },
     { label: statusLabel, enabled: false },
     { type: "separator" },
     {
-      label: "Quit Enzo",
+      label: "Open Logs",
+      click: () => {
+        const logFile = join(app.getPath("userData"), "app.log");
+        shell.openPath(logFile);
+      },
+    },
+    { type: "separator" },
+    {
+      label: "Quit Enzo AI",
       click: () => {
         app.quit();
       },
@@ -93,28 +121,34 @@ function openBrowser(): void {
 
 async function start(): Promise<void> {
   try {
-    console.log("[enzo] starting services…");
+    log("[enzo-ai] starting — version", app.getVersion(), "packaged:", app.isPackaged);
 
     // 1. Start Ollama (bundled or system)
+    log("[enzo-ai] ensuring Ollama…");
     await ensureOllama();
+    log("[enzo-ai] Ollama ready");
 
     // 2. Fork the NestJS server
+    log("[enzo-ai] starting server…");
     startServer();
+    log("[enzo-ai] waiting for server on", SERVER_URL);
     await waitForServer();
+    log("[enzo-ai] server ready");
 
     ready = true;
     setStatus("ready");
-    console.log(`[enzo] ready at ${SERVER_URL}`);
+    log(`[enzo-ai] ready at ${SERVER_URL}`);
 
     // 3. Open browser on first launch
     if (!app.isPackaged || isFirstLaunch()) {
+      log("[enzo-ai] opening browser");
       openBrowser();
     }
 
     // 4. Pull the default model in the background if nothing is installed
-    ensureDefaultModel().catch(() => {});
+    ensureDefaultModel().catch((e) => log("[enzo-ai] model pull failed:", e.message));
   } catch (err) {
-    console.error("[enzo] startup failed:", err);
+    log("[enzo-ai] startup FAILED:", (err as Error).stack || String(err));
     setStatus("error");
   }
 }
@@ -139,7 +173,7 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
-  console.log("[enzo] shutting down…");
+  console.log("[enzo-ai] shutting down…");
   stopServer();
   stopOllama();
 });

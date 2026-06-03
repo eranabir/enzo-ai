@@ -5,10 +5,35 @@ export interface Message {
   conversation_id: string;
   role: Role;
   content: string;
+  image_mime?: string | null;
   created_at: number;
 }
 
 export type MemoryType = "fact" | "decision" | "preference" | "work_context";
+
+export type ToolName = "get_datetime" | "calculator" | "web_search" | "read_url" | "read_file" | "list_directory" | "git";
+
+export interface Agent {
+  id: string;
+  name: string;
+  emoji: string;
+  description: string | null;
+  instructions: string;
+  model: string | null;
+  tools: ToolName[];
+  schedule: string | null;
+  schedulePrompt: string | null;
+  scheduleEnabled: boolean;
+  lastRunAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface ToolDefinition {
+  name: ToolName;
+  description: string;
+  enabled: boolean;
+}
 
 export interface Memory {
   id: string;
@@ -35,6 +60,8 @@ export interface ModelInfo {
   id: string;
   provider: string;
   label?: string;
+  supportsTools?: boolean;
+  supportsVision?: boolean;
 }
 
 export type UserRole = "admin" | "user";

@@ -13,7 +13,7 @@ desktop/resources/ollama/
 # electron-builder cache
 .cache/
 
-# Enzo local data (conversations, memory). Never commit user data.
+# Enzo AI local data (conversations, memory). Never commit user data.
 data/
 *.sqlite
 *.sqlite-shm
@@ -23,3 +23,4 @@ data/
 # Env / secrets (external provider API keys live here later)
 .env
 .env.local
+.idea
