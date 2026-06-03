@@ -1,8 +1,8 @@
 {
-  "name": "enzo",
+  "name": "enzo-ai",
   "version": "0.1.0",
   "private": true,
-  "description": "Enzo - a self-hosted, local-first AI chat experience",
+  "description": "Enzo AI - a self-hosted, local-first AI chat experience",
   "workspaces": [
     "server",
     "web",
@@ -11,24 +11,25 @@
   "packageManager": "yarn@1.22.22",
   "scripts": {
     "dev": "concurrently -n server,web -c blue,magenta \"yarn dev:server\" \"yarn dev:web\"",
-    "dev:server": "yarn workspace @enzo/server dev",
-    "dev:web": "yarn workspace @enzo/web dev",
+    "dev:server": "yarn workspace @enzo-ai/server dev",
+    "dev:web": "yarn workspace @enzo-ai/web dev",
     "start": "yarn dev",
-
-    "build:server": "yarn workspace @enzo/server build",
-    "build:web": "yarn workspace @enzo/web build",
-    "build:desktop": "yarn workspace @enzo/desktop build",
+    "build:server": "yarn workspace @enzo-ai/server build",
+    "build:web": "yarn workspace @enzo-ai/web build",
+    "build:desktop": "yarn workspace @enzo-ai/desktop build",
     "build": "yarn build:server && yarn build:web",
-
+    "create:icons": "npx tsx scripts/create-icons.ts",
     "download:ollama": "npx tsx scripts/download-ollama.ts",
-
-    "dist": "yarn build && yarn build:desktop && yarn workspace @enzo/desktop dist",
-    "dist:win": "yarn build && yarn build:desktop && yarn workspace @enzo/desktop dist:win",
-    "dist:mac": "yarn build && yarn build:desktop && yarn workspace @enzo/desktop dist:mac",
-    "dist:linux": "yarn build && yarn build:desktop && yarn workspace @enzo/desktop dist:linux"
+    "dist": "yarn build && yarn build:desktop && yarn workspace @enzo-ai/desktop dist",
+    "dist:win": "yarn build && yarn build:desktop && yarn workspace @enzo-ai/desktop dist:win",
+    "dist:mac": "yarn build && yarn build:desktop && yarn workspace @enzo-ai/desktop dist:mac",
+    "dist:linux": "yarn build && yarn build:desktop && yarn workspace @enzo-ai/desktop dist:linux"
   },
   "devDependencies": {
+    "@vercel/ncc": "^0.38.4",
     "concurrently": "^9.1.0",
+    "png-to-ico": "^3.0.1",
+    "sharp": "^0.34.5",
     "tsx": "^4.19.2"
   }
 }

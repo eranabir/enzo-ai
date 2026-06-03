@@ -1,9 +1,9 @@
 {
-  "name": "@enzo/desktop",
+  "name": "@enzo-ai/desktop",
   "version": "0.1.0",
   "private": true,
-  "description": "Enzo — self-hosted local AI assistant",
-  "author": "Enzo",
+  "description": "Enzo AI — self-hosted local AI assistant",
+  "author": "Enzo AI",
   "main": "dist/main.js",
   "scripts": {
     "dev": "tsc --watch",
@@ -15,6 +15,7 @@
     "dist:linux": "yarn build && electron-builder --linux"
   },
   "dependencies": {
+    "better-sqlite3": "^11.8.1",
     "electron-squirrel-startup": "^1.0.0"
   },
   "devDependencies": {

@@ -6,7 +6,7 @@ import * as path from "node:path";
  * same code works in dev and inside a packaged desktop app later.
  */
 export const config = {
-  port: Number(process.env.ENZO_PORT ?? 6666),
+  port: Number(process.env.ENZO_PORT ?? 1616),  // dev default; Electron overrides to 6666
 
   // Where local data (conversations, memory) lives. A real file on disk so it
   // is portable and backup-able, unlike browser storage.

@@ -20,6 +20,7 @@ let ready = false;
 // ── Tray icon ─────────────────────────────────────────────────────────────
 
 function iconPath(name: string): string {
+  // In dev: desktop/assets/  In production: resources/assets/ (via extraFiles)
   const base = app.isPackaged
     ? join(process.resourcesPath, "assets")
     : join(__dirname, "..", "assets");
@@ -65,7 +66,7 @@ function createTray(): void {
   }
 
   tray = new Tray(img);
-  tray.setToolTip("Enzo — Local AI");
+  tray.setToolTip("Enzo AI");
   tray.setContextMenu(buildMenu("starting"));
 
   // Left-click on macOS / Linux opens browser; on Windows right-click shows menu
@@ -78,7 +79,7 @@ function createTray(): void {
 function setStatus(status: "starting" | "ready" | "error"): void {
   tray?.setContextMenu(buildMenu(status));
   if (status === "ready") {
-    tray?.setToolTip("Enzo — Running on " + SERVER_URL);
+    tray?.setToolTip("Enzo AI —" + SERVER_URL);
   }
 }
 

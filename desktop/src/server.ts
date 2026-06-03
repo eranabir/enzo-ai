@@ -2,15 +2,18 @@ import { ChildProcess, spawn, execSync } from "node:child_process";
 import { join } from "node:path";
 import { app } from "electron";
 
-export const SERVER_PORT = Number(process.env.ENZO_PORT ?? 6666);
+export const SERVER_PORT = 6666;  // production port (Electron-managed)
 export const SERVER_URL = `http://127.0.0.1:${SERVER_PORT}`;
 
 let serverProcess: ChildProcess | null = null;
 
-/** Absolute path to the compiled NestJS entry point. */
+/** Absolute path to the server entry point.
+ *  Production: ncc-bundled single file (all deps included except native).
+ *  Dev: standard nest build output (node_modules resolved from workspace root).
+ */
 function serverEntryPath(): string {
   if (app.isPackaged) {
-    return join(process.resourcesPath, "server", "dist", "main.js");
+    return join(process.resourcesPath, "server", "bundle", "index.js");
   }
   return join(__dirname, "..", "..", "server", "dist", "main.js");
 }
@@ -55,6 +58,9 @@ export function startServer(): void {
     ...process.env,
     ENZO_PORT: String(SERVER_PORT),
     ENZO_WEB_DIR: webDistPath(),
+    // Store user data (SQLite, memory) in the OS user-data dir, not inside
+    // the app package which is read-only on Windows (Program Files).
+    ENZO_DATA_DIR: app.getPath("userData"),
     NODE_ENV: app.isPackaged ? "production" : (process.env.NODE_ENV ?? "development"),
   };
 

@@ -9,7 +9,7 @@ async function bootstrap() {
 
   await app.listen(config.port, "127.0.0.1");
 
-  console.log(`\n  enzo engine (NestJS) listening on http://127.0.0.1:${config.port}`);
+  console.log(`\n  enzo-ai engine (NestJS) listening on http://127.0.0.1:${config.port}`);
   console.log(`  data dir:      ${config.dataDir}`);
   console.log(`  ollama:        ${config.ollamaUrl}`);
   console.log(`  default model: ${config.defaultModel}\n`);

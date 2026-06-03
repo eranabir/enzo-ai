@@ -62,7 +62,7 @@ jobs:
         run: yarn build:desktop
 
       - name: Package installer
-        run: yarn workspace @enzo/desktop dist
+        run: yarn workspace @enzo-ai/desktop dist
         env:
           # macOS code signing (set these secrets in GitHub repo settings)
           CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
@@ -79,7 +79,7 @@ jobs:
       - name: Upload installer artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: enzo-${{ matrix.os }}
+          name: enzo-ai-${{ matrix.os }}
           path: desktop/dist/
           if-no-files-found: error
           retention-days: 30
@@ -101,7 +101,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: "Enzo ${{ github.ref_name }}"
+          name: "Enzo AI ${{ github.ref_name }}"
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}  # v1.0.0-beta → pre-release
           files: |
