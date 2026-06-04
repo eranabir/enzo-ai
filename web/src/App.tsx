@@ -294,6 +294,7 @@ export function App() {
           online={online}
           hasActiveConversation={activeId !== null}
           onNewChat={newConversation}
+          onSend={(text) => send(text)}
         />
         <Composer
           busy={busy}

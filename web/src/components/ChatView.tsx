@@ -1,18 +1,27 @@
 import { useEffect, useRef } from "react";
 import type { Message } from "../types";
 
+const SUGGESTIONS = [
+  { icon: "✍️", text: "Help me write a professional email" },
+  { icon: "🧠", text: "Explain a concept simply" },
+  { icon: "💡", text: "Brainstorm ideas for my project" },
+  { icon: "🔍", text: "Summarize this text for me" },
+];
+
 export function ChatView({
   messages,
   busy,
   online,
   hasActiveConversation,
   onNewChat,
+  onSend,
 }: {
   messages: Message[];
   busy: boolean;
   online: boolean | null;
   hasActiveConversation: boolean;
   onNewChat: () => void;
+  onSend?: (text: string) => void;
 }) {
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -44,9 +53,31 @@ export function ChatView({
     );
   }
 
-  // Conversation open but no messages yet (shouldn't normally happen)
+  // Conversation open but no messages yet — show suggestions
   if (messages.length === 0) {
-    return <div className="flex-1" />;
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center gap-8 overflow-y-auto px-6">
+        <div className="text-center">
+          <div className="mb-3 text-4xl text-accent-2" style={{ filter: "drop-shadow(0 0 12px rgba(109,94,252,0.35))" }}>⬡</div>
+          <h2 className="text-lg font-semibold text-fg">How can I help?</h2>
+          <p className="mt-1 text-sm text-muted">Start by typing a message below or pick a suggestion.</p>
+        </div>
+
+        <div className="grid w-full max-w-lg grid-cols-2 gap-2">
+          {SUGGESTIONS.map((s) => (
+            <button
+              key={s.text}
+              disabled={busy}
+              onClick={() => onSend?.(s.text)}
+              className="flex items-start gap-2.5 rounded-xl border border-border bg-surface-2 px-4 py-3 text-left text-sm text-muted transition-all hover:border-accent/50 hover:bg-surface hover:text-fg disabled:opacity-40"
+            >
+              <span className="flex-shrink-0">{s.icon}</span>
+              <span className="leading-snug">{s.text}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
   }
 
   return (
