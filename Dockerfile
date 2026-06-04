@@ -13,8 +13,9 @@ COPY web/package.json ./web/
 COPY cli/package.json ./cli/
 
 # Stub out desktop + installer so yarn doesn't try to install Electron
-RUN echo '{"name":"@enzo-ai/desktop","version":"0.0.0","private":true}' > desktop/package.json
-RUN echo '{"name":"@enzo-ai/installer","version":"0.0.0","private":true}' > installer/package.json
+RUN mkdir -p desktop installer && \
+    echo '{"name":"@enzo-ai/desktop","version":"0.0.0","private":true}' > desktop/package.json && \
+    echo '{"name":"@enzo-ai/installer","version":"0.0.0","private":true}' > installer/package.json
 
 RUN yarn install --frozen-lockfile --ignore-engines
 
