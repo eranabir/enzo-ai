@@ -3,7 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "description": "Enzo AI — self-hosted local AI assistant",
-  "author": "Enzo AI",
+  "author": {
+    "name": "Enzo AI",
+    "email": "eranabir@gmail.com"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/eranabir/enzo-ai.git"
