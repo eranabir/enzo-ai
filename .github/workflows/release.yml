@@ -160,11 +160,27 @@ jobs:
         run: yarn workspace @enzo-ai/installer dist:linux:publish
 
   # ════════════════════════════════════════════════════════════════════════════
-  # DOCKER — linux/amd64 only (no QEMU emulation needed)
-  # ARM NAS users can use the native arm64 CLI binary or build from source.
+  # DOCKER — native build per arch (no QEMU), merged into one manifest
+  #
+  # Each platform runs on its own native runner:
+  #   amd64 → ubuntu-latest        (x64 GitHub runner)
+  #   arm64 → ubuntu-24.04-arm     (native ARM GitHub runner)
+  #
+  # Both push a platform-specific image tag, then docker-manifest
+  # merges them into ghcr.io/…/enzo-ai:latest and :version
   # ════════════════════════════════════════════════════════════════════════════
   docker:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            platform: linux/amd64
+            tag-suffix: amd64
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            tag-suffix: arm64
+    runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
       packages: write
@@ -181,16 +197,37 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Extract version from tag
-        id: meta
-        run: echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
-
-      - name: Build and push Docker image (amd64)
+      - name: Build and push platform image
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
-          platforms: linux/amd64
-          tags: |
-            ghcr.io/${{ github.repository_owner }}/enzo-ai:latest
-            ghcr.io/${{ github.repository_owner }}/enzo-ai:${{ steps.meta.outputs.version }}
+          platforms: ${{ matrix.platform }}
+          # Push a temporary per-arch tag; merged into final tags by docker-manifest job
+          tags: ghcr.io/${{ github.repository_owner }}/enzo-ai:${{ matrix.tag-suffix }}
+
+  # Combine the two platform images into a single multi-arch manifest
+  docker-manifest:
+    needs: docker
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract version from tag
+        id: meta
+        run: echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
+      - name: Merge into multi-arch manifest
+        run: |
+          docker buildx imagetools create \
+            --tag ghcr.io/${{ github.repository_owner }}/enzo-ai:latest \
+            --tag ghcr.io/${{ github.repository_owner }}/enzo-ai:${{ steps.meta.outputs.version }} \
+            ghcr.io/${{ github.repository_owner }}/enzo-ai:amd64 \
+            ghcr.io/${{ github.repository_owner }}/enzo-ai:arm64
