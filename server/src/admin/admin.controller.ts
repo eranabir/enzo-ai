@@ -173,7 +173,7 @@ export class AdminController {
     // Always (re)start the bot when a token is provided
     if (body.token?.trim()) {
       this.settings.set("telegram_bot_token", body.token.trim());
-      const { username } = await this.telegram.start();
+      const { username } = await this.telegram.start(true); // notify on explicit connect
       return { ok: true, running: true, username };
     }
 

@@ -41,8 +41,10 @@ export class TelegramService implements OnModuleDestroy {
 
   // ── Public API ─────────────────────────────────────────────────────────────
 
-  /** Start the bot and return the verified bot username. */
-  async start(): Promise<{ username: string }> {
+  /** Start the bot and return the verified bot username.
+   *  @param notify - send "bot is online" message to allowed users (only on explicit connect, not auto-restart)
+   */
+  async start(notify = false): Promise<{ username: string }> {
     const token = this.settings.get("telegram_bot_token");
     if (!token) throw new Error("Bot token not configured");
     if (this.bot) this.stop();
@@ -59,9 +61,9 @@ export class TelegramService implements OnModuleDestroy {
     this.settings.set("telegram_enabled", "1");
     this.logger.log(`Telegram bot @${me.username} started`);
 
-    // Notify allowed users that the bot is online
+    // Notify allowed users that the bot is online (only on explicit connect)
     const allowedIds = this.settings.get("telegram_allowed_ids");
-    if (allowedIds) {
+    if (notify && allowedIds) {
       const ids = allowedIds.split(",").map((s) => s.trim()).filter(Boolean);
       for (const id of ids) {
         this.bot.telegram.sendMessage(id,
