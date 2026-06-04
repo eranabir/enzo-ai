@@ -58,8 +58,21 @@ a { color: inherit; text-decoration: none; }
 img, svg { display: block; }
 button { font-family: inherit; border: none; background: none; }
 
-/* Custom cursor removed — use default browser cursor */
-.cursor-dot, .cursor-glow { display: none; }
+/* ── Custom Cursor — small purple dot only ── */
+html, body, a, button, * { cursor: none !important; }
+.cursor-dot {
+  position: fixed;
+  top: 0; left: 0;
+  width: 8px; height: 8px;
+  background: var(--accent-light);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 9999;
+  transform: translate(-50%, -50%);
+  mix-blend-mode: screen;
+  transition: opacity 0.2s;
+}
+.cursor-glow { display: none; }
 
 /* ── Aurora Background ── */
 .aurora {

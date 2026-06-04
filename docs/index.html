@@ -532,6 +532,16 @@
 
   <!-- ── JavaScript ── -->
   <script>
+    // ── Small dot cursor ───────────────────────────
+    const dot = document.getElementById('cursor-dot');
+    if (dot) {
+      document.addEventListener('mousemove', e => {
+        dot.style.transform = `translate(${e.clientX}px, ${e.clientY}px) translate(-50%, -50%)`;
+      });
+      document.addEventListener('mouseleave', () => dot.style.opacity = '0');
+      document.addEventListener('mouseenter', () => dot.style.opacity = '1');
+    }
+
     // ── Scroll Reveal ─────────────────────────────
     const reveals = document.querySelectorAll('.reveal');
     const revealObs = new IntersectionObserver((entries) => {
