@@ -57,6 +57,21 @@ export class TelegramService implements OnModuleDestroy {
     this.settings.set("telegram_enabled", "1");
     this.logger.log(`Telegram bot @${me.username} started`);
 
+    // Notify allowed users that the bot is online
+    const allowedIds = this.settings.get("telegram_allowed_ids");
+    if (allowedIds) {
+      const ids = allowedIds.split(",").map((s) => s.trim()).filter(Boolean);
+      for (const id of ids) {
+        this.bot.telegram.sendMessage(id,
+          `✅ *Enzo AI connected*\nBot @${me.username ?? me.first_name} is online and ready.\nSend me a message to start chatting!`,
+          { parse_mode: "Markdown" }
+        ).catch(() => {
+          // User may not have messaged the bot yet — can't initiate without a prior chat
+          this.logger.warn(`Could not notify Telegram user ${id} — they need to /start the bot first`);
+        });
+      }
+    }
+
     return { username: me.username ?? me.first_name };
   }
 
@@ -77,7 +92,10 @@ export class TelegramService implements OnModuleDestroy {
     if (!this.bot) return;
 
     this.bot.start((ctx) =>
-      ctx.reply("👋 Hi! I'm Enzo AI. Send me a message and I'll reply using your local AI.")
+      ctx.reply(
+        "✅ *Connected to Enzo AI*\n\nI'm your private, locally-running AI assistant.\nJust send me a message and I'll reply — no data leaves your server.\n\nWhat can I help you with?",
+        { parse_mode: "Markdown" }
+      )
     );
 
     this.bot.on(message("text"), async (ctx) => {
