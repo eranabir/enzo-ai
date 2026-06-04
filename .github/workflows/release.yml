@@ -138,10 +138,11 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Download all artifacts
+      - name: Download release artifacts
         uses: actions/download-artifact@v4
         with:
           path: release-assets
+          pattern: "*-assets"   # skip internal docker *.dockerbuild artifacts
           merge-multiple: true
 
       - name: Create GitHub Release and upload all assets
