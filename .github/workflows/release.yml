@@ -263,16 +263,16 @@ jobs:
       - name: Stamp release version into the landing page
         run: |
           MINOR=$(echo "${GITHUB_REF_NAME#v}" | cut -d. -f1,2)
-          sed -i -E "s#v[0-9]+\.[0-9]+ now available#v${MINOR} now available#g" docs/index.html
+          sed -i -E "s#v[0-9]+\.[0-9]+ now available#v${MINOR} now available#g" site/index.html
           echo "Stamped landing page with v${MINOR}"
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
-      - name: Upload docs/ as the Pages artifact
+      - name: Upload site/ as the Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: docs
+          path: site
 
       - name: Deploy to GitHub Pages
         id: deploy

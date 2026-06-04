@@ -1,6 +1,6 @@
 name: Deploy Landing Page
 
-# Publishes the docs/ landing page to GitHub Pages whenever it changes —
+# Publishes the site/ landing page to GitHub Pages whenever it changes —
 # no full release required. Releases stamp the version + deploy via release.yml;
 # this handles everyday landing-page updates.
 
@@ -8,7 +8,7 @@ on:
   push:
     branches: [master]
     paths:
-      - 'docs/**'
+      - 'site/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -32,10 +32,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Configure Pages
         uses: actions/configure-pages@v5
-      - name: Upload docs/ as the Pages artifact
+      - name: Upload site/ as the Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: docs
+          path: site
       - name: Deploy to GitHub Pages
         id: deploy
         uses: actions/deploy-pages@v4
