@@ -530,7 +530,7 @@ function ToolsTab() {
 
 // ── Integrations tab ─────────────────────────────────────────────────────────
 
-type IntegrationId = "telegram";
+type IntegrationId = "telegram" | "discord";
 
 interface IntegrationDef {
   id: IntegrationId | "discord" | "slack";
@@ -543,11 +543,143 @@ interface IntegrationDef {
 
 const INTEGRATIONS: IntegrationDef[] = [
   { id: "telegram", name: "Telegram", icon: <SiTelegram className="h-6 w-6" />, color: "text-[#2AABEE]", description: "Chat with your AI via Telegram from anywhere.",   available: true  },
-  { id: "discord",  name: "Discord",  icon: <SiDiscord  className="h-6 w-6" />, color: "text-[#5865F2]", description: "Bring Enzo AI into your Discord server.",        available: false },
+  { id: "discord",  name: "Discord",  icon: <SiDiscord  className="h-6 w-6" />, color: "text-[#5865F2]", description: "Bring Enzo AI into your Discord server.",        available: true  },
   { id: "slack",    name: "Slack",    icon: <SiSlack    className="h-6 w-6" />, color: "text-[#4A154B]", description: "Use Enzo AI directly in your Slack workspace.",  available: false },
 ];
 
 // ── Telegram config screen ────────────────────────────────────────────────────
+
+function DiscordConfig({ onBack }: { onBack: () => void }) {
+  const [token, setToken]       = useState("");
+  const [allowedIds, setAllowed] = useState("");
+  const [model, setModel]       = useState("");
+  const [running, setRunning]   = useState(false);
+  const [hasToken, setHasToken] = useState(false);
+  const [botTag, setBotTag]     = useState<string | null>(null);
+  const [busy, setBusy]         = useState(false);
+  const [error, setError]       = useState<string | null>(null);
+
+  useEffect(() => {
+    api.admin.getDiscord().then((d) => {
+      setRunning(d.enabled);
+      setAllowed(d.allowedIds);
+      setModel(d.model);
+      setHasToken(!!d.token);
+    }).catch(() => {});
+  }, []);
+
+  async function save() {
+    if (!token.trim() && !hasToken) return;
+    setBusy(true); setError(null);
+    try {
+      const body: { token?: string; allowedIds: string; model: string } = { allowedIds, model };
+      if (token.trim()) body.token = token;
+      const res = await api.admin.saveDiscord(body);
+      setRunning(res.running);
+      setHasToken(true);
+      if (res.tag) setBotTag(res.tag);
+      setToken("");
+    } catch (e) {
+      setError((e as Error).message);
+    } finally { setBusy(false); }
+  }
+
+  async function stop() {
+    setBusy(true);
+    try {
+      await api.admin.stopDiscord();
+      setRunning(false); setBotTag(null);
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <div>
+      <button onClick={onBack} className="mb-4 flex items-center gap-1.5 text-xs text-muted hover:text-fg transition-colors">
+        ← Back to integrations
+      </button>
+
+      <div className="mb-5 flex items-center gap-3">
+        <SiDiscord className="h-8 w-8 flex-shrink-0 text-[#5865F2]" />
+        <div>
+          <h3 className="font-semibold text-fg">Discord</h3>
+          <p className="text-xs text-muted">Bring Enzo AI into your Discord server or DMs.</p>
+        </div>
+        {running && (
+          <div className="ml-auto flex items-center gap-1.5 text-xs font-semibold text-ok">
+            <span className="text-[10px]">●</span> Connected
+          </div>
+        )}
+      </div>
+
+      {running && (
+        <div className="mb-4 rounded-xl border border-ok/30 bg-ok/10 px-4 py-3">
+          <p className="text-sm font-semibold text-ok">✓ Bot {botTag ? botTag : ""} is live</p>
+          <p className="mt-0.5 text-xs text-muted">
+            @mention the bot in any channel, or DM it directly.
+          </p>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-3">
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-muted">Bot Token</label>
+          <p className="mb-1.5 text-[11px] text-muted">
+            Get from <span className="text-accent-2">discord.com/developers/applications</span> → your app → Bot → Reset Token
+          </p>
+          <input
+            className={inputCls} type="password"
+            placeholder={hasToken ? "••••••••  (configured — paste to replace)" : "Paste your bot token"}
+            value={token}
+            onChange={e => setToken(e.target.value)}
+          />
+        </div>
+
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-muted">
+            Allowed User IDs <span className="font-normal">(optional)</span>
+          </label>
+          <p className="mb-1.5 text-[11px] text-muted">
+            Your Discord user ID. Right-click your name → Copy User ID (needs Developer Mode on in Discord settings).
+          </p>
+          <input
+            className={inputCls}
+            placeholder="123456789012345678"
+            value={allowedIds}
+            onChange={e => setAllowed(e.target.value)}
+          />
+        </div>
+
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-muted">Model</label>
+          <ModelPicker value={model} onChange={setModel} />
+        </div>
+
+        <div className="flex gap-2">
+          <button onClick={save} disabled={busy || (!token.trim() && !hasToken)}
+            className="flex-1 rounded-xl bg-accent py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent-2 disabled:opacity-40 disabled:cursor-not-allowed">
+            {busy ? "Connecting…" : running ? "Save & Reconnect" : "Save & Connect"}
+          </button>
+          {running && (
+            <button onClick={stop} disabled={busy}
+              className="rounded-xl border border-danger/40 bg-danger/10 px-4 text-sm font-semibold text-danger hover:bg-danger/20 disabled:opacity-50">
+              Disconnect
+            </button>
+          )}
+        </div>
+
+        {error && <p className="text-xs text-danger">{error}</p>}
+
+        <div className="rounded-xl border border-border bg-surface-2 px-4 py-3 text-xs text-muted space-y-1.5">
+          <p className="font-semibold text-fg">Setup checklist</p>
+          <p>1. Enable <span className="text-fg">Message Content Intent</span> in your bot settings</p>
+          <p>2. Invite bot with permissions: Read Messages, Send Messages</p>
+          <p>3. In servers: @mention the bot to talk to it</p>
+          <p>4. In DMs: just message it directly</p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function TelegramConfig({ onBack }: { onBack: () => void }) {
   const [token, setToken]       = useState("");
@@ -686,20 +818,22 @@ function TelegramConfig({ onBack }: { onBack: () => void }) {
 function IntegrationsTab() {
   const [selected, setSelected]       = useState<IntegrationId | null>(null);
   const [telegramRunning, setTgRunning] = useState(false);
+  const [discordRunning,  setDcRunning] = useState(false);
 
   useEffect(() => {
     api.admin.getTelegram().then((d) => setTgRunning(d.enabled)).catch(() => {});
+    api.admin.getDiscord().then((d)  => setDcRunning(d.enabled)).catch(() => {});
   }, []);
 
-  if (selected === "telegram") {
-    return <TelegramConfig onBack={() => {
-      setSelected(null);
-      // Refresh status when coming back
-      api.admin.getTelegram().then((d) => setTgRunning(d.enabled)).catch(() => {});
-    }} />;
+  function refresh() {
+    api.admin.getTelegram().then((d) => setTgRunning(d.enabled)).catch(() => {});
+    api.admin.getDiscord().then((d)  => setDcRunning(d.enabled)).catch(() => {});
   }
 
-  const connectedMap: Record<string, boolean> = { telegram: telegramRunning };
+  if (selected === "telegram") return <TelegramConfig onBack={() => { setSelected(null); refresh(); }} />;
+  if (selected === "discord")  return <DiscordConfig  onBack={() => { setSelected(null); refresh(); }} />;
+
+  const connectedMap: Record<string, boolean> = { telegram: telegramRunning, discord: discordRunning };
 
   return (
     <div>

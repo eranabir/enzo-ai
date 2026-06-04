@@ -196,6 +196,21 @@ export const api = {
         body: JSON.stringify({ enabled }),
       }).then(parse<import("./types").ToolDefinition[]>),
 
+    getDiscord: () =>
+      fetch("/api/admin/discord", { headers: headers() })
+        .then(parse<{ enabled: boolean; token: string | null; allowedIds: string; model: string }>),
+
+    saveDiscord: (body: { token?: string; allowedIds?: string; model?: string }) =>
+      fetch("/api/admin/discord", {
+        method: "PUT",
+        headers: headers(true),
+        body: JSON.stringify(body),
+      }).then(parse<{ ok: boolean; running: boolean; tag?: string }>),
+
+    stopDiscord: () =>
+      fetch("/api/admin/discord", { method: "DELETE", headers: headers() })
+        .then(parse<{ ok: boolean; running: boolean }>),
+
     getTelegram: () =>
       fetch("/api/admin/telegram", { headers: headers() })
         .then(parse<{ enabled: boolean; token: string | null; allowedIds: string; model: string }>),

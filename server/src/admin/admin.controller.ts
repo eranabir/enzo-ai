@@ -25,6 +25,7 @@ import { SettingsService } from "../settings/settings.service";
 import { LlmService } from "../llm/llm.service";
 import { ToolsService } from "../agents/tools.service";
 import { TelegramService } from "../telegram/telegram.service";
+import { DiscordService } from "../discord/discord.service";
 
 @Controller("admin")
 @UseGuards(AdminGuard)
@@ -36,6 +37,7 @@ export class AdminController {
     private readonly apiKeys: ApiKeysService,
     private readonly toolsSvc: ToolsService,
     private readonly telegram: TelegramService,
+    private readonly discord: DiscordService,
     @Inject(DATABASE) private readonly db: DatabaseConnection,
   ) {}
 
@@ -184,6 +186,38 @@ export class AdminController {
   stopTelegram() {
     this.telegram.stop();
     this.telegram.deleteConversation();
+    return { ok: true, running: false };
+  }
+
+  // ── Discord integration ───────────────────────────────────────────────────
+
+  @Get("discord")
+  getDiscord() {
+    return {
+      enabled:    this.discord.isRunning(),
+      token:      this.settings.get("discord_bot_token") ? "••••••••" : null,
+      allowedIds: this.settings.get("discord_allowed_ids") ?? "",
+      model:      this.settings.get("discord_model") ?? "",
+    };
+  }
+
+  @Put("discord")
+  async saveDiscord(@Body() body: { token?: string; allowedIds?: string; model?: string }) {
+    if (body.allowedIds != null) this.settings.set("discord_allowed_ids", String(body.allowedIds).trim());
+    if (body.model != null)      this.settings.set("discord_model", String(body.model).trim());
+
+    if (body.token?.trim()) {
+      this.settings.set("discord_bot_token", body.token.trim());
+      const { tag } = await this.discord.start(true);
+      return { ok: true, running: true, tag };
+    }
+    return { ok: true, running: this.discord.isRunning() };
+  }
+
+  @Delete("discord")
+  stopDiscord() {
+    this.discord.stop();
+    this.discord.deleteConversation();
     return { ok: true, running: false };
   }
 

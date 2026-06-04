@@ -19,6 +19,8 @@ import { AgentsService } from "./agents/agents.service";
 import { ChatService } from "./chat/chat.service";
 import { TelegramModule } from "./telegram/telegram.module";
 import { TelegramService } from "./telegram/telegram.service";
+import { DiscordModule } from "./discord/discord.module";
+import { DiscordService } from "./discord/discord.service";
 
 @Module({
   imports: [
@@ -36,6 +38,7 @@ import { TelegramService } from "./telegram/telegram.service";
     SystemModule,
     AdminModule,
     TelegramModule,
+    DiscordModule,
   ],
   controllers: [AppController],
 })
@@ -67,6 +70,14 @@ export class AppModule implements OnModuleInit {
     const telegram = this.moduleRef.get(TelegramService, { strict: false });
     if (telegram && chat) {
       telegram.setRunner((userId, convoId, content, model) =>
+        chat.processMessage(userId, convoId, content, model),
+      );
+    }
+
+    // Discord bot → ChatService
+    const discordSvc = this.moduleRef.get(DiscordService, { strict: false });
+    if (discordSvc && chat) {
+      discordSvc.setRunner((userId, convoId, content, model) =>
         chat.processMessage(userId, convoId, content, model),
       );
     }
