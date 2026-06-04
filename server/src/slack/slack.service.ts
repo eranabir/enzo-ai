@@ -52,20 +52,43 @@ export class SlackService implements OnModuleDestroy {
     this.settings.set("slack_enabled", "1");
     this.logger.log(`Slack bot @${botName} connected via Socket Mode`);
 
+    // List channels the bot is a member of and create conversations eagerly
+    try {
+      const result = await this.app.client.conversations.list({
+        types: "public_channel,private_channel",
+        limit: 200,
+      });
+      const memberChannels = (result.channels ?? []).filter((c: any) => c.is_member);
+      this.logger.log(`Slack bot is member of ${memberChannels.length} channels`);
+
+      for (const ch of memberChannels) {
+        const channelId = ch.id as string;
+        const chatTitle = `#${ch.name ?? channelId}`;
+
+        // Eagerly create conversation so it appears in web UI immediately
+        this.getOrCreateChatConversation(channelId, chatTitle);
+
+        // Send connection message only on explicit connect
+        if (notify) {
+          await this.app.client.chat.postMessage({
+            channel: channelId,
+            text: `✅ *Enzo AI is online!* Send me a message or mention me to chat with your local AI.`,
+          }).catch((e: Error) => this.logger.warn(`Could not notify #${ch.name}: ${e.message}`));
+        }
+      }
+    } catch (e) {
+      this.logger.error(`Failed to list Slack channels: ${(e as Error).message}`);
+    }
+
+    // Also DM allowed user IDs if configured and notify=true
     if (notify) {
-      // Send connection message to the first available channel
       const allowedIds = this.settings.get("slack_allowed_ids");
       if (allowedIds) {
-        const ids = allowedIds.split(",").map(s => s.trim()).filter(Boolean);
-        for (const id of ids) {
-          try {
-            await this.app.client.chat.postMessage({
-              channel: id,
-              text: `✅ *Enzo AI is online!* Mention me or DM me to start chatting with your local AI.`,
-            });
-          } catch {
-            this.logger.warn(`Could not notify Slack channel/user ${id}`);
-          }
+        for (const id of allowedIds.split(",").map(s => s.trim()).filter(Boolean)) {
+          await this.app.client.chat.postMessage({
+            channel: id,
+            text: `✅ *Enzo AI bot is online!* DM me any time to chat.`,
+          }).catch(() => this.logger.warn(`Could not DM Slack user ${id}`));
         }
       }
     }
