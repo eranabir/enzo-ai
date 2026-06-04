@@ -194,7 +194,7 @@ export class TelegramService implements OnModuleDestroy {
 
     if (!map[chatId]) {
       const convo = this.convos.create(botUser.id, undefined, agentId, "telegram");
-      this.convos.rename(convo.id, `💬 ${chatTitle}`);
+      this.convos.rename(convo.id, chatTitle);
       map[chatId] = convo.id;
       this.saveChatMap(map);
     }

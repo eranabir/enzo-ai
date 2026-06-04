@@ -249,7 +249,7 @@ export class DiscordService implements OnModuleDestroy {
     const map = this.loadChatMap();
     if (!map[chatId]) {
       const convo = this.convos.create(botUser.id, undefined, agentId, "discord");
-      this.convos.rename(convo.id, `🎮 ${chatTitle}`);
+      this.convos.rename(convo.id, chatTitle);
       map[chatId] = convo.id;
       this.saveChatMap(map);
     }
