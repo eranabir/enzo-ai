@@ -59,10 +59,10 @@ mac:
   icon: assets/icon.icns
   target:
     - target: dmg
-      arch: [x64, arm64]
+      arch: universal   # single DMG for both Intel and Apple Silicon
 
 dmg:
-  artifactName: "enzo-ai-macos-${version}-${arch}.${ext}"
+  artifactName: "enzo-ai-macos-${version}.${ext}"
   title: "Install Enzo AI"
   window:
     width: 540

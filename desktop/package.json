@@ -22,8 +22,6 @@
     "dist:linux": "yarn build && electron-builder --linux --publish never",
     "package:win": "electron-builder --win --publish never",
     "package:mac": "electron-builder --mac --publish never",
-    "package:mac:x64": "electron-builder --mac --x64 --publish never",
-    "package:mac:arm64": "electron-builder --mac --arm64 --publish never",
     "package:linux": "electron-builder --linux --publish never"
   },
   "dependencies": {

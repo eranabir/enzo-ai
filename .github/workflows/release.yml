@@ -79,21 +79,16 @@ jobs:
       - run: yarn install --frozen-lockfile --network-timeout 100000
       - run: yarn download:ollama
       - run: yarn build:all
-      - name: Package (x64)
+      - name: Package (universal — Intel + Apple Silicon)
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
-        run: yarn workspace @enzo-ai/desktop package:mac:x64
-
-      - name: Package (arm64)
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: false
-        run: yarn workspace @enzo-ai/desktop package:mac:arm64
+        run: yarn workspace @enzo-ai/desktop package:mac
       - name: Save artifacts
         uses: actions/upload-artifact@v4
         with:
           name: macos-assets
           retention-days: 1
-          path: desktop/dist/enzo-ai-macos-*.dmg
+          path: desktop/dist/enzo-ai-macos-*.dmg   # one universal DMG
 
   # ════════════════════════════════════════════════════════════════════════════
   # LINUX — .deb only (no installer; Linux users install via package manager)
