@@ -125,60 +125,80 @@ export function Sidebar({
         </button>
       </div>
 
-      <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto">
-        {conversations.map((c) => (
-          <div
-            key={c.id}
-            className={`group flex cursor-pointer items-center justify-between gap-1.5 rounded-lg px-2.5 py-2 text-muted hover:bg-surface-2 hover:text-fg ${
-              c.id === activeId ? "bg-surface-2 text-fg" : ""
-            }`}
-            onClick={() => editingId !== c.id && onSelect(c.id)}
-          >
-            {editingId === c.id ? (
-              <input
-                ref={inputRef}
-                className="min-w-0 flex-1 rounded bg-bg px-1.5 py-0.5 text-sm text-fg outline-none ring-1 ring-accent"
-                value={draft}
-                onChange={e => setDraft(e.target.value)}
-                onBlur={() => commitEdit(c.id)}
-                onKeyDown={e => {
-                  if (e.key === "Enter") { e.preventDefault(); commitEdit(c.id); }
-                  if (e.key === "Escape") setEditingId(null);
-                }}
-                onClick={e => e.stopPropagation()}
-                autoFocus
-              />
-            ) : (
-              <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
-                {c.integration === "telegram" && (
-                  <SiTelegram className="h-3 w-3 flex-shrink-0 text-[#2AABEE]" />
-                )}
-                <span className="truncate text-sm">{c.title}</span>
-              </div>
-            )}
+      <nav className="flex flex-1 flex-col overflow-y-auto">
+        {(() => {
+          const local       = conversations.filter(c => !c.integration);
+          const integrations = conversations.filter(c =>  c.integration);
 
-            {/* ⋯ kebab — hidden for integration conversations (delete disabled) */}
-            {editingId !== c.id && !c.integration && (
-              <ConvoMenu
-                onRename={(e) => startEdit(c, e)}
-                onDelete={(e) => { e.stopPropagation(); onDelete(c.id); }}
-              />
-            )}
-            {editingId !== c.id && c.integration && (
-              <span
-                title="Managed by integration — delete from Admin → Integrations"
-                className="flex-shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-muted opacity-0 transition-opacity group-hover:opacity-100 border border-border"
-              >
-                {c.integration}
-              </span>
-            )}
-          </div>
-        ))}
-        {conversations.length === 0 && (
-          <div className="px-1.5 py-2 text-xs text-muted">
-            No conversations yet
-          </div>
-        )}
+          const renderConvo = (c: typeof conversations[0]) => (
+            <div
+              key={c.id}
+              className={`group flex cursor-pointer items-center justify-between gap-1.5 rounded-lg px-2.5 py-2 text-muted hover:bg-surface-2 hover:text-fg ${
+                c.id === activeId ? "bg-surface-2 text-fg" : ""
+              }`}
+              onClick={() => editingId !== c.id && onSelect(c.id)}
+            >
+              {editingId === c.id ? (
+                <input
+                  ref={inputRef}
+                  className="min-w-0 flex-1 rounded bg-bg px-1.5 py-0.5 text-sm text-fg outline-none ring-1 ring-accent"
+                  value={draft}
+                  onChange={e => setDraft(e.target.value)}
+                  onBlur={() => commitEdit(c.id)}
+                  onKeyDown={e => {
+                    if (e.key === "Enter") { e.preventDefault(); commitEdit(c.id); }
+                    if (e.key === "Escape") setEditingId(null);
+                  }}
+                  onClick={e => e.stopPropagation()}
+                  autoFocus
+                />
+              ) : (
+                <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
+                  {c.integration === "telegram" && (
+                    <SiTelegram className="h-3 w-3 flex-shrink-0 text-[#2AABEE]" />
+                  )}
+                  <span className="truncate text-sm">{c.title}</span>
+                </div>
+              )}
+
+              {editingId !== c.id && !c.integration && (
+                <ConvoMenu
+                  onRename={(e) => startEdit(c, e)}
+                  onDelete={(e) => { e.stopPropagation(); onDelete(c.id); }}
+                />
+              )}
+            </div>
+          );
+
+          return (
+            <>
+              {/* ── Integrations section ── */}
+              {integrations.length > 0 && (
+                <div className="mb-1">
+                  <p className="px-2.5 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-widest text-muted/60">
+                    Integrations
+                  </p>
+                  <div className="flex flex-col gap-0.5">
+                    {integrations.map(renderConvo)}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Local chats section ── */}
+              {integrations.length > 0 && local.length > 0 && (
+                <p className="px-2.5 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-widest text-muted/60">
+                  Chats
+                </p>
+              )}
+              <div className="flex flex-col gap-0.5">
+                {local.map(renderConvo)}
+              </div>
+              {conversations.length === 0 && (
+                <div className="px-1.5 py-2 text-xs text-muted">No conversations yet</div>
+              )}
+            </>
+          );
+        })()}
       </nav>
 
       {/* ── Profile footer with dropdown menu ── */}
