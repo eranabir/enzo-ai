@@ -532,36 +532,6 @@
 
   <!-- ── JavaScript ── -->
   <script>
-    // ── Custom Cursor ──────────────────────────────
-    const dot  = document.getElementById('cursor-dot');
-    const glow = document.getElementById('cursor-glow');
-    let mx = -999, my = -999;
-    let gx = -999, gy = -999;
-    let rafId;
-
-    document.addEventListener('mousemove', e => {
-      mx = e.clientX;
-      my = e.clientY;
-      dot.style.transform = `translate(${mx}px, ${my}px) translate(-50%, -50%)`;
-    });
-
-    function animateGlow() {
-      gx += (mx - gx) * 0.08;
-      gy += (my - gy) * 0.08;
-      glow.style.transform = `translate(${gx}px, ${gy}px) translate(-50%, -50%)`;
-      rafId = requestAnimationFrame(animateGlow);
-    }
-    animateGlow();
-
-    document.addEventListener('mouseleave', () => {
-      dot.style.opacity  = '0';
-      glow.style.opacity = '0';
-    });
-    document.addEventListener('mouseenter', () => {
-      dot.style.opacity  = '1';
-      glow.style.opacity = '1';
-    });
-
     // ── Scroll Reveal ─────────────────────────────
     const reveals = document.querySelectorAll('.reveal');
     const revealObs = new IntersectionObserver((entries) => {
