@@ -414,7 +414,7 @@ export function AgentsPanel({ onStartChat, onClose }: Props) {
 
         <div className="flex-1 overflow-y-auto p-5">
           {agents.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
+            <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
               <div className="text-4xl opacity-30">🤖</div>
               <div>
                 <p className="font-semibold text-fg">No agents yet</p>
