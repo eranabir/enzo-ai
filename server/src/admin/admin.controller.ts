@@ -183,6 +183,7 @@ export class AdminController {
   @Delete("telegram")
   stopTelegram() {
     this.telegram.stop();
+    this.telegram.deleteConversation();
     return { ok: true, running: false };
   }
 

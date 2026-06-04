@@ -7,6 +7,7 @@ export interface ConversationRow {
   title: string;
   model: string | null;
   memory_enabled: number; // SQLite boolean: 1 = on, 0 = off
+  integration: string | null; // e.g. "telegram" — managed by an integration
   created_at: number;
   updated_at: number;
 }

@@ -5,8 +5,6 @@ import { SettingsService } from "../settings/settings.service";
 import { ConversationsService } from "../conversations/conversations.service";
 import { UsersService } from "../users/users.service";
 
-/** Maps Telegram chat IDs → Enzo conversation UUIDs (persisted in settings). */
-type ChatMap = Record<string, string>;
 
 @Injectable()
 export class TelegramService implements OnModuleDestroy {
@@ -84,7 +82,6 @@ export class TelegramService implements OnModuleDestroy {
 
     this.bot.on(message("text"), async (ctx) => {
       const telegramUserId = String(ctx.from.id);
-      const chatId         = String(ctx.chat.id);
       const text           = ctx.message.text;
 
       // Check allowlist (if configured)
@@ -106,7 +103,7 @@ export class TelegramService implements OnModuleDestroy {
       await ctx.sendChatAction("typing");
 
       try {
-        const { userId, convoId } = await this.getOrCreateConversation(chatId);
+        const { userId, convoId } = this.getOrCreateConversation();
         const model = this.settings.get("telegram_model") ?? undefined;
 
         // Keep sending "typing" every 4s while the LLM processes
@@ -135,31 +132,30 @@ export class TelegramService implements OnModuleDestroy {
 
   // ── Conversation management ────────────────────────────────────────────────
 
-  private async getOrCreateConversation(chatId: string): Promise<{ userId: string; convoId: string }> {
-    // Use the oldest admin user as the "bot user"
+  /** Get or create the single dedicated Telegram conversation for the admin user. */
+  getOrCreateConversation(): { userId: string; convoId: string } {
     const botUser = this.users.listAll().find((u) => u.role === "admin");
     if (!botUser) throw new Error("No admin user found to run the bot as");
 
-    const map = this.loadChatMap();
-
-    if (!map[chatId]) {
-      const convo = this.convos.create(botUser.id, undefined, undefined);
-      this.convos.rename(convo.id, `Telegram ${chatId}`);
-      map[chatId] = convo.id;
-      this.saveChatMap(map);
+    // Reuse existing integration conversation if already created
+    let convo = this.convos.getByIntegration(botUser.id, "telegram");
+    if (!convo) {
+      convo = this.convos.create(botUser.id, undefined, undefined, "telegram");
+      this.convos.rename(convo.id, "💬 Telegram");
     }
 
-    return { userId: botUser.id, convoId: map[chatId] };
+    return { userId: botUser.id, convoId: convo.id };
   }
 
-  private loadChatMap(): ChatMap {
-    const raw = this.settings.get("telegram_conversations");
-    if (!raw) return {};
-    try { return JSON.parse(raw) as ChatMap; } catch { return {}; }
-  }
-
-  private saveChatMap(map: ChatMap): void {
-    this.settings.set("telegram_conversations", JSON.stringify(map));
+  /** Delete the dedicated Telegram conversation (called from Integrations → Disconnect). */
+  deleteConversation(): void {
+    const botUser = this.users.listAll().find((u) => u.role === "admin");
+    if (!botUser) return;
+    const convo = this.convos.getByIntegration(botUser.id, "telegram");
+    if (convo) {
+      // Bypass the integration guard — we own this
+      this.convos.delete(convo.id);
+    }
   }
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────

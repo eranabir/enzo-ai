@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -55,6 +56,12 @@ export class ConversationsController {
   @HttpCode(204)
   remove(@UserId() userId: string, @Param("id") id: string) {
     const convo = this.convos.get(id, userId);
-    if (convo) this.convos.delete(convo.id);
+    if (!convo) return;
+    if (convo.integration) {
+      throw new BadRequestException(
+        `This conversation is managed by the ${convo.integration} integration and cannot be deleted from here.`,
+      );
+    }
+    this.convos.delete(convo.id);
   }
 }

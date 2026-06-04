@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { Settings, Shield, LogOut, ChevronUp, Users, MoreHorizontal, Pencil, Trash2, Bot } from "lucide-react";
+import { SiTelegram } from "react-icons/si";
 import type { Conversation, User } from "../types";
 import {
   DropdownMenu,
@@ -148,15 +149,28 @@ export function Sidebar({
                 autoFocus
               />
             ) : (
-              <span className="truncate text-sm">{c.title}</span>
+              <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
+                {c.integration === "telegram" && (
+                  <SiTelegram className="h-3 w-3 flex-shrink-0 text-[#2AABEE]" />
+                )}
+                <span className="truncate text-sm">{c.title}</span>
+              </div>
             )}
 
-            {/* ⋯ kebab — visible on hover, opens an inline action menu */}
-            {editingId !== c.id && (
+            {/* ⋯ kebab — hidden for integration conversations (delete disabled) */}
+            {editingId !== c.id && !c.integration && (
               <ConvoMenu
                 onRename={(e) => startEdit(c, e)}
                 onDelete={(e) => { e.stopPropagation(); onDelete(c.id); }}
               />
+            )}
+            {editingId !== c.id && c.integration && (
+              <span
+                title="Managed by integration — delete from Admin → Integrations"
+                className="flex-shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-muted opacity-0 transition-opacity group-hover:opacity-100 border border-border"
+              >
+                {c.integration}
+              </span>
             )}
           </div>
         ))}

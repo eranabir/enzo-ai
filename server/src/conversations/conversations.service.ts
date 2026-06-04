@@ -31,16 +31,23 @@ export class ConversationsService {
       .get(id, userId) as ConversationRow | undefined;
   }
 
-  create(userId: string, model?: string, agentId?: string): ConversationRow {
+  create(userId: string, model?: string, agentId?: string, integration?: string): ConversationRow {
     const id = randomUUID();
     const t = now();
     this.db
       .prepare(
-        `INSERT INTO conversations (id, user_id, title, model, agent_id, created_at, updated_at)
-         VALUES (?, ?, 'New chat', ?, ?, ?, ?)`,
+        `INSERT INTO conversations (id, user_id, title, model, agent_id, integration, created_at, updated_at)
+         VALUES (?, ?, 'New chat', ?, ?, ?, ?, ?)`,
       )
-      .run(id, userId, model ?? null, agentId ?? null, t, t);
+      .run(id, userId, model ?? null, agentId ?? null, integration ?? null, t, t);
     return this.get(id, userId)!;
+  }
+
+  /** Find a conversation by integration type for a user. */
+  getByIntegration(userId: string, integration: string): ConversationRow | undefined {
+    return this.db
+      .prepare(`SELECT * FROM conversations WHERE user_id = ? AND integration = ? LIMIT 1`)
+      .get(userId, integration) as ConversationRow | undefined;
   }
 
   rename(id: string, title: string): void {

@@ -48,6 +48,7 @@ export interface Conversation {
   title: string;
   model: string | null;
   memory_enabled: number; // 1 = on, 0 = off (SQLite boolean)
+  integration: string | null; // "telegram" | null — managed by an integration
   created_at: number;
   updated_at: number;
 }

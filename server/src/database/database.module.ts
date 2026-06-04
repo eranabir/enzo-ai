@@ -128,6 +128,12 @@ export type DatabaseConnection = Database.Database;
           db.exec(`ALTER TABLE conversations ADD COLUMN agent_id TEXT`);
         }
 
+        // Add integration column to conversations (links to Telegram/Discord/Slack chat)
+        const intCols = db.prepare(`PRAGMA table_info(conversations)`).all() as { name: string }[];
+        if (!intCols.some((c) => c.name === "integration")) {
+          db.exec(`ALTER TABLE conversations ADD COLUMN integration TEXT`);
+        }
+
         // Add image_mime to messages for vision / image-upload support
         const msgCols = db.prepare(`PRAGMA table_info(messages)`).all() as { name: string }[];
         if (!msgCols.some((c) => c.name === "image_mime")) {
