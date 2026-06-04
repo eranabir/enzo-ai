@@ -79,8 +79,20 @@ export function App() {
       }
     };
     document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
   }, [refreshModels, refreshConversations]);
+
+  // Poll conversations every 15s so integration chats (Telegram, etc.) appear
+  // without the user needing to refresh. Lightweight — only fetches the list.
+  useEffect(() => {
+    if (!online || !user) return;
+    const t = setInterval(refreshConversations, 15_000);
+    return () => clearInterval(t);
+  }, [online, user, refreshConversations]);
 
   const logout = useCallback(async () => {
     await api.logout().catch(() => {});
