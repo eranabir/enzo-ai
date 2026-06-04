@@ -1,62 +1,54 @@
 version: '3.8'
 
-# Enzo AI — self-hosted local AI assistant
+# Enzo AI — self-hosted local AI
 #
-# Usage:
+# Simple start (Ollama bundled in the image):
 #   docker compose up -d
-#   then open http://localhost:1616 in your browser
+#   open http://localhost:1616
 #
-# On a NAS, replace localhost with your NAS IP.
-# Point the CLI at it with:  enzo-ai config server http://nas-ip:1616
+# With GPU (NVIDIA) — uses external Ollama for GPU acceleration:
+#   docker compose --profile gpu up -d
 
 services:
   enzo-ai:
     image: ghcr.io/eranabir/enzo-ai:latest
-    # Or build locally:  build: .
+    # Or build locally:
+    # build: .
     container_name: enzo-ai
     restart: unless-stopped
     ports:
-      - "1616:1616"       # Web UI + API
+      - "1616:1616"    # Web UI + API
+      - "11434:11434"  # Ollama API (optional — expose if needed externally)
     volumes:
-      - enzo-data:/app/data   # SQLite, uploads, master.key — keep this safe!
+      - enzo-data:/app/data   # SQLite DB, uploads, Ollama models — keep this!
     environment:
       ENZO_HOST: "0.0.0.0"
       ENZO_PORT: "1616"
-      OLLAMA_URL: "http://ollama:11434"   # sidecar container
       ENZO_DEFAULT_MODEL: "llama3.2:3b"
-    depends_on:
-      ollama:
-        condition: service_healthy
+      # OLLAMA_URL: "http://ollama:11434"  # uncomment to use external Ollama (GPU profile)
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:1616/api/health"]
-      interval: 10s
+      interval: 15s
       timeout: 5s
       retries: 5
+      start_period: 30s
 
-  ollama:
+  # ── GPU profile — only used when you run: docker compose --profile gpu up ──
+  # Requires NVIDIA Container Toolkit: https://docs.nvidia.com/datacenter/cloud-native/
+  ollama-gpu:
+    profiles: [gpu]
     image: ollama/ollama:latest
     container_name: enzo-ollama
     restart: unless-stopped
     volumes:
-      - ollama-data:/root/.ollama   # downloaded models persist here
-    ports:
-      - "11434:11434"               # expose if you want to use Ollama directly
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s             # Ollama needs time to start
-
-    # Uncomment for GPU support (NVIDIA):
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: all
-    #           capabilities: [gpu]
+      - enzo-data:/root/.ollama   # share model storage with enzo-ai
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
 
 volumes:
   enzo-data:
-  ollama-data:
