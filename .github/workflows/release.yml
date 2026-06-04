@@ -31,7 +31,7 @@ on:
 
 jobs:
   # ════════════════════════════════════════════════════════════════════════════
-  # WINDOWS — installer + server package + CLI binary
+  # WINDOWS — desktop app (with built-in setup screen) + CLI binary
   # ════════════════════════════════════════════════════════════════════════════
   windows:
     runs-on: windows-latest
@@ -53,18 +53,14 @@ jobs:
       - run: yarn download:ollama
       - run: yarn build
       - run: yarn build:desktop
-      - run: yarn build:installer
 
-      - name: Package server
+      - name: Package
         run: yarn workspace @enzo-ai/desktop package:win
 
       - name: Build CLI binary
         run: |
           npm install -g @yao-pkg/pkg
           pkg cli/dist/bundle/index.js --targets node20-win-x64 --output cli/dist/enzo-ai-cli-windows-x64.exe --compress Brotli
-
-      - name: Package installer
-        run: yarn workspace @enzo-ai/installer package:win
 
       - name: Save artifacts
         uses: actions/upload-artifact@v4
@@ -74,7 +70,6 @@ jobs:
           path: |
             desktop/dist/enzo-ai-windows-*.exe
             cli/dist/enzo-ai-cli-windows-x64.exe
-            installer/dist/enzo-ai-installer-windows.exe
 
   # ════════════════════════════════════════════════════════════════════════════
   # macOS
@@ -97,9 +92,8 @@ jobs:
       - run: yarn download:ollama
       - run: yarn build
       - run: yarn build:desktop
-      - run: yarn build:installer
 
-      - name: Package server
+      - name: Package
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
         run: yarn workspace @enzo-ai/desktop package:mac
@@ -110,11 +104,6 @@ jobs:
           pkg cli/dist/bundle/index.js --targets node20-macos-x64  --output cli/dist/enzo-ai-cli-macos-x64  --compress Brotli
           pkg cli/dist/bundle/index.js --targets node20-macos-arm64 --output cli/dist/enzo-ai-cli-macos-arm64 --compress Brotli
 
-      - name: Package installer
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: false
-        run: yarn workspace @enzo-ai/installer package:mac
-
       - name: Save artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -124,7 +113,6 @@ jobs:
             desktop/dist/enzo-ai-macos-*.dmg
             cli/dist/enzo-ai-cli-macos-x64
             cli/dist/enzo-ai-cli-macos-arm64
-            installer/dist/enzo-ai-installer-macos-*.dmg
 
   # ════════════════════════════════════════════════════════════════════════════
   # LINUX
@@ -153,9 +141,8 @@ jobs:
       - run: yarn download:ollama
       - run: yarn build
       - run: yarn build:desktop
-      - run: yarn build:installer
 
-      - name: Package server
+      - name: Package
         env:
           USE_SYSTEM_FPM: true
         run: yarn workspace @enzo-ai/desktop package:linux

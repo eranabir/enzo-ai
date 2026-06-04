@@ -1,6 +1,6 @@
-import { app, Menu, nativeImage, shell, Tray } from "electron";
+import { app, BrowserWindow, ipcMain, Menu, nativeImage, shell, Tray } from "electron";
 import { join } from "node:path";
-import { appendFileSync, mkdirSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { ensureDefaultModel, ensureOllama, stopOllama } from "./ollama";
 import {
   SERVER_URL,
@@ -139,11 +139,8 @@ async function start(): Promise<void> {
     setStatus("ready");
     log(`[enzo-ai] ready at ${SERVER_URL}`);
 
-    // 3. Open browser on first launch
-    if (!app.isPackaged || isFirstLaunch()) {
-      log("[enzo-ai] opening browser");
-      openBrowser();
-    }
+    // 3. Open browser automatically after server is ready
+    openBrowser();
 
     // 4. Pull the default model in the background if nothing is installed
     ensureDefaultModel().catch((e) => log("[enzo-ai] model pull failed:", e.message));
@@ -153,15 +150,70 @@ async function start(): Promise<void> {
   }
 }
 
+// ── Setup window ─────────────────────────────────────────────────────────────
+
+const SETUP_DONE_FILE = () => join(app.getPath("userData"), "setup-done");
+const isSetupDone = () => existsSync(SETUP_DONE_FILE());
+const markSetupDone = () => {
+  mkdirSync(app.getPath("userData"), { recursive: true });
+  writeFileSync(SETUP_DONE_FILE(), "1");
+};
+
+async function installCli(): Promise<{ ok: boolean; path?: string; error?: string }> {
+  try {
+    if (process.platform === "win32") {
+      const installDir = join(process.execPath, "..");
+      const { execSync } = require("node:child_process");
+      execSync(`reg add "HKCU\\Environment" /v PATH /t REG_EXPAND_SZ /d "%PATH%;${installDir}" /f`, { stdio: "ignore" });
+      return { ok: true, path: join(installDir, "enzo-ai.cmd") };
+    } else {
+      const { mkdirSync: mkdir, copyFileSync, chmodSync } = require("node:fs");
+      const src = app.isPackaged ? join(process.resourcesPath, "..", "enzo-ai") : join(__dirname, "..", "cli-wrappers", "enzo-ai");
+      const dest = join(app.getPath("home"), ".local", "bin", "enzo-ai");
+      mkdir(join(app.getPath("home"), ".local", "bin"), { recursive: true });
+      copyFileSync(src, dest);
+      chmodSync(dest, 0o755);
+      return { ok: true, path: dest };
+    }
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+}
+
+function openSetupWindow(): Promise<void> {
+  return new Promise((resolve) => {
+    const win = new BrowserWindow({
+      width: 500,
+      height: 520,
+      resizable: false,
+      title: "Enzo AI Setup",
+      webPreferences: {
+        preload: join(__dirname, "setup-preload.js"),
+        contextIsolation: true,
+        nodeIntegration: false,
+      },
+    });
+
+    const setupHtml = app.isPackaged
+      ? join(process.resourcesPath, "setup.html")
+      : join(__dirname, "setup.html");
+    win.loadFile(setupHtml);
+
+    ipcMain.handleOnce("setup:install-cli", () => installCli());
+    ipcMain.handleOnce("setup:complete", () => { markSetupDone(); win.close(); });
+    win.on("closed", () => resolve());
+  });
+}
+
 // ── App lifecycle ─────────────────────────────────────────────────────────
 
 app.on("ready", async () => {
-  // Hide from macOS dock — enzo lives in the menu bar only
-  if (process.platform === "darwin") {
-    app.dock.hide();
-  }
+  if (process.platform === "darwin") app.dock.hide();
 
   createTray();
+
+  if (!isSetupDone()) await openSetupWindow();
+
   await start();
 });
 
@@ -183,17 +235,3 @@ app.on("second-instance", () => {
   if (ready) openBrowser();
 });
 
-// ── Helpers ───────────────────────────────────────────────────────────────
-
-const FIRST_LAUNCH_KEY = "firstLaunchDone";
-
-function isFirstLaunch(): boolean {
-  const done = app.isPackaged
-    ? (global as unknown as Record<string, unknown>)[FIRST_LAUNCH_KEY]
-    : true;
-  if (!done) {
-    (global as unknown as Record<string, unknown>)[FIRST_LAUNCH_KEY] = true;
-    return true;
-  }
-  return false;
-}

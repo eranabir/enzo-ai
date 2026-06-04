@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Enzo AI Setup</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0d0d12;
+      color: #e2e2e8;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-app-region: no-drag;
+    }
+
+    .card {
+      width: 420px;
+      padding: 40px;
+      background: #16161e;
+      border: 1px solid #2a2a38;
+      border-radius: 20px;
+    }
+
+    .logo {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      margin-bottom: 6px;
+      color: #fff;
+    }
+
+    .logo span { color: #7c6ef5; }
+
+    .subtitle {
+      font-size: 13px;
+      color: #7a7a90;
+      margin-bottom: 32px;
+    }
+
+    h2 {
+      font-size: 15px;
+      font-weight: 600;
+      color: #b0b0c8;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 12px;
+    }
+
+    .option {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 14px 16px;
+      border: 1px solid #2a2a38;
+      border-radius: 12px;
+      margin-bottom: 10px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+
+    .option:hover { background: #1e1e2a; }
+    .option.selected { border-color: #7c6ef5; background: #7c6ef515; }
+    .option.disabled { opacity: 0.5; cursor: default; }
+
+    .option-check {
+      width: 20px;
+      height: 20px;
+      border-radius: 6px;
+      border: 2px solid #3a3a50;
+      flex-shrink: 0;
+      margin-top: 1px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      transition: all 0.15s;
+    }
+
+    .option.selected .option-check {
+      background: #7c6ef5;
+      border-color: #7c6ef5;
+      color: white;
+    }
+
+    .option-info h3 { font-size: 14px; font-weight: 600; margin-bottom: 3px; }
+    .option-info p  { font-size: 12px; color: #7a7a90; line-height: 1.4; }
+
+    .divider { border: none; border-top: 1px solid #2a2a38; margin: 24px 0; }
+
+    .btn {
+      width: 100%;
+      padding: 13px;
+      border-radius: 12px;
+      border: none;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .btn-primary {
+      background: #7c6ef5;
+      color: white;
+      box-shadow: 0 0 20px #7c6ef540;
+    }
+
+    .btn-primary:hover { background: #9180ff; box-shadow: 0 0 28px #7c6ef560; }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    #status {
+      text-align: center;
+      font-size: 12px;
+      color: #7a7a90;
+      margin-top: 12px;
+      min-height: 18px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">⬡ enzo <span>ai</span></div>
+    <div class="subtitle">Your private, local-first AI — running on this machine</div>
+
+    <h2>Choose clients to install</h2>
+
+    <!-- Web UI — always on -->
+    <div class="option selected disabled" id="opt-webui">
+      <div class="option-check">✓</div>
+      <div class="option-info">
+        <h3>Web UI</h3>
+        <p>Open the full interface at <strong>localhost:1616</strong> in any browser. Always included.</p>
+      </div>
+    </div>
+
+    <!-- CLI — optional -->
+    <div class="option" id="opt-cli">
+      <div class="option-check" id="cli-check"></div>
+      <div class="option-info">
+        <h3>CLI  <span style="font-size:11px;color:#7a7a90;font-weight:400">enzo-ai command</span></h3>
+        <p>Use Enzo AI from any terminal. Adds <code style="background:#0d0d12;padding:1px 5px;border-radius:4px">enzo-ai</code> to your PATH.</p>
+      </div>
+    </div>
+
+    <hr class="divider" />
+
+    <button class="btn btn-primary" id="btn-start">Get started →</button>
+    <div id="status"></div>
+  </div>
+
+  <script>
+    let cliSelected = false;
+
+    const optCli   = document.getElementById('opt-cli');
+    const cliCheck = document.getElementById('cli-check');
+    const btnStart = document.getElementById('btn-start');
+    const status   = document.getElementById('status');
+
+    optCli.addEventListener('click', () => {
+      cliSelected = !cliSelected;
+      optCli.classList.toggle('selected', cliSelected);
+      cliCheck.textContent = cliSelected ? '✓' : '';
+    });
+
+    btnStart.addEventListener('click', async () => {
+      btnStart.disabled = true;
+      btnStart.textContent = 'Setting up…';
+
+      if (cliSelected) {
+        status.textContent = 'Installing CLI…';
+        const result = await window.electronAPI.installCli();
+        if (result.ok) {
+          status.textContent = '✓ CLI installed at ' + result.path;
+        } else {
+          status.textContent = '⚠ CLI install failed: ' + result.error;
+        }
+        await new Promise(r => setTimeout(r, 800));
+      }
+
+      status.textContent = 'Starting server…';
+      await window.electronAPI.completeSetup();
+    });
+  </script>
+</body>
+</html>

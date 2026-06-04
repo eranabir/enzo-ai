@@ -6,6 +6,7 @@ electronVersion: "34.5.8"
 
 files:
   - dist/**/*
+  - src/setup.html
   - package.json
 
 # ── extraFiles: placed directly in the install root (same dir as Enzo AI.exe)
