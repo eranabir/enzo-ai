@@ -202,12 +202,15 @@ export class AdminController {
   }
 
   @Put("discord")
-  async saveDiscord(@Body() body: { token?: string; allowedIds?: string; model?: string }) {
+  async saveDiscord(@Body() body: { token?: string; allowedIds?: string; model?: string; reconnect?: boolean }) {
     if (body.allowedIds != null) this.settings.set("discord_allowed_ids", String(body.allowedIds).trim());
     if (body.model != null)      this.settings.set("discord_model", String(body.model).trim());
+    if (body.token?.trim())      this.settings.set("discord_bot_token", body.token.trim());
 
-    if (body.token?.trim()) {
-      this.settings.set("discord_bot_token", body.token.trim());
+    // Start/restart if a new token was provided OR an explicit reconnect was requested
+    if (body.token?.trim() || body.reconnect) {
+      const token = this.settings.get("discord_bot_token");
+      if (!token) throw new BadRequestException("No bot token configured");
       const { tag } = await this.discord.start(true);
       return { ok: true, running: true, tag };
     }

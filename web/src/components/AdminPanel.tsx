@@ -572,8 +572,10 @@ function DiscordConfig({ onBack }: { onBack: () => void }) {
     if (!token.trim() && !hasToken) return;
     setBusy(true); setError(null);
     try {
-      const body: { token?: string; allowedIds: string; model: string } = { allowedIds, model };
+      const body: { token?: string; allowedIds: string; model: string; reconnect?: boolean } = { allowedIds, model };
       if (token.trim()) body.token = token;
+      // If already running and no new token, send reconnect flag to restart with stored token
+      if (running && !token.trim()) body.reconnect = true;
       const res = await api.admin.saveDiscord(body);
       setRunning(res.running);
       setHasToken(true);

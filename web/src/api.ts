@@ -200,7 +200,7 @@ export const api = {
       fetch("/api/admin/discord", { headers: headers() })
         .then(parse<{ enabled: boolean; token: string | null; allowedIds: string; model: string }>),
 
-    saveDiscord: (body: { token?: string; allowedIds?: string; model?: string }) =>
+    saveDiscord: (body: { token?: string; allowedIds?: string; model?: string; reconnect?: boolean }) =>
       fetch("/api/admin/discord", {
         method: "PUT",
         headers: headers(true),
