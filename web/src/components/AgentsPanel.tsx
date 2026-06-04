@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Pencil, Trash2, Play, Clock, Zap, Globe, Calculator, Calendar, ChevronDown, ChevronRight, FileText, FolderOpen, GitBranch } from "lucide-react";
 import { SiTelegram } from "react-icons/si";
+import { Plus, X } from "lucide-react";
 
 // ── Schedule builder ──────────────────────────────────────────────────────────
 
@@ -167,6 +168,103 @@ function modelSupportsTools(modelId: string, models: ModelInfo[]): boolean {
   // If model is in the list, trust its flag; if not found default to showing tools
   return found ? (found.supportsTools ?? true) : true;
 }
+
+// ── Integration entry selector ────────────────────────────────────────────────
+
+type IntegrationType = "telegram"; // extend when Discord/Slack are available
+
+interface IntegrationEntry {
+  type: IntegrationType;
+  chatId: string;
+}
+
+const INTEGRATION_OPTIONS: { type: IntegrationType; label: string; icon: React.ReactNode; color: string; available: boolean }[] = [
+  { type: "telegram", label: "Telegram", icon: <SiTelegram className="h-3.5 w-3.5" />, color: "text-[#2AABEE]", available: true },
+];
+
+/** Parses comma-separated telegramChatIds string into entries array */
+function parseEntries(telegramChatIds: string): IntegrationEntry[] {
+  return telegramChatIds.split(",").map(s => s.trim()).filter(Boolean)
+    .map(chatId => ({ type: "telegram" as IntegrationType, chatId }));
+}
+
+/** Serialises entries back to telegramChatIds comma-separated string */
+function serialiseEntries(entries: IntegrationEntry[]): string {
+  return entries.filter(e => e.type === "telegram" && e.chatId.trim()).map(e => e.chatId.trim()).join(",");
+}
+
+function IntegrationEntries({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [entries, setEntries] = useState<IntegrationEntry[]>(() => parseEntries(value));
+
+  function update(next: IntegrationEntry[]) {
+    setEntries(next);
+    onChange(serialiseEntries(next));
+  }
+
+  function addEntry() {
+    update([...entries, { type: "telegram", chatId: "" }]);
+  }
+
+  function removeEntry(i: number) {
+    update(entries.filter((_, idx) => idx !== i));
+  }
+
+  function setEntry(i: number, patch: Partial<IntegrationEntry>) {
+    update(entries.map((e, idx) => idx === i ? { ...e, ...patch } : e));
+  }
+
+  return (
+    <div className="border-t border-border px-5 py-4 flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <label className="text-xs font-semibold text-muted">Integrations <span className="font-normal">(optional)</span></label>
+        <button
+          type="button"
+          onClick={addEntry}
+          className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-xs text-muted transition-colors hover:border-accent/60 hover:text-fg"
+        >
+          <Plus className="h-3 w-3" /> Add
+        </button>
+      </div>
+
+      {entries.length === 0 && (
+        <p className="text-[11px] text-muted">
+          Send scheduled results to a Telegram group or chat.
+          Use <code className="bg-surface px-1 rounded text-[10px]">/chatid</code> in the chat to get the ID.
+        </p>
+      )}
+
+      {entries.map((entry, i) => (
+        <div key={i} className="flex items-center gap-2">
+          {/* Integration type selector */}
+          <div className="flex items-center gap-1.5 rounded-lg border border-border bg-surface-2 px-2.5 py-1.5 text-sm flex-shrink-0">
+            {INTEGRATION_OPTIONS.find(o => o.type === entry.type)?.icon}
+            <span className={`text-xs font-medium ${INTEGRATION_OPTIONS.find(o => o.type === entry.type)?.color}`}>
+              {INTEGRATION_OPTIONS.find(o => o.type === entry.type)?.label}
+            </span>
+          </div>
+
+          {/* Chat ID input */}
+          <input
+            className={`${inputCls} flex-1`}
+            placeholder="Chat ID (send /chatid to get it)"
+            value={entry.chatId}
+            onChange={e => setEntry(i, { chatId: e.target.value })}
+          />
+
+          <button
+            type="button"
+            onClick={() => removeEntry(i)}
+            className="flex-shrink-0 text-muted hover:text-danger transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Main panel ────────────────────────────────────────────────────────────────
 
 interface Props {
   onStartChat: (agentId: string) => void;
@@ -475,22 +573,11 @@ export function AgentsPanel({ onStartChat, onClose }: Props) {
           </div>
         </div>
 
-        {/* Telegram integration */}
-        <div className="border-t border-border px-5 py-4 flex flex-col gap-2">
-          <div className="flex items-center gap-2">
-            <SiTelegram className="h-4 w-4 text-[#2AABEE]" />
-            <label className="text-xs font-semibold text-muted">Telegram Chat IDs <span className="font-normal">(optional)</span></label>
-          </div>
-          <p className="text-[11px] text-muted">
-            Scheduled results will be sent to these chats. Use <code className="bg-surface px-1 rounded text-[10px]">/chatid</code> in the chat to get the ID.
-          </p>
-          <input
-            className={inputCls}
-            placeholder="-100123456789, 987654321"
-            value={form.telegramChatIds}
-            onChange={e => setForm(f => ({...f, telegramChatIds: e.target.value}))}
-          />
-        </div>
+        {/* Integrations */}
+        <IntegrationEntries
+          value={form.telegramChatIds}
+          onChange={v => setForm(f => ({...f, telegramChatIds: v}))}
+        />
 
         <div className="border-t border-border px-5 py-4 flex gap-3">
           <button onClick={() => setView("list")} className="rounded-xl border border-border px-4 py-2 text-sm text-muted hover:text-fg">Cancel</button>
