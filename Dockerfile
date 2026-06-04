@@ -28,15 +28,9 @@ RUN yarn workspace @enzo-ai/cli build
 RUN npx ncc build cli/dist/index.js -o cli/dist/bundle -q
 
 
-# ── Stage 2: Download Ollama ───────────────────────────────────────────────────
-FROM alpine AS ollama
-ARG TARGETARCH
-RUN apk add --no-cache curl
-# Map Docker arch names to Ollama release names
-RUN ARCH="${TARGETARCH:-amd64}"; \
-    [ "$ARCH" = "arm64" ] && ARCH="arm64" || ARCH="amd64"; \
-    curl -fsSL "https://github.com/ollama/ollama/releases/download/v0.9.0/ollama-linux-${ARCH}" \
-         -o /ollama && chmod +x /ollama
+# ── Stage 2: Ollama binary ─────────────────────────────────────────────────────
+# Copy directly from the official Ollama image — correct arch, no download needed.
+FROM ollama/ollama:latest AS ollama
 
 
 # ── Stage 3: Runtime ──────────────────────────────────────────────────────────
@@ -46,8 +40,8 @@ WORKDIR /app
 
 RUN apk add --no-cache tini wget
 
-# Ollama binary (bundled — no separate container needed)
-COPY --from=ollama /ollama /usr/local/bin/ollama
+# Ollama binary from official image (correct arch, always up to date)
+COPY --from=ollama /usr/bin/ollama /usr/local/bin/ollama
 
 # NestJS server bundle
 COPY --from=builder /build/server/dist/bundle/index.js ./server.js
