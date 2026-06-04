@@ -144,7 +144,10 @@ jobs:
             ~/.cache/electron
             ~/.cache/electron-builder
           key: electron-linux-${{ hashFiles('desktop/package.json') }}
-      - run: sudo apt-get install -y libarchive-tools rpm fakeroot
+      - name: Install fpm via Ruby (avoids flaky GitHub CDN download)
+        run: |
+          sudo apt-get install -y ruby ruby-dev build-essential
+          sudo gem install fpm --no-document
       - name: Install dependencies
         run: yarn install --frozen-lockfile --network-timeout 100000
       - run: yarn download:ollama
@@ -153,6 +156,8 @@ jobs:
       - run: yarn build:installer
 
       - name: Package server
+        env:
+          USE_SYSTEM_FPM: true
         run: yarn workspace @enzo-ai/desktop package:linux
 
       - name: Build CLI binaries
@@ -167,7 +172,6 @@ jobs:
           name: linux-assets
           retention-days: 1
           path: |
-            desktop/dist/enzo-ai-linux-*.AppImage
             desktop/dist/enzo-ai-linux-*.deb
             cli/dist/enzo-ai-cli-linux-x64
             cli/dist/enzo-ai-cli-linux-arm64

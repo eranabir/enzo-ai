@@ -88,13 +88,8 @@ linux:
   icon: assets/icon.png
   category: Utility
   target:
-    - target: AppImage
-      arch: [x64]
     - target: deb
       arch: [x64]
-
-appImage:
-  artifactName: "enzo-ai-linux-${version}.${ext}"
 
 deb:
   artifactName: "enzo-ai-linux-${arch}.${ext}"
