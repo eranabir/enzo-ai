@@ -515,6 +515,35 @@ nav .container {
   align-items: center;
 }
 
+/* ── CLI Section ── */
+.cli-layout {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 64px;
+  align-items: center;
+}
+.cli-features {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cli-features li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+}
+.cli-check {
+  color: var(--accent-light);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+@media (max-width: 900px) {
+  .cli-layout { grid-template-columns: 1fr; gap: 40px; }
+}
+
 /* ── Integration Cards Grid ── */
 .int-grid {
   display: grid;
