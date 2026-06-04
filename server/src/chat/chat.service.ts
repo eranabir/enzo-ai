@@ -242,6 +242,22 @@ export class ChatService {
     }
   }
 
+  /**
+   * Process a message in an existing conversation and return the complete reply.
+   * Used by Telegram, CLI, and other non-streaming clients.
+   */
+  async processMessage(userId: string, convoId: string, content: string, model?: string): Promise<string> {
+    const convo = this.convos.get(convoId, userId);
+    if (!convo) throw new Error(`Conversation ${convoId} not found for user ${userId}`);
+    const controller = new AbortController();
+    let reply = "";
+    for await (const event of this.streamReply(convo, userId, content, model, controller.signal)) {
+      if (event.token) reply += event.token;
+      if (event.error) throw new Error(event.error);
+    }
+    return reply || "No response";
+  }
+
   /** Run an agent's scheduled prompt as a background conversation (result saved to memories). */
   async runScheduledAgent(agentId: string, userId: string, prompt: string): Promise<void> {
     const agent = this.agentsService.get(agentId, userId);

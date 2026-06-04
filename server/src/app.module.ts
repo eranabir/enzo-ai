@@ -56,16 +56,9 @@ export class AppModule implements OnModuleInit {
     // Telegram bot → ChatService
     const telegram = this.moduleRef.get(TelegramService, { strict: false });
     if (telegram && chat) {
-      telegram.setRunner(async (userId, convoId, content, model) => {
-        const convo = chat["convos"].get(convoId, userId);
-        if (!convo) throw new Error("Conversation not found");
-        const controller = new AbortController();
-        let reply = "";
-        for await (const event of chat.streamReply(convo, userId, content, model, controller.signal)) {
-          if (event.token) reply += event.token;
-        }
-        return reply || "No response";
-      });
+      telegram.setRunner((userId, convoId, content, model) =>
+        chat.processMessage(userId, convoId, content, model),
+      );
     }
   }
 }

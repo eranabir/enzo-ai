@@ -167,11 +167,15 @@ export class AdminController {
 
   @Put("telegram")
   async saveTelegram(@Body() body: { token?: string; allowedIds?: string; model?: string; enabled?: boolean }) {
-    if (body.token)      this.settings.set("telegram_bot_token", body.token.trim());
-    if (body.allowedIds !== undefined) this.settings.set("telegram_allowed_ids", body.allowedIds.trim());
-    if (body.model !== undefined)      this.settings.set("telegram_model", body.model.trim());
+    if (body.token?.trim())    this.settings.set("telegram_bot_token", body.token.trim());
+    if (body.allowedIds != null) this.settings.set("telegram_allowed_ids", String(body.allowedIds).trim());
+    if (body.model != null)      this.settings.set("telegram_model", String(body.model).trim());
 
-    if (body.enabled === true)  await this.telegram.start();
+    if (body.enabled === true) {
+      const token = this.settings.get("telegram_bot_token");
+      if (!token) throw new BadRequestException("Save a bot token before starting the bot");
+      await this.telegram.start();
+    }
     if (body.enabled === false) this.telegram.stop();
 
     return { ok: true, running: this.telegram.isRunning() };
