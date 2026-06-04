@@ -3,9 +3,6 @@ productName: Enzo AI
 copyright: "© 2025 Enzo AI"
 electronVersion: "34.5.8"
 
-publish:
-  provider: github
-  releaseType: release
 
 files:
   - dist/**/*

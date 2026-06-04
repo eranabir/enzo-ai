@@ -9,10 +9,6 @@ files:
   - src/renderer/**/*
   - package.json
 
-publish:
-  provider: github
-  releaseType: release
-
 win:
   icon: ../desktop/assets/icon.ico
   target:

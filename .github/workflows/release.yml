@@ -47,31 +47,30 @@ jobs:
       - run: yarn download:ollama
       - run: yarn build
 
-      - name: Build server package → enzo-ai-windows-{version}.exe
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: yarn workspace @enzo-ai/desktop dist:win:publish
+      - name: Build server package
+        run: yarn workspace @enzo-ai/desktop dist:win
 
-      - name: Build CLI binary → enzo-ai-cli-windows-x64.exe
+      - name: Build CLI binary
         run: |
           npm install -g @yao-pkg/pkg
           pkg cli/dist/bundle/index.js --targets node20-win-x64 --output cli/dist/enzo-ai-cli-windows-x64.exe --compress Brotli
 
-      - name: Upload CLI binary
+      - name: Build installer
+        run: yarn workspace @enzo-ai/installer dist:win
+
+      - name: Upload release assets
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          files: cli/dist/enzo-ai-cli-windows-x64.exe
+          files: |
+            desktop/dist/enzo-ai-windows-*.exe
+            cli/dist/enzo-ai-cli-windows-x64.exe
+            installer/dist/enzo-ai-installer-windows.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build installer → enzo-ai-installer-windows.exe
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: yarn workspace @enzo-ai/installer dist:win:publish
-
   # ════════════════════════════════════════════════════════════════════════════
-  # macOS — installer + server packages + CLI binaries
+  # macOS
   # ════════════════════════════════════════════════════════════════════════════
   macos:
     runs-on: macos-latest
@@ -87,11 +86,10 @@ jobs:
       - run: yarn download:ollama
       - run: yarn build
 
-      - name: Build server packages → enzo-ai-macos-{version}-{arch}.dmg
+      - name: Build server packages
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
-        run: yarn workspace @enzo-ai/desktop dist:mac:publish
+        run: yarn workspace @enzo-ai/desktop dist:mac
 
       - name: Build CLI binaries
         run: |
@@ -99,24 +97,25 @@ jobs:
           pkg cli/dist/bundle/index.js --targets node20-macos-x64  --output cli/dist/enzo-ai-cli-macos-x64  --compress Brotli
           pkg cli/dist/bundle/index.js --targets node20-macos-arm64 --output cli/dist/enzo-ai-cli-macos-arm64 --compress Brotli
 
-      - name: Upload CLI binaries
+      - name: Build installer
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: yarn workspace @enzo-ai/installer dist:mac
+
+      - name: Upload release assets
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           files: |
+            desktop/dist/enzo-ai-macos-*.dmg
             cli/dist/enzo-ai-cli-macos-x64
             cli/dist/enzo-ai-cli-macos-arm64
+            installer/dist/enzo-ai-installer-macos-*.dmg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build installer → enzo-ai-installer-macos-{arch}.dmg
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-          CSC_IDENTITY_AUTO_DISCOVERY: false
-        run: yarn workspace @enzo-ai/installer dist:mac:publish
-
   # ════════════════════════════════════════════════════════════════════════════
-  # LINUX — installer + server packages + CLI binaries
+  # LINUX
   # ════════════════════════════════════════════════════════════════════════════
   linux:
     runs-on: ubuntu-latest
@@ -133,10 +132,8 @@ jobs:
       - run: yarn download:ollama
       - run: yarn build
 
-      - name: Build server packages → enzo-ai-linux-{version}.AppImage + .deb
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: yarn workspace @enzo-ai/desktop dist:linux:publish
+      - name: Build server packages
+        run: yarn workspace @enzo-ai/desktop dist:linux
 
       - name: Build CLI binaries
         run: |
@@ -144,20 +141,21 @@ jobs:
           pkg cli/dist/bundle/index.js --targets node20-linux-x64  --output cli/dist/enzo-ai-cli-linux-x64  --compress Brotli
           pkg cli/dist/bundle/index.js --targets node20-linux-arm64 --output cli/dist/enzo-ai-cli-linux-arm64 --compress Brotli
 
-      - name: Upload CLI binaries
+      - name: Build installer
+        run: yarn workspace @enzo-ai/installer dist:linux
+
+      - name: Upload release assets
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           files: |
+            desktop/dist/enzo-ai-linux-*.AppImage
+            desktop/dist/enzo-ai-linux-*.deb
             cli/dist/enzo-ai-cli-linux-x64
             cli/dist/enzo-ai-cli-linux-arm64
+            installer/dist/enzo-ai-installer-linux.AppImage
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build installer → enzo-ai-installer-linux.AppImage
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: yarn workspace @enzo-ai/installer dist:linux:publish
 
   # ════════════════════════════════════════════════════════════════════════════
   # DOCKER — native build per arch (no QEMU), merged into one manifest
