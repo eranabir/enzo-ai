@@ -58,18 +58,29 @@ export function App() {
       .catch(() => {});
   }, [online, user]);
 
-  useEffect(() => {
+  const refreshConversations = useCallback(() => {
     if (!online || !user) return;
     api.listConversations().then(setConversations).catch(() => {});
+  }, [online, user]);
+
+  useEffect(() => {
+    if (!online || !user) return;
+    refreshConversations();
     refreshModels();
   }, [online, user]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Re-fetch models when the tab regains focus (picks up server changes, new pulled models, etc.)
+  // Re-fetch when the tab regains focus — picks up server-created conversations
+  // (e.g. Telegram integration chat appearing after bot connects)
   useEffect(() => {
-    const onVisible = () => { if (document.visibilityState === "visible") refreshModels(); };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        refreshModels();
+        refreshConversations();
+      }
+    };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [refreshModels]);
+  }, [refreshModels, refreshConversations]);
 
   const logout = useCallback(async () => {
     await api.logout().catch(() => {});
@@ -233,11 +244,12 @@ export function App() {
           currentUser={user}
           onClose={() => {
             setAdminOpen(false);
-            // Refresh models in case something was pulled or the default changed
+            // Refresh models + conversations — integrations may have added new chats
             api.models().then(({ models: m, default: def }) => {
               setModels(m);
               setModel((cur) => m.find(x => x.id === cur) ? cur : m[0]?.id || def);
             }).catch(() => {});
+            refreshConversations();
           }}
         />
       )}

@@ -50,6 +50,9 @@ export class TelegramService implements OnModuleDestroy {
     // Verify the token is valid and get the bot info before launching
     const me = await this.bot.telegram.getMe();
 
+    // Create the dedicated conversation immediately so it appears in the web UI
+    this.getOrCreateConversation();
+
     this.registerHandlers();
 
     // Long polling — reaches out to Telegram, no public URL needed
