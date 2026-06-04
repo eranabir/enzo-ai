@@ -65,15 +65,21 @@ function useNewBtnStyles() {
 
 interface NewBtnProps {
   collapsed?: boolean;
-  children: React.ReactNode; // the DropdownMenuContent
-  trigger: React.ReactNode;  // unused, we build trigger internally
   onNew: () => void;
   onAgentsOpen: () => void;
   onMcpOpen: () => void;
 }
 
-function NewButton({ collapsed, onNew, onAgentsOpen, onMcpOpen }: Omit<NewBtnProps, "children" | "trigger">) {
+function NewButton({ collapsed, onNew, onAgentsOpen, onMcpOpen }: NewBtnProps) {
   useNewBtnStyles();
+
+  const menuItems = (
+    <>
+      <DropdownMenuItem onClick={onNew}>New chat</DropdownMenuItem>
+      <DropdownMenuItem onClick={onAgentsOpen}>Agents</DropdownMenuItem>
+      <DropdownMenuItem onClick={onMcpOpen}>MCP Servers</DropdownMenuItem>
+    </>
+  );
 
   if (collapsed) {
     return (
@@ -89,9 +95,7 @@ function NewButton({ collapsed, onNew, onAgentsOpen, onMcpOpen }: Omit<NewBtnPro
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent side="right" align="start" className="w-40">
-          <DropdownMenuItem onClick={onNew}>New chat</DropdownMenuItem>
-          <DropdownMenuItem onClick={onAgentsOpen}>Agents</DropdownMenuItem>
-          <DropdownMenuItem onClick={onMcpOpen}>MCP Servers</DropdownMenuItem>
+          {menuItems}
         </DropdownMenuContent>
       </DropdownMenu>
     );
@@ -123,9 +127,7 @@ function NewButton({ collapsed, onNew, onAgentsOpen, onMcpOpen }: Omit<NewBtnPro
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-48">
-        <DropdownMenuItem onClick={onNew}>New chat</DropdownMenuItem>
-        <DropdownMenuItem onClick={onAgentsOpen}>Agents</DropdownMenuItem>
-        <DropdownMenuItem onClick={onMcpOpen}>MCP Servers</DropdownMenuItem>
+        {menuItems}
       </DropdownMenuContent>
     </DropdownMenu>
   );

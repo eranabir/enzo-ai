@@ -1,6 +1,6 @@
 {
   "name": "enzo-ai",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "description": "Enzo AI - a self-hosted, local-first AI chat experience",
   "workspaces": [
@@ -27,7 +27,6 @@
     "dist:win": "yarn build && yarn build:desktop && yarn workspace @enzo-ai/desktop dist:win && yarn fix:sqlite",
     "dist:mac": "yarn build && yarn build:desktop && yarn workspace @enzo-ai/desktop dist:mac && yarn fix:sqlite",
     "dist:linux": "yarn build && yarn build:desktop && yarn workspace @enzo-ai/desktop dist:linux && yarn fix:sqlite"
-
   },
   "devDependencies": {
     "@vercel/ncc": "^0.38.4",
