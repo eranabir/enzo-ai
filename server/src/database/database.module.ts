@@ -128,6 +128,12 @@ export type DatabaseConnection = Database.Database;
           db.exec(`ALTER TABLE conversations ADD COLUMN agent_id TEXT`);
         }
 
+        // Add telegram_chat_ids to agents (comma-separated chat IDs for proactive + reactive routing)
+        const agentCols = db.prepare(`PRAGMA table_info(agents)`).all() as { name: string }[];
+        if (!agentCols.some((c) => c.name === "telegram_chat_ids")) {
+          db.exec(`ALTER TABLE agents ADD COLUMN telegram_chat_ids TEXT`);
+        }
+
         // Add integration column to conversations (links to Telegram/Discord/Slack chat)
         const intCols = db.prepare(`PRAGMA table_info(conversations)`).all() as { name: string }[];
         if (!intCols.some((c) => c.name === "integration")) {

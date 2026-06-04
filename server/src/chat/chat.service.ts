@@ -258,16 +258,16 @@ export class ChatService {
     return reply || "No response";
   }
 
-  /** Run an agent's scheduled prompt as a background conversation (result saved to memories). */
-  async runScheduledAgent(agentId: string, userId: string, prompt: string): Promise<void> {
+  /** Run an agent's scheduled prompt as a background conversation (result saved to memories). Returns the result text. */
+  async runScheduledAgent(agentId: string, userId: string, prompt: string): Promise<string> {
     const agent = this.agentsService.get(agentId, userId);
-    if (!agent) return;
+    if (!agent) return "";
     const user = this.users.findById(userId);
-    if (!user) return;
+    if (!user) return "";
 
     const model = agent.model || this.settings.getDefaultModel();
     const provider = await this.llm.resolveProvider(model, userId);
-    if (!provider) return;
+    if (!provider) return "";
 
     const messages: ChatMessage[] = [
       { role: "system", content: agent.instructions },
@@ -286,5 +286,6 @@ export class ChatService {
     } catch (err) {
       this.logger.error(`Scheduled agent failed: ${(err as Error).message}`);
     }
+    return result;
   }
 }

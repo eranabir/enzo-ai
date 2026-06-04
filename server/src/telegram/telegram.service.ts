@@ -4,6 +4,7 @@ import { message } from "telegraf/filters";
 import { SettingsService } from "../settings/settings.service";
 import { ConversationsService } from "../conversations/conversations.service";
 import { UsersService } from "../users/users.service";
+import { AgentsService } from "../agents/agents.service";
 
 
 @Injectable()
@@ -24,6 +25,7 @@ export class TelegramService implements OnModuleDestroy {
     private readonly settings: SettingsService,
     private readonly convos: ConversationsService,
     private readonly users: UsersService,
+    private readonly agentsSvc: AgentsService,
   ) {}
 
   /** Called by TelegramModule after ChatService is available. */
@@ -98,6 +100,14 @@ export class TelegramService implements OnModuleDestroy {
       )
     );
 
+    // /chatid — returns the current chat's ID so users can link agents to it
+    this.bot.command("chatid", (ctx) =>
+      ctx.reply(
+        `📋 Chat ID: \`${ctx.chat.id}\`\n\nUse this ID in the Agents settings to link an agent to this chat.`,
+        { parse_mode: "Markdown" }
+      )
+    );
+
     this.bot.on(message("text"), async (ctx) => {
       const telegramUserId = String(ctx.from.id);
       const chatId         = String(ctx.chat.id);
@@ -131,7 +141,15 @@ export class TelegramService implements OnModuleDestroy {
         const chatTitle = isGroup
           ? (("title" in ctx.chat ? ctx.chat.title : null) ?? `Group ${chatId}`)
           : senderName;
-        const { userId, convoId } = this.getOrCreateChatConversation(chatId, chatTitle);
+        // Check if any agent is linked to this Telegram chat
+        const linkedAgent = this.findAgentForChat(chatId);
+        const agentTitle = linkedAgent ? `${linkedAgent.emoji} ${linkedAgent.name}` : chatTitle;
+
+        const { userId, convoId } = this.getOrCreateChatConversation(
+          chatId,
+          linkedAgent ? agentTitle : chatTitle,
+          linkedAgent?.id,
+        );
         const model = this.settings.get("telegram_model") ?? undefined;
 
         // Keep sending "typing" every 4s while the LLM processes
@@ -166,20 +184,44 @@ export class TelegramService implements OnModuleDestroy {
    *   - DM → one conversation per person
    *   - Group → one shared conversation for the whole group
    */
-  getOrCreateChatConversation(chatId: string, chatTitle: string): { userId: string; convoId: string } {
+  getOrCreateChatConversation(chatId: string, chatTitle: string, agentId?: string): { userId: string; convoId: string } {
     const botUser = this.users.listAll().find((u) => u.role === "admin");
     if (!botUser) throw new Error("No admin user found to run the bot as");
 
     const map = this.loadChatMap();
 
     if (!map[chatId]) {
-      const convo = this.convos.create(botUser.id, undefined, undefined, "telegram");
+      const convo = this.convos.create(botUser.id, undefined, agentId, "telegram");
       this.convos.rename(convo.id, `💬 ${chatTitle}`);
       map[chatId] = convo.id;
       this.saveChatMap(map);
     }
 
     return { userId: botUser.id, convoId: map[chatId] };
+  }
+
+  /** Find an agent that has this Telegram chat ID in its telegram_chat_ids. */
+  private findAgentForChat(chatId: string) {
+    const botUser = this.users.listAll().find((u) => u.role === "admin");
+    if (!botUser) return null;
+    const agents = this.agentsSvc.list(botUser.id);
+    return agents.find((a) => {
+      if (!a.telegram_chat_ids) return false;
+      return a.telegram_chat_ids.split(",").map(s => s.trim()).includes(chatId);
+    }) ?? null;
+  }
+
+  /** Send a message proactively to all Telegram chats linked to an agent. */
+  async notifyAgentResult(agentTelegramChatIds: string, message: string): Promise<void> {
+    if (!this.bot) return;
+    const chatIds = agentTelegramChatIds.split(",").map(s => s.trim()).filter(Boolean);
+    for (const chatId of chatIds) {
+      for (const chunk of splitMessage(message)) {
+        await this.bot.telegram.sendMessage(chatId, chunk, { parse_mode: "Markdown" }).catch((e) =>
+          this.logger.error(`Failed to notify Telegram chat ${chatId}: ${e.message}`)
+        );
+      }
+    }
   }
 
   /** Delete ALL Telegram conversations (called from Integrations → Disconnect). */

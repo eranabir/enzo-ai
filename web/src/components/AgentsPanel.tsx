@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Pencil, Trash2, Play, Clock, Zap, Globe, Calculator, Calendar, ChevronDown, ChevronRight, FileText, FolderOpen, GitBranch } from "lucide-react";
+import { SiTelegram } from "react-icons/si";
 
 // ── Schedule builder ──────────────────────────────────────────────────────────
 
@@ -186,7 +187,7 @@ export function AgentsPanel({ onStartChat, onClose }: Props) {
     name: "", emoji: "🤖", description: "", instructions: "",
     model: "",
     tools: [] as ToolName[],
-    schedulePrompt: "", scheduleEnabled: false,
+    schedulePrompt: "", scheduleEnabled: false, telegramChatIds: "",
   });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -203,7 +204,7 @@ export function AgentsPanel({ onStartChat, onClose }: Props) {
   function openCreate() {
     setEditing(null);
     setForm({ name: "", emoji: "🤖", description: "", instructions: "",
-               model: "", tools: [], schedulePrompt: "", scheduleEnabled: false });
+               model: "", tools: [], schedulePrompt: "", scheduleEnabled: false, telegramChatIds: "" });
     setScheduleState(defaultSchedule());
     setScheduleOpen(false);
     setEmojiOpen(false);
@@ -219,6 +220,7 @@ export function AgentsPanel({ onStartChat, onClose }: Props) {
       tools: agent.tools,
       schedulePrompt: agent.schedulePrompt ?? "",
       scheduleEnabled: agent.scheduleEnabled,
+      telegramChatIds: agent.telegramChatIds ?? "",
     });
     setScheduleState(defaultSchedule()); // could parse existing cron, for now reset
     setScheduleOpen(!!(agent.schedule));
@@ -243,6 +245,7 @@ export function AgentsPanel({ onStartChat, onClose }: Props) {
         schedule: scheduleOpen ? toCron(scheduleState) : undefined,
         schedulePrompt: scheduleOpen && form.schedulePrompt.trim() ? form.schedulePrompt.trim() : undefined,
         scheduleEnabled: scheduleOpen ? form.scheduleEnabled : false,
+        telegramChatIds: form.telegramChatIds.trim() || undefined,
       };
       let saved: Agent;
       if (editing) {
@@ -470,6 +473,23 @@ export function AgentsPanel({ onStartChat, onClose }: Props) {
               </div>
             )}
           </div>
+        </div>
+
+        {/* Telegram integration */}
+        <div className="border-t border-border px-5 py-4 flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <SiTelegram className="h-4 w-4 text-[#2AABEE]" />
+            <label className="text-xs font-semibold text-muted">Telegram Chat IDs <span className="font-normal">(optional)</span></label>
+          </div>
+          <p className="text-[11px] text-muted">
+            Scheduled results will be sent to these chats. Use <code className="bg-surface px-1 rounded text-[10px]">/chatid</code> in the chat to get the ID.
+          </p>
+          <input
+            className={inputCls}
+            placeholder="-100123456789, 987654321"
+            value={form.telegramChatIds}
+            onChange={e => setForm(f => ({...f, telegramChatIds: e.target.value}))}
+          />
         </div>
 
         <div className="border-t border-border px-5 py-4 flex gap-3">

@@ -15,6 +15,7 @@ import { AgentsModule } from "./agents/agents.module";
 import { SystemModule } from "./system/system.module";
 import { AdminModule } from "./admin/admin.module";
 import { SchedulerService } from "./agents/scheduler.service";
+import { AgentsService } from "./agents/agents.service";
 import { ChatService } from "./chat/chat.service";
 import { TelegramModule } from "./telegram/telegram.module";
 import { TelegramService } from "./telegram/telegram.service";
@@ -45,12 +46,21 @@ export class AppModule implements OnModuleInit {
   onModuleInit() {
     const chat = this.moduleRef.get(ChatService, { strict: false });
 
-    // Scheduler → ChatService
-    const scheduler = this.moduleRef.get(SchedulerService, { strict: false });
+    // Scheduler → ChatService (+ Telegram delivery for agents with linked chats)
+    const scheduler  = this.moduleRef.get(SchedulerService, { strict: false });
+    const telegramSvc = this.moduleRef.get(TelegramService, { strict: false });
     if (scheduler && chat) {
-      scheduler.setRunner((agentId, userId, prompt) =>
-        chat.runScheduledAgent(agentId, userId, prompt),
-      );
+      scheduler.setRunner(async (agentId, userId, prompt) => {
+        const result = await chat.runScheduledAgent(agentId, userId, prompt);
+        // If this agent has Telegram chats linked, send the result there too
+        if (telegramSvc && result) {
+          const agentsSvc = this.moduleRef.get(AgentsService, { strict: false });
+          const agent = agentsSvc?.list(userId).find((a) => a.id === agentId);
+          if (agent?.telegram_chat_ids) {
+            await telegramSvc.notifyAgentResult(agent.telegram_chat_ids, result);
+          }
+        }
+      });
     }
 
     // Telegram bot → ChatService

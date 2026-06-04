@@ -24,6 +24,7 @@ export interface Agent {
   schedule: string | null;
   schedulePrompt: string | null;
   scheduleEnabled: boolean;
+  telegramChatIds: string; // comma-separated Telegram chat IDs
   lastRunAt: number | null;
   createdAt: number;
   updatedAt: number;
