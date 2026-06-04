@@ -111,7 +111,7 @@ export const api = {
   /** Which integrations are currently connected (used by AgentsPanel). */
   integrations: () =>
     fetch("/api/health/integrations", { headers: headers() })
-      .then(parse<{ telegram: boolean; discord: boolean }>),
+      .then(parse<{ telegram: boolean; discord: boolean; slack: boolean }>),
 
   // ---- agents ----
   agents: {
@@ -214,6 +214,21 @@ export const api = {
 
     stopDiscord: () =>
       fetch("/api/admin/discord", { method: "DELETE", headers: headers() })
+        .then(parse<{ ok: boolean; running: boolean }>),
+
+    getSlack: () =>
+      fetch("/api/admin/slack", { headers: headers() })
+        .then(parse<{ enabled: boolean; botToken: string | null; appToken: string | null; allowedIds: string; model: string }>),
+
+    saveSlack: (body: { botToken?: string; appToken?: string; allowedIds?: string; model?: string; reconnect?: boolean }) =>
+      fetch("/api/admin/slack", {
+        method: "PUT",
+        headers: headers(true),
+        body: JSON.stringify(body),
+      }).then(parse<{ ok: boolean; running: boolean; botName?: string }>),
+
+    stopSlack: () =>
+      fetch("/api/admin/slack", { method: "DELETE", headers: headers() })
         .then(parse<{ ok: boolean; running: boolean }>),
 
     getTelegram: () =>

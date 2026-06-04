@@ -7,10 +7,11 @@ import { LlmModule } from "../llm/llm.module";
 import { AgentsModule } from "../agents/agents.module";
 import { TelegramModule } from "../telegram/telegram.module";
 import { DiscordModule } from "../discord/discord.module";
+import { SlackModule } from "../slack/slack.module";
 import { AdminController } from "./admin.controller";
 
 @Module({
-  imports: [AuthModule, ApiKeysModule, UsersModule, SettingsModule, LlmModule, AgentsModule, TelegramModule, DiscordModule],
+  imports: [AuthModule, ApiKeysModule, UsersModule, SettingsModule, LlmModule, AgentsModule, TelegramModule, DiscordModule, SlackModule],
   controllers: [AdminController],
 })
 export class AdminModule {}

@@ -530,7 +530,7 @@ function ToolsTab() {
 
 // ── Integrations tab ─────────────────────────────────────────────────────────
 
-type IntegrationId = "telegram" | "discord";
+type IntegrationId = "telegram" | "discord" | "slack";
 
 interface IntegrationDef {
   id: IntegrationId | "discord" | "slack";
@@ -544,10 +544,125 @@ interface IntegrationDef {
 const INTEGRATIONS: IntegrationDef[] = [
   { id: "telegram", name: "Telegram", icon: <SiTelegram className="h-6 w-6" />, color: "text-[#2AABEE]", description: "Chat with your AI via Telegram from anywhere.",   available: true  },
   { id: "discord",  name: "Discord",  icon: <SiDiscord  className="h-6 w-6" />, color: "text-[#5865F2]", description: "Bring Enzo AI into your Discord server.",        available: true  },
-  { id: "slack",    name: "Slack",    icon: <SiSlack    className="h-6 w-6" />, color: "text-[#4A154B]", description: "Use Enzo AI directly in your Slack workspace.",  available: false },
+  { id: "slack",    name: "Slack",    icon: <SiSlack    className="h-6 w-6" />, color: "text-[#4A154B]", description: "Use Enzo AI directly in your Slack workspace.",  available: true  },
 ];
 
 // ── Telegram config screen ────────────────────────────────────────────────────
+
+function SlackConfig({ onBack }: { onBack: () => void }) {
+  const [botToken, setBotToken]   = useState("");
+  const [appToken, setAppToken]   = useState("");
+  const [allowedIds, setAllowed]  = useState("");
+  const [model, setModel]         = useState("");
+  const [running, setRunning]     = useState(false);
+  const [hasTokens, setHasTokens] = useState(false);
+  const [botName, setBotName]     = useState<string | null>(null);
+  const [busy, setBusy]           = useState(false);
+  const [error, setError]         = useState<string | null>(null);
+
+  useEffect(() => {
+    api.admin.getSlack().then((d) => {
+      setRunning(d.enabled);
+      setAllowed(d.allowedIds);
+      setModel(d.model);
+      setHasTokens(!!(d.botToken && d.appToken));
+    }).catch(() => {});
+  }, []);
+
+  async function save() {
+    if (!botToken.trim() && !appToken.trim() && !hasTokens) return;
+    setBusy(true); setError(null);
+    try {
+      const body: Record<string, string | boolean> = { allowedIds, model };
+      if (botToken.trim()) body.botToken = botToken;
+      if (appToken.trim()) body.appToken = appToken;
+      if (running && !botToken.trim() && !appToken.trim()) body.reconnect = true;
+      const res = await api.admin.saveSlack(body as any);
+      setRunning(res.running);
+      setHasTokens(true);
+      if (res.botName) setBotName(res.botName);
+      setBotToken(""); setAppToken("");
+    } catch (e) {
+      setError((e as Error).message);
+    } finally { setBusy(false); }
+  }
+
+  async function stop() {
+    setBusy(true);
+    try { await api.admin.stopSlack(); setRunning(false); setBotName(null); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <div>
+      <button onClick={onBack} className="mb-4 flex items-center gap-1.5 text-xs text-muted hover:text-fg transition-colors">
+        ← Back to integrations
+      </button>
+      <div className="mb-5 flex items-center gap-3">
+        <SiSlack className="h-8 w-8 flex-shrink-0 text-[#4A154B]" />
+        <div>
+          <h3 className="font-semibold text-fg">Slack</h3>
+          <p className="text-xs text-muted">Bring Enzo AI into your Slack workspace.</p>
+        </div>
+        {running && <div className="ml-auto flex items-center gap-1.5 text-xs font-semibold text-ok"><span className="text-[10px]">●</span> Connected</div>}
+      </div>
+
+      {running && (
+        <div className="mb-4 rounded-xl border border-ok/30 bg-ok/10 px-4 py-3">
+          <p className="text-sm font-semibold text-ok">✓ Bot @{botName ?? "enzo-ai"} is live</p>
+          <p className="mt-0.5 text-xs text-muted">Message the bot directly or mention it in channels.</p>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-3">
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-muted">Bot Token <span className="font-normal">(xoxb-...)</span></label>
+          <p className="mb-1.5 text-[11px] text-muted">api.slack.com/apps → your app → OAuth & Permissions → Bot User OAuth Token</p>
+          <input className={inputCls} type="password"
+            placeholder={hasTokens ? "••••••••  (configured)" : "xoxb-..."}
+            value={botToken} onChange={e => setBotToken(e.target.value)} />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-muted">App-Level Token <span className="font-normal">(xapp-...)</span></label>
+          <p className="mb-1.5 text-[11px] text-muted">api.slack.com/apps → your app → Basic Information → App-Level Tokens → Create token with <code className="bg-surface px-1 rounded text-[10px]">connections:write</code> scope</p>
+          <input className={inputCls} type="password"
+            placeholder={hasTokens ? "••••••••  (configured)" : "xapp-..."}
+            value={appToken} onChange={e => setAppToken(e.target.value)} />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-muted">Allowed Channel / User IDs <span className="font-normal">(optional)</span></label>
+          <input className={inputCls} placeholder="C1234567890, U1234567890" value={allowedIds} onChange={e => setAllowed(e.target.value)} />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-muted">Model</label>
+          <ModelPicker value={model} onChange={setModel} />
+        </div>
+        <div className="flex gap-2">
+          <button onClick={save} disabled={busy || (!botToken.trim() && !appToken.trim() && !hasTokens)}
+            className="flex-1 rounded-xl bg-accent py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent-2 disabled:opacity-40 disabled:cursor-not-allowed">
+            {busy ? "Connecting…" : running ? "Save & Reconnect" : "Save & Connect"}
+          </button>
+          {running && (
+            <button onClick={stop} disabled={busy}
+              className="rounded-xl border border-danger/40 bg-danger/10 px-4 text-sm font-semibold text-danger hover:bg-danger/20 disabled:opacity-50">
+              Disconnect
+            </button>
+          )}
+        </div>
+        {error && <p className="text-xs text-danger">{error}</p>}
+
+        <div className="rounded-xl border border-border bg-surface-2 px-4 py-3 text-xs text-muted space-y-1.5">
+          <p className="font-semibold text-fg">Setup checklist</p>
+          <p>1. Enable <span className="text-fg">Socket Mode</span> in your app settings</p>
+          <p>2. Subscribe to bot events: <code className="bg-surface px-1 rounded text-[10px]">message.channels</code>, <code className="bg-surface px-1 rounded text-[10px]">message.im</code></p>
+          <p>3. Add bot scopes: <code className="bg-surface px-1 rounded text-[10px]">chat:write</code>, <code className="bg-surface px-1 rounded text-[10px]">channels:history</code>, <code className="bg-surface px-1 rounded text-[10px]">im:history</code></p>
+          <p>4. Install app to workspace</p>
+          <p>5. Invite bot to channels: <code className="bg-surface px-1 rounded text-[10px]">/invite @yourbot</code></p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function DiscordConfig({ onBack }: { onBack: () => void }) {
   const [token, setToken]       = useState("");
@@ -821,21 +936,25 @@ function IntegrationsTab() {
   const [selected, setSelected]       = useState<IntegrationId | null>(null);
   const [telegramRunning, setTgRunning] = useState(false);
   const [discordRunning,  setDcRunning] = useState(false);
+  const [slackRunning,    setSlRunning] = useState(false);
 
   useEffect(() => {
     api.admin.getTelegram().then((d) => setTgRunning(d.enabled)).catch(() => {});
     api.admin.getDiscord().then((d)  => setDcRunning(d.enabled)).catch(() => {});
+    api.admin.getSlack().then((d)    => setSlRunning(d.enabled)).catch(() => {});
   }, []);
 
   function refresh() {
     api.admin.getTelegram().then((d) => setTgRunning(d.enabled)).catch(() => {});
     api.admin.getDiscord().then((d)  => setDcRunning(d.enabled)).catch(() => {});
+    api.admin.getSlack().then((d)    => setSlRunning(d.enabled)).catch(() => {});
   }
 
   if (selected === "telegram") return <TelegramConfig onBack={() => { setSelected(null); refresh(); }} />;
   if (selected === "discord")  return <DiscordConfig  onBack={() => { setSelected(null); refresh(); }} />;
+  if (selected === "slack")    return <SlackConfig    onBack={() => { setSelected(null); refresh(); }} />;
 
-  const connectedMap: Record<string, boolean> = { telegram: telegramRunning, discord: discordRunning };
+  const connectedMap: Record<string, boolean> = { telegram: telegramRunning, discord: discordRunning, slack: slackRunning };
 
   return (
     <div>

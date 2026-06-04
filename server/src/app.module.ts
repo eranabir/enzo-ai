@@ -21,6 +21,8 @@ import { TelegramModule } from "./telegram/telegram.module";
 import { TelegramService } from "./telegram/telegram.service";
 import { DiscordModule } from "./discord/discord.module";
 import { DiscordService } from "./discord/discord.service";
+import { SlackModule } from "./slack/slack.module";
+import { SlackService } from "./slack/slack.service";
 
 @Module({
   imports: [
@@ -39,6 +41,7 @@ import { DiscordService } from "./discord/discord.service";
     AdminModule,
     TelegramModule,
     DiscordModule,
+    SlackModule,
   ],
   controllers: [AppController],
   // AppController needs TelegramService + DiscordService for /api/health/integrations
@@ -79,6 +82,14 @@ export class AppModule implements OnModuleInit {
     const discordSvc = this.moduleRef.get(DiscordService, { strict: false });
     if (discordSvc && chat) {
       discordSvc.setRunner((userId, convoId, content, model) =>
+        chat.processMessage(userId, convoId, content, model),
+      );
+    }
+
+    // Slack bot → ChatService
+    const slackSvc = this.moduleRef.get(SlackService, { strict: false });
+    if (slackSvc && chat) {
+      slackSvc.setRunner((userId, convoId, content, model) =>
         chat.processMessage(userId, convoId, content, model),
       );
     }

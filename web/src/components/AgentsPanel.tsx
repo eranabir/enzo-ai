@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Pencil, Trash2, Play, Clock, Zap, Globe, Calculator, Calendar, ChevronDown, ChevronRight, FileText, FolderOpen, GitBranch } from "lucide-react";
-import { SiTelegram, SiDiscord } from "react-icons/si";
+import { SiTelegram, SiDiscord, SiSlack } from "react-icons/si";
 import { Plus, X } from "lucide-react";
 
 // ── Schedule builder ──────────────────────────────────────────────────────────
@@ -171,7 +171,7 @@ function modelSupportsTools(modelId: string, models: ModelInfo[]): boolean {
 
 // ── Integration entry selector ────────────────────────────────────────────────
 
-type IntegrationType = "telegram" | "discord";
+type IntegrationType = "telegram" | "discord" | "slack";
 
 interface IntegrationEntry {
   type: IntegrationType;
@@ -181,6 +181,7 @@ interface IntegrationEntry {
 const ALL_INTEGRATION_OPTIONS: { type: IntegrationType; label: string; icon: React.ReactNode; color: string; placeholder: string }[] = [
   { type: "telegram", label: "Telegram", icon: <SiTelegram className="h-3.5 w-3.5" />, color: "text-[#2AABEE]", placeholder: "Chat ID — send /chatid to get it" },
   { type: "discord",  label: "Discord",  icon: <SiDiscord  className="h-3.5 w-3.5" />, color: "text-[#5865F2]", placeholder: "Channel ID — right-click channel → Copy Channel ID" },
+  { type: "slack",    label: "Slack",    icon: <SiSlack    className="h-3.5 w-3.5" />, color: "text-[#4A154B]", placeholder: "Channel ID — right-click channel name → Copy link, use ID from URL" },
 ];
 
 /** Parses comma-separated chatIds string into entries (type unknown, assume telegram for existing data) */
@@ -316,9 +317,11 @@ export function AgentsPanel({ onStartChat, onClose }: Props) {
       setAvailableModels(models);
       setDefaultModelId(def);
     }).catch(() => {});
-    api.integrations().then(({ telegram, discord }) => {
+    api.integrations().then(({ telegram, discord, slack }) => {
       setConnectedIntegrations(ALL_INTEGRATION_OPTIONS.filter(o =>
-        (o.type === "telegram" && telegram) || (o.type === "discord" && discord)
+        (o.type === "telegram" && telegram) ||
+        (o.type === "discord"  && discord)  ||
+        (o.type === "slack"    && slack)
       ));
     }).catch(() => {});
   }, []);

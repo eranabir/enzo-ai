@@ -26,6 +26,7 @@ import { LlmService } from "../llm/llm.service";
 import { ToolsService } from "../agents/tools.service";
 import { TelegramService } from "../telegram/telegram.service";
 import { DiscordService } from "../discord/discord.service";
+import { SlackService } from "../slack/slack.service";
 
 @Controller("admin")
 @UseGuards(AdminGuard)
@@ -38,6 +39,7 @@ export class AdminController {
     private readonly toolsSvc: ToolsService,
     private readonly telegram: TelegramService,
     private readonly discord: DiscordService,
+    private readonly slack: SlackService,
     @Inject(DATABASE) private readonly db: DatabaseConnection,
   ) {}
 
@@ -221,6 +223,43 @@ export class AdminController {
   stopDiscord() {
     this.discord.stop();
     this.discord.deleteConversation();
+    return { ok: true, running: false };
+  }
+
+  // ── Slack integration ─────────────────────────────────────────────────────
+
+  @Get("slack")
+  getSlack() {
+    return {
+      enabled:    this.slack.isRunning(),
+      botToken:   this.settings.get("slack_bot_token")  ? "••••••••" : null,
+      appToken:   this.settings.get("slack_app_token")  ? "••••••••" : null,
+      allowedIds: this.settings.get("slack_allowed_ids") ?? "",
+      model:      this.settings.get("slack_model") ?? "",
+    };
+  }
+
+  @Put("slack")
+  async saveSlack(@Body() body: { botToken?: string; appToken?: string; allowedIds?: string; model?: string; reconnect?: boolean }) {
+    if (body.botToken?.trim())   this.settings.set("slack_bot_token",   body.botToken.trim());
+    if (body.appToken?.trim())   this.settings.set("slack_app_token",   body.appToken.trim());
+    if (body.allowedIds != null) this.settings.set("slack_allowed_ids", String(body.allowedIds).trim());
+    if (body.model != null)      this.settings.set("slack_model",       String(body.model).trim());
+
+    if (body.botToken?.trim() || body.appToken?.trim() || body.reconnect) {
+      const bt = this.settings.get("slack_bot_token");
+      const at = this.settings.get("slack_app_token");
+      if (!bt || !at) throw new BadRequestException("Both Bot Token and App-Level Token are required");
+      const { botName } = await this.slack.start(true);
+      return { ok: true, running: true, botName };
+    }
+    return { ok: true, running: this.slack.isRunning() };
+  }
+
+  @Delete("slack")
+  async stopSlack() {
+    await this.slack.stop();
+    this.slack.deleteConversation();
     return { ok: true, running: false };
   }
 
