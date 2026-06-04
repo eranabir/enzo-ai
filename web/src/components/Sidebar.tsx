@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { Settings, Shield, LogOut, ChevronUp, ChevronLeft, ChevronRight, Users, MoreHorizontal, Pencil, Trash2, Bot, SquarePen, MessagesSquare } from "lucide-react";
-import { SiTelegram } from "react-icons/si";
+import { SiTelegram, SiDiscord } from "react-icons/si";
 import type { Conversation, User } from "../types";
 import {
   DropdownMenu,
@@ -166,6 +166,7 @@ export function Sidebar({
                   <DropdownMenuItem key={c.id} onClick={() => onSelect(c.id)}
                     className={c.id === activeId ? "bg-surface-2 text-fg" : ""}>
                     {c.integration === "telegram" && <SiTelegram className="h-3.5 w-3.5 flex-shrink-0 text-[#2AABEE]" />}
+                    {c.integration === "discord"  && <SiDiscord  className="h-3.5 w-3.5 flex-shrink-0 text-[#5865F2]" />}
                     <span className="truncate">{c.title}</span>
                   </DropdownMenuItem>
                 ))}
@@ -308,9 +309,8 @@ export function Sidebar({
                 />
               ) : (
                 <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
-                  {c.integration === "telegram" && (
-                    <SiTelegram className="h-3 w-3 flex-shrink-0 text-[#2AABEE]" />
-                  )}
+                  {c.integration === "telegram" && <SiTelegram className="h-3 w-3 flex-shrink-0 text-[#2AABEE]" />}
+                  {c.integration === "discord"  && <SiDiscord  className="h-3 w-3 flex-shrink-0 text-[#5865F2]" />}
                   <span className="truncate text-sm">{c.title}</span>
                 </div>
               )}
