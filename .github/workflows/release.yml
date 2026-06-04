@@ -61,36 +61,6 @@ jobs:
           path: desktop/dist/enzo-ai-windows-*.exe
 
   # ════════════════════════════════════════════════════════════════════════════
-  # macOS x64 — Intel runner (may queue, but user is OK waiting)
-  # ════════════════════════════════════════════════════════════════════════════
-  macos-x64:
-    runs-on: macos-13
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'yarn'
-      - name: Cache Electron binary
-        uses: actions/cache@v4
-        with:
-          path: ~/Library/Caches/electron
-          key: electron-mac-x64-${{ hashFiles('desktop/package.json') }}
-      - run: yarn install --frozen-lockfile --network-timeout 100000
-      - run: yarn download:ollama
-      - run: yarn build:all
-      - name: Package (x64)
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: false
-        run: yarn workspace @enzo-ai/desktop package:mac:x64
-      - name: Save artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-x64-assets
-          retention-days: 1
-          path: desktop/dist/enzo-ai-macos-*-x64.dmg
-
-  # ════════════════════════════════════════════════════════════════════════════
   # macOS arm64 — Apple Silicon (separate runner = no hdiutil conflict)
   # ════════════════════════════════════════════════════════════════════════════
   macos-arm64:
@@ -163,7 +133,7 @@ jobs:
   # PUBLISH — runs only when ALL jobs above pass
   # ════════════════════════════════════════════════════════════════════════════
   publish:
-    needs: [windows, macos-x64, macos-arm64, linux, docker-manifest]
+    needs: [windows, macos-arm64, linux, docker-manifest]
     runs-on: ubuntu-latest
     permissions:
       contents: write
