@@ -79,10 +79,15 @@ jobs:
       - run: yarn install --frozen-lockfile --network-timeout 100000
       - run: yarn download:ollama
       - run: yarn build:all
-      - name: Package
+      - name: Package (x64)
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
-        run: yarn workspace @enzo-ai/desktop package:mac
+        run: yarn workspace @enzo-ai/desktop package:mac -- --arch x64
+
+      - name: Package (arm64)
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: yarn workspace @enzo-ai/desktop package:mac -- --arch arm64
       - name: Save artifacts
         uses: actions/upload-artifact@v4
         with:
