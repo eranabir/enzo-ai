@@ -527,9 +527,27 @@ function ToolsTab() {
   );
 }
 
-// ── Integrations tab (Telegram) ───────────────────────────────────────────────
+// ── Integrations tab ─────────────────────────────────────────────────────────
 
-function IntegrationsTab() {
+type IntegrationId = "telegram";
+
+interface IntegrationDef {
+  id: IntegrationId | "discord" | "slack";
+  name: string;
+  icon: string;
+  description: string;
+  available: boolean;
+}
+
+const INTEGRATIONS: IntegrationDef[] = [
+  { id: "telegram", name: "Telegram",  icon: "✈️", description: "Chat with your AI via Telegram from anywhere.", available: true },
+  { id: "discord",  name: "Discord",   icon: "🎮", description: "Bring Enzo AI into your Discord server.",       available: false },
+  { id: "slack",    name: "Slack",     icon: "💬", description: "Use Enzo AI directly in your Slack workspace.", available: false },
+];
+
+// ── Telegram config screen ────────────────────────────────────────────────────
+
+function TelegramConfig({ onBack }: { onBack: () => void }) {
   const [token, setToken]       = useState("");
   const [allowedIds, setAllowed] = useState("");
   const [model, setModel]       = useState("");
@@ -559,7 +577,7 @@ function IntegrationsTab() {
     } finally { setBusy(false); }
   }
 
-  async function toggle() {
+  async function toggleBot() {
     setBusy(true); setMsg(null);
     try {
       const res = await api.admin.saveTelegram({ enabled: !running });
@@ -571,19 +589,31 @@ function IntegrationsTab() {
   }
 
   return (
-    <Section title="Telegram Bot">
-      <p className="mb-4 text-xs text-muted">
-        Connect your Enzo AI to Telegram. Get a bot token from{" "}
-        <span className="text-accent-2">@BotFather</span> on Telegram, paste it below, then start the bot.
-      </p>
+    <div>
+      <button onClick={onBack} className="mb-4 flex items-center gap-1.5 text-xs text-muted hover:text-fg transition-colors">
+        ← Back to integrations
+      </button>
+
+      <div className="mb-5 flex items-center gap-3">
+        <span className="text-3xl">✈️</span>
+        <div>
+          <h3 className="font-semibold text-fg">Telegram</h3>
+          <p className="text-xs text-muted">Chat with your AI via Telegram from anywhere in the world.</p>
+        </div>
+        <div className={`ml-auto flex items-center gap-1.5 text-xs font-semibold ${running ? "text-ok" : "text-muted"}`}>
+          <span className="text-[10px]">●</span>
+          {running ? "Running" : "Stopped"}
+        </div>
+      </div>
 
       <div className="flex flex-col gap-3">
         <div>
           <label className="mb-1.5 block text-xs font-semibold text-muted">Bot Token</label>
+          <p className="mb-1.5 text-[11px] text-muted">Get one from <span className="text-accent-2">@BotFather</span> on Telegram → /newbot</p>
           <input
             className={inputCls}
             type="password"
-            placeholder="Leave blank to keep existing token"
+            placeholder={running ? "Token saved — leave blank to keep" : "Paste your bot token"}
             value={token}
             onChange={(e) => setToken(e.target.value)}
           />
@@ -591,8 +621,9 @@ function IntegrationsTab() {
 
         <div>
           <label className="mb-1.5 block text-xs font-semibold text-muted">
-            Allowed Telegram User IDs <span className="font-normal">(optional — comma separated, leave blank for open)</span>
+            Allowed User IDs <span className="font-normal text-muted">(optional — comma separated)</span>
           </label>
+          <p className="mb-1.5 text-[11px] text-muted">Leave blank to allow anyone. Find your ID via <span className="text-accent-2">@userinfobot</span></p>
           <input
             className={inputCls}
             placeholder="123456789, 987654321"
@@ -606,37 +637,73 @@ function IntegrationsTab() {
           <ModelPicker value={model} onChange={setModel} />
         </div>
 
-        <div className="flex gap-2">
-          <button
-            onClick={save}
-            disabled={busy}
-            className="rounded-lg border border-border bg-surface-2 px-4 py-2 text-sm font-semibold text-fg transition-colors hover:border-accent hover:text-fg disabled:opacity-50"
-          >
+        <div className="flex gap-2 pt-1">
+          <button onClick={save} disabled={busy}
+            className="rounded-lg border border-border bg-surface-2 px-4 py-2 text-sm font-semibold text-fg transition-colors hover:border-accent disabled:opacity-50">
             Save
           </button>
-          <button
-            onClick={toggle}
-            disabled={busy}
+          <button onClick={toggleBot} disabled={busy}
             className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50 ${
               running
                 ? "border border-danger/40 bg-danger/10 text-danger hover:bg-danger/20"
                 : "bg-accent text-white hover:bg-accent-2"
-            }`}
-          >
+            }`}>
             {running ? "Stop Bot" : "Start Bot"}
           </button>
         </div>
 
-        {msg && (
-          <p className={`text-xs ${msg.ok ? "text-ok" : "text-danger"}`}>{msg.text}</p>
-        )}
-
-        <div className={`flex items-center gap-2 text-xs ${running ? "text-ok" : "text-muted"}`}>
-          <span className="text-[10px]">●</span>
-          {running ? "Bot is running — long polling Telegram" : "Bot is stopped"}
-        </div>
+        {msg && <p className={`text-xs ${msg.ok ? "text-ok" : "text-danger"}`}>{msg.text}</p>}
       </div>
-    </Section>
+    </div>
+  );
+}
+
+// ── Integrations overview ─────────────────────────────────────────────────────
+
+function IntegrationsTab() {
+  const [selected, setSelected] = useState<IntegrationId | null>(null);
+
+  if (selected === "telegram") {
+    return <TelegramConfig onBack={() => setSelected(null)} />;
+  }
+
+  return (
+    <div>
+      <p className="mb-5 text-xs text-muted">
+        Connect Enzo AI to external services. Messages are forwarded to your local AI and replies sent back.
+      </p>
+
+      <div className="flex flex-col gap-3">
+        {INTEGRATIONS.map((integration) => (
+          <button
+            key={integration.id}
+            disabled={!integration.available}
+            onClick={() => integration.available && setSelected(integration.id as IntegrationId)}
+            className={`flex items-center gap-4 rounded-xl border px-4 py-3.5 text-left transition-colors ${
+              integration.available
+                ? "border-border bg-surface-2 hover:border-accent/60 hover:bg-surface cursor-pointer"
+                : "border-border/50 bg-surface-2/50 cursor-not-allowed opacity-50"
+            }`}
+          >
+            <span className="text-2xl flex-shrink-0">{integration.icon}</span>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-fg">{integration.name}</span>
+                {!integration.available && (
+                  <span className="rounded-full bg-surface px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted border border-border">
+                    Coming soon
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-muted">{integration.description}</p>
+            </div>
+            {integration.available && (
+              <span className="text-muted text-sm flex-shrink-0">→</span>
+            )}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 
