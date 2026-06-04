@@ -9,10 +9,6 @@ files:
   - src/setup.html
   - package.json
 
-# Unpack native modules from ASAR so they work at runtime
-asarUnpack:
-  - "**/*.node"
-  - "node_modules/better-sqlite3/**"
 
 # ── extraFiles: placed directly in the install root (same dir as Enzo AI.exe)
 # The enzo-ai wrapper scripts live here so they're on PATH alongside the app.
@@ -64,12 +60,9 @@ mac:
   icon: assets/icon.icns
   target:
     - target: dmg
-      arch: universal   # single DMG for both Intel and Apple Silicon
-  mergeASARs: true
-  singleArchFiles: "**/*.node"   # keep native .node files arch-specific — don't lipo-merge them
 
 dmg:
-  artifactName: "enzo-ai-macos-${version}.${ext}"
+  artifactName: "enzo-ai-macos-${version}-${arch}.${ext}"
   title: "Install Enzo AI"
   window:
     width: 540
