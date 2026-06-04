@@ -61,11 +61,10 @@ jobs:
           path: desktop/dist/enzo-ai-windows-*.exe
 
   # ════════════════════════════════════════════════════════════════════════════
-  # macOS x64 — cross-compiled on ARM runner (electron-builder downloads x64 Electron)
-  # Separate job from arm64 = separate VM = no hdiutil conflict
+  # macOS x64 — Intel runner (may queue, but user is OK waiting)
   # ════════════════════════════════════════════════════════════════════════════
   macos-x64:
-    runs-on: macos-latest
+    runs-on: macos-13
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -76,7 +75,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/Library/Caches/electron
-          key: electron-mac-x64-${{ hashFiles('desktop/package.json') }}   # caches the x64 Electron binary
+          key: electron-mac-x64-${{ hashFiles('desktop/package.json') }}
       - run: yarn install --frozen-lockfile --network-timeout 100000
       - run: yarn download:ollama
       - run: yarn build:all
