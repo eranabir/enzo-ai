@@ -89,7 +89,7 @@ export function ChatView({
               m.role === "user" ? "text-accent-2" : "text-muted"
             }`}
           >
-            {m.role === "user" ? "You" : "Enzo AI"}
+            {m.role === "user" ? "You" : "EnzoAI"}
           </div>
           {/* Image attachment — shown above the text bubble */}
           {m.image_mime && (

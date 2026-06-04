@@ -35,7 +35,7 @@ export function Header({
       <div className="min-w-0 max-w-[280px]">
         {activeConversation
           ? <p className="truncate text-sm font-semibold text-fg">{activeConversation.title}</p>
-          : <p className="text-sm font-semibold text-muted">Enzo AI</p>
+          : <p className="text-sm font-semibold text-muted"></p>
         }
       </div>
 

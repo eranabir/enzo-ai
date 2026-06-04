@@ -252,7 +252,7 @@ export function Sidebar({
     <aside className="flex w-[264px] flex-shrink-0 flex-col gap-3 bg-surface border-r border-border p-3 transition-all duration-200">
       <div className="flex items-center justify-between px-1.5 py-1">
         <div className="flex items-center gap-2 text-lg font-bold tracking-wide">
-          <span className="text-accent-2">⬡</span> enzo ai
+          <span className="text-accent-2">⬡</span> EnzoAI
         </div>
         <button
           onClick={toggleCollapse}
