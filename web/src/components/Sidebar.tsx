@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Settings, Shield, LogOut, ChevronUp, ChevronLeft, ChevronRight, Users, MoreHorizontal, Pencil, Trash2, Bot, SquarePen } from "lucide-react";
+import { Settings, Shield, LogOut, ChevronUp, ChevronLeft, ChevronRight, Users, MoreHorizontal, Pencil, Trash2, Bot, SquarePen, MessagesSquare } from "lucide-react";
 import { SiTelegram } from "react-icons/si";
 import type { Conversation, User } from "../types";
 import {
@@ -144,6 +144,55 @@ export function Sidebar({
         >
           <Bot className="h-4 w-4" />
         </button>
+
+        {/* Chats popover */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              title="Chats"
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-border text-muted transition-colors hover:border-accent hover:text-fg"
+            >
+              <MessagesSquare className="h-4 w-4" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="right" align="start" className="w-64 max-h-[70vh] overflow-y-auto">
+            {/* Integration Chats */}
+            {conversations.filter(c => c.integration).length > 0 && (
+              <>
+                <div className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted/60">
+                  Integration Chats
+                </div>
+                {conversations.filter(c => c.integration).map(c => (
+                  <DropdownMenuItem key={c.id} onClick={() => onSelect(c.id)}
+                    className={c.id === activeId ? "bg-surface-2 text-fg" : ""}>
+                    {c.integration === "telegram" && <SiTelegram className="h-3.5 w-3.5 flex-shrink-0 text-[#2AABEE]" />}
+                    <span className="truncate">{c.title}</span>
+                  </DropdownMenuItem>
+                ))}
+                {conversations.filter(c => !c.integration).length > 0 && <DropdownMenuSeparator />}
+              </>
+            )}
+
+            {/* Local Chats */}
+            {conversations.filter(c => !c.integration).length > 0 && (
+              <>
+                <div className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted/60">
+                  Local Chats
+                </div>
+                {conversations.filter(c => !c.integration).map(c => (
+                  <DropdownMenuItem key={c.id} onClick={() => onSelect(c.id)}
+                    className={c.id === activeId ? "bg-surface-2 text-fg" : ""}>
+                    <span className="truncate">{c.title}</span>
+                  </DropdownMenuItem>
+                ))}
+              </>
+            )}
+
+            {conversations.length === 0 && (
+              <div className="px-3 py-4 text-center text-xs text-muted">No chats yet</div>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         {/* Spacer */}
         <div className="flex-1" />
