@@ -112,20 +112,17 @@ export const api = {
   calendar: {
     status: () =>
       fetch("/api/calendar/status", { headers: headers() })
-        .then(parse<{ configured: boolean; connected: boolean; email?: string; name?: string }>),
+        .then(parse<{ hasCredentials: boolean; connected: boolean; email?: string; name?: string }>),
+    saveCredentials: (body: { clientId: string; clientSecret: string }) =>
+      fetch("/api/calendar/credentials", {
+        method: "PUT", headers: headers(true), body: JSON.stringify(body),
+      }).then(parse<{ ok: boolean }>),
     authUrl: () =>
       fetch("/api/calendar/auth/url", { headers: headers() })
         .then(parse<{ url: string }>),
     disconnect: () =>
       fetch("/api/calendar", { method: "DELETE", headers: headers() })
         .then(parse<{ ok: boolean }>),
-    adminConfig: () =>
-      fetch("/api/admin/calendar/config", { headers: headers() })
-        .then(parse<{ clientId: string | null; clientSecret: string | null; configured: boolean }>),
-    setAdminConfig: (body: { clientId?: string; clientSecret?: string }) =>
-      fetch("/api/admin/calendar/config", {
-        method: "PUT", headers: headers(true), body: JSON.stringify(body),
-      }).then(parse<{ ok: boolean; configured: boolean }>),
   },
 
   /** Which integrations are currently connected (used by AgentsPanel). */

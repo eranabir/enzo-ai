@@ -27,21 +27,34 @@ function getRedirectBase(req: Request): string {
 export class CalendarController {
   constructor(private readonly calendar: CalendarService) {}
 
-  /** Current connection status for the logged-in user. */
+  /** Current connection status + whether user has set their own credentials. */
   @Get("status")
   status(@UserId() userId: string) {
     return {
-      configured: this.calendar.isConfigured(),
+      hasCredentials: this.calendar.hasCredentials(userId),
       ...this.calendar.getTokenInfo(userId),
     };
+  }
+
+  /** Save per-user Google OAuth credentials. */
+  @Put("credentials")
+  saveCredentials(
+    @UserId() userId: string,
+    @Body() body: { clientId: string; clientSecret: string },
+  ) {
+    if (!body.clientId?.trim() || !body.clientSecret?.trim()) {
+      throw new BadRequestException("Client ID and Client Secret are required");
+    }
+    this.calendar.setCredentials(userId, body.clientId, body.clientSecret);
+    return { ok: true };
   }
 
   /** Start OAuth — returns the Google login URL. */
   @Get("auth/url")
   authUrl(@UserId() userId: string, @Req() req: Request) {
-    if (!this.calendar.isConfigured()) {
+    if (!this.calendar.isConfigured(userId)) {
       throw new BadRequestException(
-        "Google OAuth credentials not configured. Set Client ID and Secret in Admin → Settings."
+        "Set your Google OAuth Client ID and Secret first."
       );
     }
     return { url: this.calendar.getAuthUrl(userId, getRedirectBase(req)) };

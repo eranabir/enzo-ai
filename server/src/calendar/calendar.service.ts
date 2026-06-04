@@ -35,16 +35,18 @@ export class CalendarService {
     private readonly apiKeys: ApiKeysService,
   ) {}
 
-  // ── OAuth config ─────────────────────────────────────────────────────────
+  // ── OAuth config — per user ──────────────────────────────────────────────
 
-  getClientId()     { return this.settings.get("google_calendar_client_id") ?? ""; }
-  getClientSecret() { return this.settings.get("google_calendar_client_secret") ?? ""; }
-  isConfigured()    { return !!(this.getClientId() && this.getClientSecret()); }
+  getClientId(userId: string)     { return this.settings.get(`gcal_client_id_${userId}`) ?? ""; }
+  getClientSecret(userId: string) { return this.settings.get(`gcal_client_secret_${userId}`) ?? ""; }
+  isConfigured(userId: string)    { return !!(this.getClientId(userId) && this.getClientSecret(userId)); }
 
-  setCredentials(clientId: string, clientSecret: string): void {
-    this.settings.set("google_calendar_client_id", clientId.trim());
-    this.settings.set("google_calendar_client_secret", clientSecret.trim());
+  setCredentials(userId: string, clientId: string, clientSecret: string): void {
+    this.settings.set(`gcal_client_id_${userId}`, clientId.trim());
+    this.settings.set(`gcal_client_secret_${userId}`, clientSecret.trim());
   }
+
+  hasCredentials(userId: string): boolean { return this.isConfigured(userId); }
 
   // ── OAuth flow ────────────────────────────────────────────────────────────
 
@@ -53,7 +55,7 @@ export class CalendarService {
     const state = Buffer.from(userId).toString("base64");
     const redirect = `${redirectBase}/api/calendar/callback`;
     const params = new URLSearchParams({
-      client_id:     this.getClientId(),
+      client_id:     this.getClientId(userId),
       redirect_uri:  redirect,
       response_type: "code",
       scope:         SCOPES,
@@ -74,8 +76,8 @@ export class CalendarService {
       headers: { "content-type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
         code,
-        client_id:     this.getClientId(),
-        client_secret: this.getClientSecret(),
+        client_id:     this.getClientId(userId),
+        client_secret: this.getClientSecret(userId),
         redirect_uri:  redirect,
         grant_type:    "authorization_code",
       }),
@@ -177,14 +179,14 @@ export class CalendarService {
     return tokens.access_token;
   }
 
-  private async refreshToken(refreshToken: string, userId: string, existing: GoogleTokens): Promise<string> {
+  private async refreshToken(refreshToken: string, userId: string, existing: GoogleTokens): Promise<string> { // eslint-disable-line @typescript-eslint/no-unused-vars
     const res = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
         refresh_token: refreshToken,
-        client_id:     this.getClientId(),
-        client_secret: this.getClientSecret(),
+        client_id:     this.getClientId(userId),
+        client_secret: this.getClientSecret(userId),
         grant_type:    "refresh_token",
       }),
     });

@@ -1008,78 +1008,9 @@ function IntegrationsTab() {
   );
 }
 
-// ── Admin Settings tab (Google OAuth etc.) ───────────────────────────────────
-
-function AdminSettingsTab() {
-  const [clientId, setClientId]         = useState("");
-  const [clientSecret, setClientSecret] = useState("");
-  const [configured, setConfigured]     = useState(false);
-  const [busy, setBusy]                 = useState(false);
-  const [msg, setMsg]                   = useState<{ text: string; ok: boolean } | null>(null);
-
-  useEffect(() => {
-    api.calendar.adminConfig().then((d) => setConfigured(d.configured)).catch(() => {});
-  }, []);
-
-  async function save() {
-    if (!clientId.trim() || !clientSecret.trim()) return;
-    setBusy(true); setMsg(null);
-    try {
-      const res = await api.calendar.setAdminConfig({ clientId, clientSecret });
-      setConfigured(res.configured);
-      setClientId(""); setClientSecret("");
-      setMsg({ text: "Saved — users can now connect their Google Calendar from their Settings", ok: true });
-    } catch (e) {
-      setMsg({ text: (e as Error).message, ok: false });
-    } finally { setBusy(false); }
-  }
-
-  return (
-    <Section title="Google Calendar OAuth">
-      <p className="mb-4 text-xs text-muted">
-        Enter your Google OAuth app credentials so users can connect their own Google Calendar.
-        Create them at{" "}
-        <span className="text-accent-2">console.cloud.google.com</span>
-        {" "}→ APIs & Services → Credentials → OAuth 2.0 Client (Web application).
-      </p>
-      <p className="mb-4 text-xs text-muted">
-        Authorized redirect URI to add:{" "}
-        <code className="bg-surface px-1.5 py-0.5 rounded text-[11px]">http://localhost:1616/api/calendar/callback</code>
-      </p>
-
-      <div className="flex flex-col gap-3">
-        <div className={`flex items-center gap-2 text-xs font-semibold mb-1 ${configured ? "text-ok" : "text-muted"}`}>
-          <span className="text-[10px]">●</span>
-          {configured ? "OAuth credentials configured — users can connect their Google Calendar" : "Not configured"}
-        </div>
-
-        <div>
-          <label className="mb-1.5 block text-xs font-semibold text-muted">Client ID</label>
-          <input className={inputCls} type="password"
-            placeholder={configured ? "••••••••  (saved — paste to replace)" : "Paste Client ID"}
-            value={clientId} onChange={e => setClientId(e.target.value)} />
-        </div>
-        <div>
-          <label className="mb-1.5 block text-xs font-semibold text-muted">Client Secret</label>
-          <input className={inputCls} type="password"
-            placeholder={configured ? "••••••••  (saved — paste to replace)" : "Paste Client Secret"}
-            value={clientSecret} onChange={e => setClientSecret(e.target.value)} />
-        </div>
-
-        <button onClick={save} disabled={busy || (!clientId.trim() || !clientSecret.trim())}
-          className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-2 disabled:opacity-40 self-start">
-          {busy ? "Saving…" : "Save Credentials"}
-        </button>
-
-        {msg && <p className={`text-xs ${msg.ok ? "text-ok" : "text-danger"}`}>{msg.text}</p>}
-      </div>
-    </Section>
-  );
-}
-
 // ── Main panel ───────────────────────────────────────────────────────────────
 
-type Tab = "users" | "models" | "tools" | "integrations" | "settings" | "danger";
+type Tab = "users" | "models" | "tools" | "integrations" | "danger";
 
 export function AdminPanel({
   currentUser,
@@ -1109,7 +1040,7 @@ export function AdminPanel({
 
         {/* Tabs */}
         <div className="flex gap-1 border-b border-border px-4 pt-1">
-          {(["users", "models", "tools", "integrations", "settings", "danger"] as Tab[]).map((t) => (
+          {(["users", "models", "tools", "integrations", "danger"] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -1131,7 +1062,6 @@ export function AdminPanel({
           {tab === "models"  && <ModelsTab />}
           {tab === "tools"        && <ToolsTab />}
           {tab === "integrations" && <IntegrationsTab />}
-          {tab === "settings"    && <AdminSettingsTab />}
           {tab === "danger"  && <DangerTab />}
         </div>
       </div>

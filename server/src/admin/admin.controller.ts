@@ -265,28 +265,6 @@ export class AdminController {
     return { ok: true, running: false };
   }
 
-  // ── Google Calendar OAuth credentials (admin sets once, all users connect) ──
-
-  @Get("calendar/config")
-  getCalendarConfig() {
-    return {
-      clientId:     this.calendarSvc.getClientId() ? "••••••••" : null,
-      clientSecret: this.calendarSvc.getClientSecret() ? "••••••••" : null,
-      configured:   this.calendarSvc.isConfigured(),
-    };
-  }
-
-  @Put("calendar/config")
-  setCalendarConfig(@Body() body: { clientId?: string; clientSecret?: string }) {
-    if (body.clientId?.trim() || body.clientSecret?.trim()) {
-      this.calendarSvc.setCredentials(
-        body.clientId ?? this.calendarSvc.getClientId(),
-        body.clientSecret ?? this.calendarSvc.getClientSecret(),
-      );
-    }
-    return { ok: true, configured: this.calendarSvc.isConfigured() };
-  }
-
   // ── Danger zone ───────────────────────────────────────────────────────────
 
   /**
