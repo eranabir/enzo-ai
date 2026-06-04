@@ -37,7 +37,7 @@ export function SettingsPanel({ open, user, onClose, onUpdated }: Props) {
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"profile" | "memory" | "calendar">("profile");
+  const [tab, setTab] = useState<"profile" | "memory" | "apps">("profile");
   const [calStatus, setCalStatus] = useState<{ hasCredentials: boolean; connected: boolean; email?: string } | null>(null);
   const [calClientId, setCalClientId]         = useState("");
   const [calClientSecret, setCalClientSecret] = useState("");
@@ -59,7 +59,7 @@ export function SettingsPanel({ open, user, onClose, onUpdated }: Props) {
     if (open && tab === "memory") {
       api.memories.list().then(setMemories).catch(() => {});
     }
-    if (open && tab === "calendar") {
+    if (open && tab === "apps") {
       api.calendar.status().then(setCalStatus).catch(() => {});
     }
   }, [open, tab]);
@@ -150,7 +150,7 @@ export function SettingsPanel({ open, user, onClose, onUpdated }: Props) {
 
         {/* Tab bar */}
         <div className="flex gap-1 border-b border-border px-6 pt-1">
-          {(["profile", "memory", "calendar"] as const).map((t) => (
+          {(["profile", "memory", "apps"] as const).map((t) => (
             <button
               key={t}
               type="button"
@@ -215,9 +215,10 @@ export function SettingsPanel({ open, user, onClose, onUpdated }: Props) {
           </div>
         )}
 
-        {/* Calendar tab */}
-        {tab === "calendar" && (
+        {/* Apps tab */}
+        {tab === "apps" && (
           <div className="flex flex-col gap-4 p-6">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-muted/60">Google Calendar</p>
             {calStatus === null ? (
               <p className="text-sm text-muted">Loading…</p>
             ) : calStatus.connected ? (
