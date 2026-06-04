@@ -1,15 +1,18 @@
 appId: com.enzo-ai.installer
 productName: Enzo AI Installer
 electronVersion: "34.5.8"
+extraMetadata:
+  main: dist/installer/main.js
 
-# Tiny — only the UI. Components are downloaded at install time.
+# Tiny — only the UI. Components are downloaded from GitHub at install time.
 files:
-  - dist/**/*
-  - src/index.html
+  - dist/installer/main.js
+  - dist/installer/preload.js
+  - src/installer/index.html
   - package.json
 
 win:
-  icon: ../desktop/assets/icon.ico
+  icon: assets/icon.ico
   target:
     - target: nsis
       arch: [x64]
@@ -21,7 +24,7 @@ nsis:
   runAfterFinish: true
 
 mac:
-  icon: ../desktop/assets/icon.icns
+  icon: assets/icon.icns
   category: public.app-category.utilities
   target:
     - target: dmg

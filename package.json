@@ -7,8 +7,7 @@
     "server",
     "web",
     "desktop",
-    "cli",
-    "installer"
+    "cli"
   ],
   "packageManager": "yarn@1.22.22",
   "scripts": {
@@ -21,7 +20,7 @@
     "cli": "node cli/dist/index.js",
     "build:cli": "yarn workspace @enzo-ai/cli build && ncc build cli/dist/index.js -o cli/dist/bundle -q",
     "build": "yarn build:server && yarn build:web && yarn build:cli",
-    "build:all": "yarn build && yarn workspace @enzo-ai/desktop build && yarn workspace @enzo-ai/installer build",
+    "build:all": "yarn build && yarn workspace @enzo-ai/desktop build",
     "create:icons": "npx tsx scripts/create-icons.ts",
     "download:ollama": "npx tsx scripts/download-ollama.ts",
     "fix:sqlite": "node -e \"process.chdir('node_modules/better-sqlite3'); require('child_process').execSync('node ../../prebuild-install/bin.js', {stdio:'inherit'})\"",

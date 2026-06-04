@@ -11,7 +11,7 @@ const execFileAsync = promisify(execFile);
 const execAsync    = promisify(exec);
 
 const REPO    = "eranabir/enzo-ai";
-const VERSION = (require("../package.json") as { version: string }).version;
+const VERSION = (require("../../package.json") as { version: string }).version;
 
 // ── Window ────────────────────────────────────────────────────────────────────
 
@@ -31,8 +31,8 @@ app.whenReady().then(() => {
   });
 
   const ui = app.isPackaged
-    ? join(process.resourcesPath, "src", "index.html")
-    : join(__dirname, "..", "src", "index.html");
+    ? join(process.resourcesPath, "src", "installer", "index.html")
+    : join(__dirname, "..", "..", "src", "installer", "index.html");
 
   win.loadFile(ui);
 });
