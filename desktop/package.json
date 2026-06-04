@@ -4,6 +4,10 @@
   "private": true,
   "description": "Enzo AI — self-hosted local AI assistant",
   "author": "Enzo AI",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eranabir/enzo-ai.git"
+  },
   "main": "dist/main.js",
   "scripts": {
     "dev": "tsc --watch",
