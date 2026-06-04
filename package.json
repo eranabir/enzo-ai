@@ -19,6 +19,7 @@
     "build:server": "yarn workspace @enzo-ai/server build",
     "build:web": "yarn workspace @enzo-ai/web build",
     "build:desktop": "yarn workspace @enzo-ai/desktop build",
+    "build:installer": "yarn workspace @enzo-ai/installer build",
     "cli": "node cli/dist/index.js",
     "build:cli": "yarn workspace @enzo-ai/cli build && ncc build cli/dist/index.js -o cli/dist/bundle -q",
     "build": "yarn build:server && yarn build:web && yarn build:cli",

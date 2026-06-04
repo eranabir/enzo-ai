@@ -52,17 +52,19 @@ jobs:
         run: yarn install --frozen-lockfile --network-timeout 100000
       - run: yarn download:ollama
       - run: yarn build
+      - run: yarn build:desktop
+      - run: yarn build:installer
 
-      - name: Build server package
-        run: yarn workspace @enzo-ai/desktop dist:win
+      - name: Package server
+        run: yarn workspace @enzo-ai/desktop package:win
 
       - name: Build CLI binary
         run: |
           npm install -g @yao-pkg/pkg
           pkg cli/dist/bundle/index.js --targets node20-win-x64 --output cli/dist/enzo-ai-cli-windows-x64.exe --compress Brotli
 
-      - name: Build installer
-        run: yarn workspace @enzo-ai/installer dist:win
+      - name: Package installer
+        run: yarn workspace @enzo-ai/installer package:win
 
       - name: Save artifacts
         uses: actions/upload-artifact@v4
@@ -94,11 +96,13 @@ jobs:
         run: yarn install --frozen-lockfile --network-timeout 100000
       - run: yarn download:ollama
       - run: yarn build
+      - run: yarn build:desktop
+      - run: yarn build:installer
 
-      - name: Build server packages
+      - name: Package server
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
-        run: yarn workspace @enzo-ai/desktop dist:mac
+        run: yarn workspace @enzo-ai/desktop package:mac
 
       - name: Build CLI binaries
         run: |
@@ -106,10 +110,10 @@ jobs:
           pkg cli/dist/bundle/index.js --targets node20-macos-x64  --output cli/dist/enzo-ai-cli-macos-x64  --compress Brotli
           pkg cli/dist/bundle/index.js --targets node20-macos-arm64 --output cli/dist/enzo-ai-cli-macos-arm64 --compress Brotli
 
-      - name: Build installer
+      - name: Package installer
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
-        run: yarn workspace @enzo-ai/installer dist:mac
+        run: yarn workspace @enzo-ai/installer package:mac
 
       - name: Save artifacts
         uses: actions/upload-artifact@v4
@@ -133,19 +137,23 @@ jobs:
         with:
           node-version: '20'
           cache: 'yarn'
-      - name: Cache Electron binary
+      - name: Cache Electron binary + builder tools
         uses: actions/cache@v4
         with:
-          path: ~/.cache/electron
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
           key: electron-linux-${{ hashFiles('desktop/package.json') }}
       - run: sudo apt-get install -y libarchive-tools rpm fakeroot
       - name: Install dependencies
         run: yarn install --frozen-lockfile --network-timeout 100000
       - run: yarn download:ollama
       - run: yarn build
+      - run: yarn build:desktop
+      - run: yarn build:installer
 
-      - name: Build server packages
-        run: yarn workspace @enzo-ai/desktop dist:linux
+      - name: Package server
+        run: yarn workspace @enzo-ai/desktop package:linux
 
       - name: Build CLI binaries
         run: |
@@ -153,8 +161,8 @@ jobs:
           pkg cli/dist/bundle/index.js --targets node20-linux-x64  --output cli/dist/enzo-ai-cli-linux-x64  --compress Brotli
           pkg cli/dist/bundle/index.js --targets node20-linux-arm64 --output cli/dist/enzo-ai-cli-linux-arm64 --compress Brotli
 
-      - name: Build installer
-        run: yarn workspace @enzo-ai/installer dist:linux
+      - name: Package installer
+        run: yarn workspace @enzo-ai/installer package:linux
 
       - name: Save artifacts
         uses: actions/upload-artifact@v4

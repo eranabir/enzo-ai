@@ -14,6 +14,9 @@
     "dist:win": "yarn build && electron-builder --win --publish never",
     "dist:mac": "yarn build && electron-builder --mac --publish never",
     "dist:linux": "yarn build && electron-builder --linux --publish never",
+    "package:win": "electron-builder --win --publish never",
+    "package:mac": "electron-builder --mac --publish never",
+    "package:linux": "electron-builder --linux --publish never",
     "dist:win:publish": "yarn build && electron-builder --win --publish always",
     "dist:mac:publish": "yarn build && electron-builder --mac --publish always",
     "dist:linux:publish": "yarn build && electron-builder --linux --publish always"

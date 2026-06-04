@@ -19,7 +19,10 @@
     "dist": "yarn build && electron-builder --publish never",
     "dist:win": "yarn build && electron-builder --win --publish never",
     "dist:mac": "yarn build && electron-builder --mac --publish never",
-    "dist:linux": "yarn build && electron-builder --linux --publish never"
+    "dist:linux": "yarn build && electron-builder --linux --publish never",
+    "package:win": "electron-builder --win --publish never",
+    "package:mac": "electron-builder --mac --publish never",
+    "package:linux": "electron-builder --linux --publish never"
   },
   "dependencies": {
     "better-sqlite3": "^11.8.1",
