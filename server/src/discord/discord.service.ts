@@ -61,14 +61,28 @@ export class DiscordService implements OnModuleDestroy {
     this.logger.log(`Discord bot ${tag} connected`);
 
     if (notify) {
-      // Send a DM to allowed user IDs if configured
+      // Send connection message to guilds + DM allowed users (explicit connect only)
+      for (const [, guild] of this.client.guilds.cache) {
+        try {
+          const channels = await guild.channels.fetch();
+          const textChannel = (guild.systemChannel
+            ?? channels.find((ch) => ch?.isTextBased())) as TextChannel | undefined;
+          if (textChannel) {
+            await textChannel.send(
+              `✅ **Enzo AI is online!**\n@mention me in this channel to chat with your local AI.\nYou can also DM me directly.`,
+            );
+          }
+        } catch (e) {
+          this.logger.warn(`Could not notify guild ${guild.name}: ${(e as Error).message}`);
+        }
+      }
+
       const allowedIds = this.settings.get("discord_allowed_ids");
       if (allowedIds) {
-        const ids = allowedIds.split(",").map(s => s.trim()).filter(Boolean);
-        for (const id of ids) {
+        for (const id of allowedIds.split(",").map(s => s.trim()).filter(Boolean)) {
           try {
             const user = await this.client.users.fetch(id);
-            await user.send(`✅ **Enzo AI connected**\nBot ${tag} is online and ready. Send me a message!`);
+            await user.send(`✅ **Enzo AI bot is online!** DM me any time to chat.`);
           } catch {
             this.logger.warn(`Could not DM Discord user ${id} — they may have DMs disabled`);
           }
@@ -126,44 +140,20 @@ export class DiscordService implements OnModuleDestroy {
 
     this.client.once(Events.ClientReady, async (c) => {
       this.logger.log(`Discord ready: ${c.user.tag}`);
-
-      // 1. Set bot status to Online
+      // Set presence — always, on every connect including auto-restart
       c.user.setPresence({ status: "online", activities: [{ name: "Enzo AI", type: 4 }] });
 
-      // 2. Send connection message to each guild + create conversations
+      // Eagerly create conversations for each guild channel (no message sent here)
       for (const [, guild] of c.guilds.cache) {
         try {
-          // Fetch fresh channel list so cache is populated
           const channels = await guild.channels.fetch();
-          this.logger.log(`Guild "${guild.name}" has ${channels.size} channels`);
-
-          // Prefer system channel, then first text channel
           const textChannel = (guild.systemChannel
             ?? channels.find((ch) => ch?.isTextBased())) as TextChannel | undefined;
-
-          this.logger.log(`Using channel: ${textChannel?.name ?? "none found"}`);
-
           if (textChannel) {
             this.getOrCreateChatConversation(textChannel.id, `#${textChannel.name}`);
-            await textChannel.send(
-              `✅ **Enzo AI is online!**\n@mention me in this channel to chat with your local AI.\nYou can also DM me directly.`,
-            );
           }
         } catch (e) {
-          this.logger.error(`Guild "${guild.name}" connection error: ${(e as Error).message}`);
-        }
-      }
-
-      // 3. DM allowed users
-      const allowedIds = this.settings.get("discord_allowed_ids");
-      if (allowedIds) {
-        for (const id of allowedIds.split(",").map((s) => s.trim()).filter(Boolean)) {
-          try {
-            const user = await c.users.fetch(id);
-            await user.send(`✅ **Enzo AI bot is online!** DM me any time to chat.`);
-          } catch {
-            this.logger.warn(`Could not DM Discord user ${id}`);
-          }
+          this.logger.warn(`Guild "${guild.name}": ${(e as Error).message}`);
         }
       }
     });
