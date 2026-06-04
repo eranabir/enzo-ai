@@ -58,24 +58,21 @@ jobs:
       - name: Build installer
         run: yarn workspace @enzo-ai/installer dist:win
 
-      - name: Upload release assets
-        uses: softprops/action-gh-release@v2
+      - name: Save artifacts
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ github.ref_name }}
-          files: |
+          name: windows-assets
+          retention-days: 1
+          path: |
             desktop/dist/enzo-ai-windows-*.exe
             cli/dist/enzo-ai-cli-windows-x64.exe
             installer/dist/enzo-ai-installer-windows.exe
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ════════════════════════════════════════════════════════════════════════════
   # macOS
   # ════════════════════════════════════════════════════════════════════════════
   macos:
     runs-on: macos-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -102,25 +99,22 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: false
         run: yarn workspace @enzo-ai/installer dist:mac
 
-      - name: Upload release assets
-        uses: softprops/action-gh-release@v2
+      - name: Save artifacts
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ github.ref_name }}
-          files: |
+          name: macos-assets
+          retention-days: 1
+          path: |
             desktop/dist/enzo-ai-macos-*.dmg
             cli/dist/enzo-ai-cli-macos-x64
             cli/dist/enzo-ai-cli-macos-arm64
             installer/dist/enzo-ai-installer-macos-*.dmg
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ════════════════════════════════════════════════════════════════════════════
   # LINUX
   # ════════════════════════════════════════════════════════════════════════════
   linux:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -144,16 +138,38 @@ jobs:
       - name: Build installer
         run: yarn workspace @enzo-ai/installer dist:linux
 
-      - name: Upload release assets
-        uses: softprops/action-gh-release@v2
+      - name: Save artifacts
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ github.ref_name }}
-          files: |
+          name: linux-assets
+          retention-days: 1
+          path: |
             desktop/dist/enzo-ai-linux-*.AppImage
             desktop/dist/enzo-ai-linux-*.deb
             cli/dist/enzo-ai-cli-linux-x64
             cli/dist/enzo-ai-cli-linux-arm64
             installer/dist/enzo-ai-installer-linux.AppImage
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # PUBLISH — runs only when ALL jobs above pass
+  # ════════════════════════════════════════════════════════════════════════════
+  publish:
+    needs: [windows, macos, linux, docker-manifest]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Create GitHub Release and upload all assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: release-assets/**/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
