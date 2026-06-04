@@ -175,4 +175,10 @@ export const api = {
     request<{ name: string; enabled: boolean }[]>(
       "PATCH", `/api/admin/tools/${name}`, { enabled }
     ),
+
+  // ── Integrations ─────────────────────────────────────────────────────────
+  integrationStatus: () =>
+    request<{ telegram: boolean; discord: boolean; slack: boolean }>(
+      "GET", "/api/health/integrations"
+    ),
 };

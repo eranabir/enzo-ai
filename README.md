@@ -12,13 +12,15 @@
 - 🧠 **Local AI** — runs models via [Ollama](https://ollama.com) with zero cloud dependency
 - 🌐 **External providers** — connect OpenAI, Anthropic, and Google Gemini
 - 💾 **Persistent memory** — automatically extracts facts from conversations and injects them into future chats
-- 🤖 **Agents** — create custom AI assistants with tools, schedules and Telegram delivery
+- 🤖 **Agents** — create custom AI assistants with tools, schedules and multi-platform delivery
 - 🔧 **Built-in tools** — web search, file reading, git, calculator, and more
 - 📸 **Image uploads** — send images to vision-capable models
-- 💬 **Telegram integration** — chat with your AI from any device via Telegram bot
+- 💬 **Telegram** — chat with your AI via Telegram bot from any device
+- 🎮 **Discord** — bring Enzo AI into your Discord server or DMs
+- 💼 **Slack** — use Enzo AI inside your Slack workspace (Socket Mode — no public URL needed)
 - 👥 **Multi-user** — each user has their own isolated conversations and memory
 - 🖥️ **Desktop app** — Electron tray app with system tray, starts on login
-- 🐳 **Docker support** — deploy on a NAS or server, access from any browser
+- 🐳 **Docker** — deploy on a NAS or server (Ollama bundled — single container)
 - ⌨️ **CLI** — terminal access to your AI
 
 ---
@@ -27,7 +29,7 @@
 
 ### Desktop App (Windows / macOS / Linux)
 
-Download the installer for your platform from the [latest release](https://github.com/eranabir/enzo-ai/releases/latest):
+Download the installer from the [latest release](https://github.com/eranabir/enzo-ai/releases/latest):
 
 | Platform | File |
 |---|---|
@@ -36,7 +38,7 @@ Download the installer for your platform from the [latest release](https://githu
 | macOS (Apple Silicon) | `enzo-ai-macos-0.x.x-arm64.dmg` |
 | Linux | `enzo-ai-linux-amd64.deb` |
 
-**First launch:** A setup screen appears asking if you want to also install the CLI tools. The AI server starts automatically and opens in your browser at `http://localhost:1616`.
+**First launch:** A setup screen appears asking if you want CLI tools in your PATH. The AI server starts automatically and opens in your browser at `http://localhost:1616`.
 
 > **macOS note:** If macOS blocks the app, right-click → Open, or run: `xattr -cr "/Applications/Enzo AI.app"`
 
@@ -44,7 +46,7 @@ Download the installer for your platform from the [latest release](https://githu
 
 ### Docker (NAS / Server / Headless)
 
-Run EnzoAI on a home server, NAS or VPS with a single command:
+Ollama is bundled — run EnzoAI in a single container, no separate services needed:
 
 ```bash
 docker run -d \
@@ -53,15 +55,12 @@ docker run -d \
   ghcr.io/eranabir/enzo-ai:latest
 ```
 
-Then open `http://your-server-ip:1616` from any browser on your network.
+Open `http://your-server-ip:1616` from any browser on your network.
 
-**With docker-compose** (recommended for NAS):
+**With docker-compose:**
 
 ```bash
-# Download the compose file
 curl -O https://raw.githubusercontent.com/eranabir/enzo-ai/main/docker-compose.yml
-
-# Start
 docker compose up -d
 ```
 
@@ -70,117 +69,94 @@ docker compose up -d
 | Variable | Default | Description |
 |---|---|---|
 | `ENZO_PORT` | `1616` | Web UI + API port |
-| `ENZO_HOST` | `0.0.0.0` | Bind address (`127.0.0.1` for local only) |
+| `ENZO_HOST` | `0.0.0.0` | Bind address |
 | `ENZO_DATA_DIR` | `/app/data` | SQLite database + uploads + Ollama models |
-| `OLLAMA_URL` | `http://127.0.0.1:11434` | Ollama endpoint (set for external Ollama) |
+| `OLLAMA_URL` | `http://127.0.0.1:11434` | Override to use an external Ollama |
 | `ENZO_DEFAULT_MODEL` | `llama3.2:3b` | Default model for new chats |
+
+**Point the CLI at a Docker/NAS server:**
+```bash
+enzo-ai config server http://your-nas-ip:1616
+enzo-ai login
+```
 
 ---
 
 ## Getting Started
 
-### 1. Create your profile
-
-On first launch, register a user account. The first registered user becomes the **admin**. Fill in your name, expertise areas and preferences — EnzoAI uses this to personalise responses.
-
-### 2. Add a model
-
-**Local models (Ollama):**
-Open Admin Panel → Models → pull a model (e.g. `llama3.2:3b`, `qwen2.5:14b`).
-
-**External models:**
-Admin Panel → Models → External AI → enter your API key for OpenAI, Anthropic, or Google Gemini. Models appear automatically in the model picker.
-
-### 3. Start chatting
-
-Select a model in the header and start a conversation. EnzoAI will remember what you discuss and use that memory in future chats.
+1. **Create your profile** — first user becomes admin
+2. **Add a model** — Admin Panel → Models → pull a local model or add external API key
+3. **Start chatting** — pick a model in the header and type
 
 ---
 
 ## Web UI
 
-### Chat
-
 - **Model picker** — switch models per conversation from the header
-- **Memory toggle** — enable/disable long-term memory per conversation
-- **Image upload** — attach images to messages (vision-capable models only; 📎 appears when supported)
-- **Conversation history** — all chats are saved and searchable in the sidebar
-
-### Sidebar
-
-The sidebar separates **Integration Chats** (from Telegram etc.) and **Local Chats**.
-
-- Collapse with `‹` for a minimal icon rail
-- Click `💬` in the collapsed rail to browse chats without expanding
+- **Memory toggle** — enable/disable long-term memory per conversation  
+- **Image upload** — 📎 button appears for vision-capable models
+- **Collapsible sidebar** — `‹` to collapse to icon rail, click icons to expand
+- **Integration Chats** — Telegram/Discord/Slack conversations appear separately in sidebar
+- **Empty state suggestions** — quick-start prompts when opening a new chat
 
 ---
 
 ## Agents
 
-Agents are custom AI assistants with their own instructions, model, tools and optionally a schedule.
+Create custom AI assistants with their own instructions, model, tools and schedule.
 
-**Creating an agent:**
-1. Click **Agents** in the sidebar
-2. Click **+ New agent**
-3. Fill in:
-   - **Name** + emoji — how it appears in the sidebar
-   - **Instructions** — personality, focus, constraints
-   - **Model** — choose from your available models
-   - **Tools** — give the agent access to web search, files, git, etc.
-   - **Scheduled run** — optional cron schedule + prompt (runs automatically)
-   - **Integrations** — link to a Telegram chat (click `+Add` to add a chat ID)
+**Creating an agent:** Agents panel (🤖 button) → + New agent
 
-**Starting a chat with an agent:**
-From the agents list, click the ▶ play button. The agent's instructions shape every response in that conversation.
+- **Instructions** — personality, focus, constraints
+- **Model** — choose from available models
+- **Tools** — web search, files, git, calculator, etc.
+- **Scheduled run** — cron schedule + prompt (runs automatically)
+- **Integrations** — link to Telegram/Discord/Slack channels for delivery
 
-**Scheduled agents:**
-Agents with a schedule run automatically (e.g. daily at 8am) and save results to your memory. If linked to a Telegram chat, results are sent there automatically.
+**Sending scheduled results to a channel:**
+
+1. Open the agent form → Integrations section → + Add
+2. Select integration type (Telegram / Discord / Slack)
+3. Enter the channel/chat ID
+4. Enable the schedule
+
+Results are sent to the linked channels automatically when the agent runs.
 
 ---
 
 ## Tools
 
-Tools let agents interact with the outside world. The admin can enable/disable each tool in **Admin Panel → Tools**.
+Available tools (admin can enable/disable each in Admin Panel → Tools):
 
 | Tool | What it does |
 |---|---|
 | `get_datetime` | Returns current date and time |
-| `calculator` | Evaluates math expressions safely |
+| `calculator` | Evaluates math expressions |
 | `web_search` | Searches the web via DuckDuckGo |
 | `read_url` | Fetches and reads a web page |
 | `read_file` | Reads a file from the local machine |
 | `list_directory` | Lists files in a directory |
 | `git` | Runs read-only git commands (status, log, diff, blame…) |
 
-**How tools work:** The LLM decides when to call a tool, the server executes it and injects the result, then the LLM generates a final response. Up to 5 tool rounds per message.
-
 ---
 
 ## CLI
 
-The CLI lets you interact with EnzoAI from any terminal.
-
 ### Installation
 
-The CLI is installed automatically if you choose it during the desktop app setup. It's also bundled inside the Docker container.
-
-**Pointing the CLI at a remote server** (Docker / NAS):
-```bash
-enzo-ai config server http://your-nas-ip:1616
-enzo-ai login
-```
+The CLI is installed automatically during desktop app setup. For Docker/NAS, it's bundled inside the container.
 
 ### Commands
 
 ```bash
-# Authentication
+# Auth
 enzo-ai login                    # sign in
 enzo-ai logout                   # sign out
 enzo-ai whoami                   # show current user
 
 # Configuration
 enzo-ai config show              # show current config
-enzo-ai config server <url>      # set server URL (for remote/Docker)
+enzo-ai config server <url>      # set server URL (for Docker/NAS)
 
 # Chatting
 enzo-ai chat                     # interactive chat session
@@ -191,164 +167,118 @@ enzo-ai chat -c <id>             # resume a specific chat
 enzo-ai chats                    # list recent chats
 
 # Memory
-enzo-ai memories                 # list your stored memories
+enzo-ai memories                 # list memories
 enzo-ai memories clear           # clear all memories
 
 # Agents
-enzo-ai agents                   # list your agents
+enzo-ai agents                   # list agents
 enzo-ai agents run <id>          # trigger an agent manually
 
 # Tools
-enzo-ai tools                    # list all tools with status
+enzo-ai tools                    # list tools with status
 enzo-ai tools enable <name>      # enable a tool (admin)
 enzo-ai tools disable <name>     # disable a tool (admin)
 
+# Integrations
+enzo-ai integrations             # show Telegram/Discord/Slack connection status
+
 # Status
-enzo-ai status                   # server health, models, session info
+enzo-ai status                   # server health, models, integrations
 ```
 
 ---
 
 ## Admin Panel
 
-Access via the profile menu → **Admin panel** (admin users only).
+Access via profile menu → **Admin panel** (admin users only).
 
 ### Users
-
-- View all registered users
-- Reset passwords
-- Delete users
+View, reset passwords, delete users.
 
 ### Models
-
-**Local AI (Ollama):**
-- View installed models with size
-- Pull new models (streams download progress)
-- Set the default model
-- Delete models
-
-**External AI:**
-- Add API keys for OpenAI, Anthropic, Google
-- Available models appear automatically in the model picker
+- **Local AI**: pull/delete Ollama models, set default
+- **External AI**: add OpenAI, Anthropic, Google API keys
 
 ### Tools
-
-Toggle each tool on/off system-wide. Disabled tools cannot be used by any agent even if selected during agent creation.
+Toggle each tool on/off system-wide.
 
 ### Integrations
 
-Configure external service connections. Currently available: **Telegram**.
+#### Telegram
+1. Create bot via **@BotFather** → `/newbot` → copy token
+2. Admin Panel → Integrations → Telegram → paste token → **Save & Connect**
+3. Send `/chatid` to the bot in any chat to get its ID (for agent linking)
+4. For group chats: @BotFather → Bot Settings → Group Privacy → **Disable**
 
-### Danger
+#### Discord
+1. [discord.com/developers/applications](https://discord.com/developers/applications) → New Application → Bot → copy token
+2. Enable **Message Content Intent** (Bot tab → Privileged Gateway Intents)
+3. OAuth2 → URL Generator → bot scope → invite to server
+4. Admin Panel → Integrations → Discord → paste token → **Save & Connect**
+5. @mention the bot in channels to chat
 
-- **Reset all data** — wipes all users, chats and settings (requires typing "reset")
+#### Slack
+1. [api.slack.com/apps](https://api.slack.com/apps) → New App → From scratch
+2. **Socket Mode** → Enable → create App-Level Token (`xapp-...`) with `connections:write`
+3. **Event Subscriptions** → Enable → add bot events: `message.channels`, `message.im`
+4. **OAuth & Permissions** → Bot Scopes: `chat:write`, `channels:history`, `im:history`
+5. Install app to workspace → Bot Token (`xoxb-...`)
+6. Admin Panel → Integrations → Slack → paste both tokens → **Save & Connect**
+7. Invite bot to channels: `/invite @yourbot`
 
----
-
-## Telegram Integration
-
-Connect EnzoAI to Telegram so you can chat from your phone or share the bot with family.
-
-### Setup
-
-1. Open Telegram → search for **@BotFather** → `/newbot` → follow prompts → copy the token
-2. In EnzoAI: **Admin Panel → Integrations → Telegram**
-3. Paste the token → click **Save & Connect**
-4. You'll see `✅ Bot @yourbot is live`
-
-### Finding your chat ID
-
-To link an agent to a Telegram group, send `/chatid` to the bot in that group. Copy the ID it returns and paste it into the agent's Integrations field.
-
-### Group chat
-
-1. Create a Telegram group
-2. Add your bot to the group
-3. In @BotFather: **Bot Settings → Group Privacy → Disable** (so the bot sees all messages)
-4. Everyone in the group can now chat with the AI
-
-Each Telegram chat (group or DM) gets its own isolated conversation visible in the EnzoAI web sidebar under **Integration Chats**.
-
-### Linking an agent to Telegram
-
-In the agent form → **Integrations** section → `+ Add` → paste the chat ID.
-
-The agent's scheduled runs will automatically send results to that chat. Messages in the chat will be handled by the agent (using its instructions and tools).
+**All integrations:**
+- Each chat/channel gets its own conversation in the EnzoAI sidebar
+- Conversations auto-refresh every 4 seconds when viewed
+- Auto-reconnect on server restart (silent — no notification spam)
+- Link agents to channels for scheduled delivery
 
 ---
 
 ## Memory System
 
-EnzoAI automatically extracts and stores facts about you from conversations:
+EnzoAI automatically extracts facts, preferences, decisions and work context from conversations and injects them into future chats. Toggle per conversation with the Memory button in the header.
 
-- **Facts** — things that are true about you
-- **Preferences** — how you like things done
-- **Decisions** — choices you've made
-- **Work context** — current projects and focus areas
-
-These memories are injected into the system prompt of future conversations so EnzoAI always has context about you, even in new chats.
-
-**Managing memory:**
-- Toggle memory on/off per conversation (Memory button in the header)
-- View memories: `enzo-ai memories` or Admin Panel → your profile
-- Clear memories: `enzo-ai memories clear`
+```bash
+enzo-ai memories          # view
+enzo-ai memories clear    # clear all
+```
 
 ---
 
 ## Development
 
-### Prerequisites
-
-- Node.js 20+
-- Yarn 1.x — `npm i -g yarn`
-- Ollama — install from [ollama.com](https://ollama.com)
-
-### Running locally
-
 ```bash
-# Install dependencies
+# Install
 yarn install
-
-# Pull a model
 ollama pull llama3.2:3b
 
-# Start dev servers (NestJS + Vite HMR)
+# Run dev servers
 yarn dev
-```
 
-Web UI: `http://localhost:5310` — Dev server: `http://localhost:1616`
+# Build
+yarn build:all
 
-### Building
-
-```bash
-yarn build:all          # compile all TypeScript
-yarn workspace @enzo-ai/desktop dist:win    # Windows installer
-yarn workspace @enzo-ai/desktop dist:mac    # macOS DMG
+# Build desktop
+yarn workspace @enzo-ai/desktop dist:win    # Windows
+yarn workspace @enzo-ai/desktop dist:mac    # macOS
 yarn workspace @enzo-ai/desktop dist:linux  # Linux .deb
 ```
 
-### Releasing
-
-```bash
-git tag v0.x.x
-git push --tags
-# GitHub Actions builds all platform installers + Docker image automatically
-```
+**Release:** `git tag v0.x.x && git push --tags` → GitHub Actions builds all platforms + Docker image.
 
 ---
 
 ## Architecture
 
 ```
-desktop/   Electron tray app — starts server, manages Ollama, shows tray icon
-server/    NestJS API — auth · chat · memory · agents · tools · telegram
-web/       Vite + React + Tailwind — the web UI (served by NestJS in production)
-cli/       Node.js CLI — terminal client
+desktop/     Electron tray — starts NestJS server, manages Ollama
+server/      NestJS API — auth · chat · memory · agents · tools
+             └ integrations: telegram · discord · slack
+web/         Vite + React — web UI (served by NestJS in production)
+cli/         Node.js CLI — terminal client
 ```
 
-**Data:** All data lives in `%APPDATA%/Enzo AI/` (desktop) or `/app/data` (Docker) — a portable SQLite database you can back up.
-
-**Privacy:** No telemetry, no analytics, no data leaves your machine unless you configure an external provider (OpenAI etc.) and explicitly use it.
+All data lives in `%APPDATA%/Enzo AI/` (desktop) or `/app/data` (Docker). No telemetry, no analytics.
 
 ---
 

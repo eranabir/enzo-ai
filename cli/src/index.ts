@@ -59,11 +59,12 @@ program
     const cfg = loadConfig();
     const stop = spinner("Checking…");
     try {
-      const [health, modelInfo, statusInfo, profiles] = await Promise.all([
+      const [health, modelInfo, statusInfo, profiles, integrations] = await Promise.all([
         api.health(),
         api.models(),
         api.status(),
         api.profiles(),
+        api.integrationStatus().catch(() => ({ telegram: false, discord: false, slack: false })),
       ]);
 
       // Detect whether the web UI is served by this server or a separate Vite dev server
@@ -91,6 +92,15 @@ program
       console.log(`  Models  ${list || dim("none installed")}`);
       console.log(`  Users   ${profiles.length} registered`);
       console.log(`  You     ${sessionLine}`);
+      // Show connected integrations if any are running
+      const connectedIntegrations = [
+        integrations.telegram && "Telegram",
+        integrations.discord  && "Discord",
+        integrations.slack    && "Slack",
+      ].filter(Boolean);
+      if (connectedIntegrations.length) {
+        console.log(`  Bots    ${ok("●")} ${connectedIntegrations.join(", ")}`);
+      }
       console.log();
     } catch {
       stop();
@@ -391,6 +401,41 @@ toolsCmd
       await api.setToolEnabled(name, false);
       stop();
       console.log(ok(`\n  ✓ Tool "${name}" disabled.\n`));
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+// ── integrations ──────────────────────────────────────────────────────────────
+
+program
+  .command("integrations")
+  .description("Show connected integrations (Telegram, Discord, Slack)")
+  .action(async () => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    const stop = spinner("Loading…");
+    try {
+      const status = await api.integrationStatus();
+      stop();
+      console.log("\n" + brand + "  " + dim("integrations"));
+      divider();
+      const rows = [
+        { name: "Telegram", key: "telegram" as const },
+        { name: "Discord",  key: "discord"  as const },
+        { name: "Slack",    key: "slack"    as const },
+      ];
+      for (const { name, key } of rows) {
+        const running = status[key];
+        const dot = running ? ok("●") : dim("○");
+        const label = running ? ok("Connected") : dim("Not connected");
+        console.log(`  ${dot}  ${name.padEnd(12)} ${label}`);
+      }
+      console.log();
+      console.log(dim("  Configure integrations in: Admin Panel → Integrations"));
+      console.log();
     } catch (e) {
       stop();
       console.error(error(`\n  ${(e as Error).message}\n`));
