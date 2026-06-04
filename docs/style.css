@@ -89,7 +89,8 @@ button { cursor: none; font-family: inherit; border: none; background: none; }
 body:has(a:hover) .cursor-dot,
 body:has(button:hover) .cursor-dot {
   width: 14px; height: 14px;
-  background: #fff;
+  background: var(--accent-light);
+  opacity: 0.7;
 }
 
 /* ── Aurora Background ── */
@@ -210,20 +211,16 @@ nav .container {
 .nav-logo {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-weight: 700;
+  gap: 8px;
+  font-weight: 800;
   font-size: 1.1rem;
   letter-spacing: -0.02em;
   flex-shrink: 0;
-  animation: logo-float 4s ease-in-out infinite;
 }
-.nav-logo svg {
-  width: 32px; height: 32px;
-  filter: drop-shadow(0 0 10px var(--accent-glow));
-}
-@keyframes logo-float {
-  0%, 100% { transform: translateY(0px); }
-  50%       { transform: translateY(-3px); }
+.nav-logo-hex {
+  color: var(--accent-light);
+  font-size: 1.3rem;
+  filter: drop-shadow(0 0 8px var(--accent-glow));
 }
 .nav-links {
   display: flex;
