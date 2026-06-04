@@ -16,10 +16,10 @@
     "dev": "tsc --watch",
     "build": "tsc",
     "start": "yarn build && electron .",
-    "dist": "yarn build && electron-builder",
-    "dist:win": "yarn build && electron-builder --win",
-    "dist:mac": "yarn build && electron-builder --mac",
-    "dist:linux": "yarn build && electron-builder --linux"
+    "dist": "yarn build && electron-builder --publish never",
+    "dist:win": "yarn build && electron-builder --win --publish never",
+    "dist:mac": "yarn build && electron-builder --mac --publish never",
+    "dist:linux": "yarn build && electron-builder --linux --publish never"
   },
   "dependencies": {
     "better-sqlite3": "^11.8.1",
