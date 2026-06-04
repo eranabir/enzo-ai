@@ -43,7 +43,13 @@ jobs:
         with:
           node-version: '20'
           cache: 'yarn'
-      - run: yarn install --frozen-lockfile
+      - name: Cache Electron binary
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.LOCALAPPDATA }}\electron\Cache
+          key: electron-win-${{ hashFiles('desktop/package.json') }}
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile --network-timeout 100000
       - run: yarn download:ollama
       - run: yarn build
 
@@ -79,7 +85,13 @@ jobs:
         with:
           node-version: '20'
           cache: 'yarn'
-      - run: yarn install --frozen-lockfile
+      - name: Cache Electron binary
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/electron
+          key: electron-mac-${{ hashFiles('desktop/package.json') }}
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile --network-timeout 100000
       - run: yarn download:ollama
       - run: yarn build
 
@@ -121,8 +133,14 @@ jobs:
         with:
           node-version: '20'
           cache: 'yarn'
+      - name: Cache Electron binary
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/electron
+          key: electron-linux-${{ hashFiles('desktop/package.json') }}
       - run: sudo apt-get install -y libarchive-tools rpm fakeroot
-      - run: yarn install --frozen-lockfile
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile --network-timeout 100000
       - run: yarn download:ollama
       - run: yarn build
 
