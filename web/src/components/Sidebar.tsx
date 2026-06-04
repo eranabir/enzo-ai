@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Settings, Shield, LogOut, ChevronUp, Users, MoreHorizontal, Pencil, Trash2, Bot } from "lucide-react";
+import { Settings, Shield, LogOut, ChevronUp, ChevronLeft, ChevronRight, Users, MoreHorizontal, Pencil, Trash2, Bot, SquarePen } from "lucide-react";
 import { SiTelegram } from "react-icons/si";
 import type { Conversation, User } from "../types";
 import {
@@ -98,15 +98,92 @@ export function Sidebar({
 
   // Show username as the primary label everywhere in the sidebar
   const displayLabel = user.username;
-  // Show full display name (first + last) as a sub-label if it differs from the username
   const subLabel = user.displayName && user.displayName !== user.username
     ? user.displayName
     : null;
 
+  const [collapsed, setCollapsed] = useState(
+    () => localStorage.getItem("sidebar-collapsed") === "1"
+  );
+
+  function toggleCollapse() {
+    const next = !collapsed;
+    setCollapsed(next);
+    localStorage.setItem("sidebar-collapsed", next ? "1" : "0");
+  }
+
+  // ── Collapsed icon rail ─────────────────────────────────────────────────────
+  if (collapsed) {
+    return (
+      <aside className="flex w-14 flex-col items-center gap-3 border-r border-border bg-surface py-3 transition-all duration-200">
+        {/* Logo */}
+        <button
+          onClick={toggleCollapse}
+          title="Expand sidebar"
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-accent-2 transition-colors hover:bg-surface-2"
+        >
+          <span className="text-xl">⬡</span>
+        </button>
+
+        <div className="h-px w-8 bg-border" />
+
+        {/* New chat */}
+        <button
+          title="New chat"
+          onClick={onNew}
+          className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent text-white shadow-[0_0_12px_rgba(109,94,252,0.3)] transition-colors hover:bg-accent-2"
+        >
+          <SquarePen className="h-4 w-4" />
+        </button>
+
+        {/* Agents */}
+        <button
+          title="Agents"
+          onClick={onAgentsOpen}
+          className="flex h-9 w-9 items-center justify-center rounded-xl border border-border text-muted transition-colors hover:border-accent hover:text-fg"
+        >
+          <Bot className="h-4 w-4" />
+        </button>
+
+        {/* Spacer */}
+        <div className="flex-1" />
+
+        {/* Expand button */}
+        <button
+          onClick={toggleCollapse}
+          title="Expand sidebar"
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-fg"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </button>
+
+        {/* Avatar */}
+        <button
+          onClick={toggleCollapse}
+          title={displayLabel}
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-accent/20 text-sm font-bold text-accent-2"
+        >
+          {user.username.charAt(0).toUpperCase()}
+        </button>
+      </aside>
+    );
+  }
+
+  // ── Full sidebar ─────────────────────────────────────────────────────────────
+
   return (
-    <aside className="flex flex-col gap-3 bg-surface border-r border-border p-3">
-      <div className="flex items-center gap-2 px-1.5 py-1 text-lg font-bold tracking-wide">
-        <span className="text-accent-2">⬡</span> enzo ai
+    <aside className="flex w-[264px] flex-shrink-0 flex-col gap-3 bg-surface border-r border-border p-3 transition-all duration-200">
+      <div className="flex items-center justify-between px-1.5 py-1">
+        <div className="flex items-center gap-2 text-lg font-bold tracking-wide">
+          <span className="text-accent-2">⬡</span> enzo ai
+        </div>
+        <button
+          onClick={toggleCollapse}
+          title="Collapse sidebar"
+          className="flex h-6 w-6 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-2 hover:text-fg"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
       </div>
 
       <div className="flex flex-col gap-2">

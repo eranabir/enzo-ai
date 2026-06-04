@@ -239,7 +239,7 @@ export function App() {
   if (!user) return <AuthScreen onAuthed={setUser} online={online} />;
 
   return (
-    <div className="grid grid-cols-[264px_1fr] h-screen">
+    <div className="flex h-screen">
       {agentsOpen && (
         <AgentsPanel
           onStartChat={async (agentId) => {
@@ -279,7 +279,7 @@ export function App() {
         onAgentsOpen={() => setAgentsOpen(true)}
         onUserUpdated={setUser}
       />
-      <main className="flex flex-col min-w-0">
+      <main className="flex flex-1 flex-col min-w-0">
         <Header
           models={models}
           model={model}
