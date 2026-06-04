@@ -134,6 +134,12 @@ export type DatabaseConnection = Database.Database;
           db.exec(`ALTER TABLE agents ADD COLUMN telegram_chat_ids TEXT`);
         }
 
+        // Clean up old emoji prefixes from integration conversation titles (💬 / 🎮)
+        db.prepare(
+          `UPDATE conversations SET title = TRIM(REPLACE(REPLACE(title, '💬 ', ''), '🎮 ', ''))
+           WHERE integration IS NOT NULL AND (title LIKE '💬 %' OR title LIKE '🎮 %')`
+        ).run();
+
         // Add integration column to conversations (links to Telegram/Discord/Slack chat)
         const intCols = db.prepare(`PRAGMA table_info(conversations)`).all() as { name: string }[];
         if (!intCols.some((c) => c.name === "integration")) {
