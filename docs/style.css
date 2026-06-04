@@ -515,7 +515,42 @@ nav .container {
   align-items: center;
 }
 
-/* ── Integrations ── */
+/* ── Integration Cards Grid ── */
+.int-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+.int-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 32px 28px;
+  transition: transform 0.3s var(--ease-out-expo), border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.int-card:hover {
+  transform: translateY(-6px);
+  border-color: var(--border-hov);
+  box-shadow: 0 20px 60px rgba(124,110,245,0.1);
+}
+.int-card-icon {
+  width: 52px; height: 52px;
+  border-radius: var(--radius-sm);
+  border: 1px solid;
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 20px;
+}
+.int-card-title {
+  font-size: 1.05rem; font-weight: 700; margin-bottom: 10px;
+}
+.int-card-body {
+  font-size: 0.9rem; color: var(--text-secondary); line-height: 1.65;
+}
+@media (max-width: 768px) {
+  .int-grid { grid-template-columns: 1fr; }
+}
+
+/* ── Integrations (old — keep for fallback) ── */
 .integrations-glass {
   background: rgba(255,255,255,0.03);
   border: 1px solid var(--border);
