@@ -181,7 +181,7 @@ interface IntegrationEntry {
 const ALL_INTEGRATION_OPTIONS: { type: IntegrationType; label: string; icon: React.ReactNode; color: string; placeholder: string }[] = [
   { type: "telegram", label: "Telegram", icon: <SiTelegram className="h-3.5 w-3.5" />, color: "text-[#2AABEE]", placeholder: "Chat ID — send /chatid to get it" },
   { type: "discord",  label: "Discord",  icon: <SiDiscord  className="h-3.5 w-3.5" />, color: "text-[#5865F2]", placeholder: "Channel ID — right-click channel → Copy Channel ID" },
-  { type: "slack",    label: "Slack",    icon: <SiSlack    className="h-3.5 w-3.5" />, color: "text-[#4A154B]", placeholder: "Channel ID — right-click channel name → Copy link, use ID from URL" },
+  { type: "slack",    label: "Slack",    icon: <SiSlack    className="h-3.5 w-3.5" />, color: "text-[#E01E5A]", placeholder: "Channel ID — right-click channel name → Copy link, use ID from URL" },
 ];
 
 /** Parses comma-separated chatIds string into entries (type unknown, assume telegram for existing data) */
