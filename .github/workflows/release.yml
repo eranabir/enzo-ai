@@ -160,13 +160,14 @@ jobs:
         run: yarn workspace @enzo-ai/installer dist:linux:publish
 
   # ════════════════════════════════════════════════════════════════════════════
-  # DOCKER — build and push to GitHub Container Registry (ghcr.io)
+  # DOCKER — linux/amd64 only (no QEMU emulation needed)
+  # ARM NAS users can use the native arm64 CLI binary or build from source.
   # ════════════════════════════════════════════════════════════════════════════
   docker:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write   # needed to push to ghcr.io
+      packages: write
     steps:
       - uses: actions/checkout@v4
 
@@ -177,19 +178,19 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Docker Buildx (multi-platform builds)
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Extract version from tag
         id: meta
         run: echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
 
-      - name: Build and push Docker image
+      - name: Build and push Docker image (amd64)
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           tags: |
             ghcr.io/${{ github.repository_owner }}/enzo-ai:latest
             ghcr.io/${{ github.repository_owner }}/enzo-ai:${{ steps.meta.outputs.version }}
