@@ -16,6 +16,8 @@ import { SystemModule } from "./system/system.module";
 import { AdminModule } from "./admin/admin.module";
 import { SchedulerService } from "./agents/scheduler.service";
 import { ChatService } from "./chat/chat.service";
+import { TelegramModule } from "./telegram/telegram.module";
+import { TelegramService } from "./telegram/telegram.service";
 
 @Module({
   imports: [
@@ -32,20 +34,38 @@ import { ChatService } from "./chat/chat.service";
     AgentsModule,
     SystemModule,
     AdminModule,
+    TelegramModule,
   ],
   controllers: [AppController],
 })
 export class AppModule implements OnModuleInit {
   constructor(private readonly moduleRef: ModuleRef) {}
 
-  /** Wire SchedulerService → ChatService after all modules are ready. */
+  /** Wire lazy runners after all modules are ready (avoids circular deps). */
   onModuleInit() {
-    const scheduler = this.moduleRef.get(SchedulerService, { strict: false });
     const chat = this.moduleRef.get(ChatService, { strict: false });
+
+    // Scheduler → ChatService
+    const scheduler = this.moduleRef.get(SchedulerService, { strict: false });
     if (scheduler && chat) {
       scheduler.setRunner((agentId, userId, prompt) =>
         chat.runScheduledAgent(agentId, userId, prompt),
       );
+    }
+
+    // Telegram bot → ChatService
+    const telegram = this.moduleRef.get(TelegramService, { strict: false });
+    if (telegram && chat) {
+      telegram.setRunner(async (userId, convoId, content, model) => {
+        const convo = chat["convos"].get(convoId, userId);
+        if (!convo) throw new Error("Conversation not found");
+        const controller = new AbortController();
+        let reply = "";
+        for await (const event of chat.streamReply(convo, userId, content, model, controller.signal)) {
+          if (event.token) reply += event.token;
+        }
+        return reply || "No response";
+      });
     }
   }
 }

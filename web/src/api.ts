@@ -195,6 +195,17 @@ export const api = {
         headers: headers(true),
         body: JSON.stringify({ enabled }),
       }).then(parse<import("./types").ToolDefinition[]>),
+
+    getTelegram: () =>
+      fetch("/api/admin/telegram", { headers: headers() })
+        .then(parse<{ enabled: boolean; token: string | null; allowedIds: string; model: string }>),
+
+    saveTelegram: (body: { token?: string; allowedIds?: string; model?: string; enabled?: boolean }) =>
+      fetch("/api/admin/telegram", {
+        method: "PUT",
+        headers: headers(true),
+        body: JSON.stringify(body),
+      }).then(parse<{ ok: boolean; running: boolean }>),
   },
 };
 

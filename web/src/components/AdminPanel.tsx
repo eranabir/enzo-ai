@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Cpu } from "lucide-react";
 import { api, streamPullModel } from "../api";
 import type { ModelInfo, User } from "../types";
+import { ModelPicker } from "./ui/ModelPicker";
 
 const inputCls =
   "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-fg outline-none focus:border-accent placeholder:text-muted";
@@ -526,9 +527,122 @@ function ToolsTab() {
   );
 }
 
+// ── Integrations tab (Telegram) ───────────────────────────────────────────────
+
+function IntegrationsTab() {
+  const [token, setToken]       = useState("");
+  const [allowedIds, setAllowed] = useState("");
+  const [model, setModel]       = useState("");
+  const [running, setRunning]   = useState(false);
+  const [busy, setBusy]         = useState(false);
+  const [msg, setMsg]           = useState<{ text: string; ok: boolean } | null>(null);
+
+  useEffect(() => {
+    api.admin.getTelegram().then((d) => {
+      setRunning(d.enabled);
+      setAllowed(d.allowedIds);
+      setModel(d.model);
+    }).catch(() => {});
+  }, []);
+
+  async function save() {
+    setBusy(true); setMsg(null);
+    try {
+      const body: Record<string, string> = { allowedIds, model };
+      if (token) body.token = token;
+      const res = await api.admin.saveTelegram(body);
+      setRunning(res.running);
+      setToken("");
+      setMsg({ text: "Saved", ok: true });
+    } catch (e) {
+      setMsg({ text: (e as Error).message, ok: false });
+    } finally { setBusy(false); }
+  }
+
+  async function toggle() {
+    setBusy(true); setMsg(null);
+    try {
+      const res = await api.admin.saveTelegram({ enabled: !running });
+      setRunning(res.running);
+      setMsg({ text: res.running ? "Bot started" : "Bot stopped", ok: true });
+    } catch (e) {
+      setMsg({ text: (e as Error).message, ok: false });
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <Section title="Telegram Bot">
+      <p className="mb-4 text-xs text-muted">
+        Connect your Enzo AI to Telegram. Get a bot token from{" "}
+        <span className="text-accent-2">@BotFather</span> on Telegram, paste it below, then start the bot.
+      </p>
+
+      <div className="flex flex-col gap-3">
+        <div>
+          <label className="mb-1.5 block text-xs font-semibold text-muted">Bot Token</label>
+          <input
+            className={inputCls}
+            type="password"
+            placeholder="Leave blank to keep existing token"
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+          />
+        </div>
+
+        <div>
+          <label className="mb-1.5 block text-xs font-semibold text-muted">
+            Allowed Telegram User IDs <span className="font-normal">(optional — comma separated, leave blank for open)</span>
+          </label>
+          <input
+            className={inputCls}
+            placeholder="123456789, 987654321"
+            value={allowedIds}
+            onChange={(e) => setAllowed(e.target.value)}
+          />
+        </div>
+
+        <div>
+          <label className="mb-1.5 block text-xs font-semibold text-muted">Model</label>
+          <ModelPicker value={model} onChange={setModel} />
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            onClick={save}
+            disabled={busy}
+            className="rounded-lg border border-border bg-surface-2 px-4 py-2 text-sm font-semibold text-fg transition-colors hover:border-accent hover:text-fg disabled:opacity-50"
+          >
+            Save
+          </button>
+          <button
+            onClick={toggle}
+            disabled={busy}
+            className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50 ${
+              running
+                ? "border border-danger/40 bg-danger/10 text-danger hover:bg-danger/20"
+                : "bg-accent text-white hover:bg-accent-2"
+            }`}
+          >
+            {running ? "Stop Bot" : "Start Bot"}
+          </button>
+        </div>
+
+        {msg && (
+          <p className={`text-xs ${msg.ok ? "text-ok" : "text-danger"}`}>{msg.text}</p>
+        )}
+
+        <div className={`flex items-center gap-2 text-xs ${running ? "text-ok" : "text-muted"}`}>
+          <span className="text-[10px]">●</span>
+          {running ? "Bot is running — long polling Telegram" : "Bot is stopped"}
+        </div>
+      </div>
+    </Section>
+  );
+}
+
 // ── Main panel ───────────────────────────────────────────────────────────────
 
-type Tab = "users" | "models" | "tools" | "danger";
+type Tab = "users" | "models" | "tools" | "integrations" | "danger";
 
 export function AdminPanel({
   currentUser,
@@ -558,7 +672,7 @@ export function AdminPanel({
 
         {/* Tabs */}
         <div className="flex gap-1 border-b border-border px-4 pt-1">
-          {(["users", "models", "tools", "danger"] as Tab[]).map((t) => (
+          {(["users", "models", "tools", "integrations", "danger"] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -578,7 +692,8 @@ export function AdminPanel({
         <div className="flex-1 overflow-y-auto p-5">
           {tab === "users"   && <UsersTab currentUserId={currentUser.id} />}
           {tab === "models"  && <ModelsTab />}
-          {tab === "tools"   && <ToolsTab />}
+          {tab === "tools"        && <ToolsTab />}
+          {tab === "integrations" && <IntegrationsTab />}
           {tab === "danger"  && <DangerTab />}
         </div>
       </div>

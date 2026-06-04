@@ -135,9 +135,9 @@ function ordinal(n: number) {
 }
 import { api } from "../api";
 import type { Agent, ModelInfo, ToolDefinition, ToolName } from "../types";
+import { ModelPicker } from "./ui/ModelPicker";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-  SelectGroup, SelectLabel, SelectSeparator,
 } from "./ui/Select";
 
 const inputCls = "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-fg outline-none focus:border-accent placeholder:text-muted";
@@ -176,6 +176,7 @@ export function AgentsPanel({ onStartChat, onClose }: Props) {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [tools, setTools] = useState<ToolDefinition[]>([]);
   const [availableModels, setAvailableModels] = useState<ModelInfo[]>([]);
+  const [defaultModelId, setDefaultModelId] = useState<string>("");
   const [view, setView] = useState<"list" | "form">("list");
   const [editing, setEditing] = useState<Agent | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
@@ -193,7 +194,10 @@ export function AgentsPanel({ onStartChat, onClose }: Props) {
   useEffect(() => {
     api.agents.list().then(setAgents).catch(() => {});
     api.agents.tools().then(setTools).catch(() => {});
-    api.models().then(({ models }) => setAvailableModels(models)).catch(() => {});
+    api.models().then(({ models, default: def }) => {
+      setAvailableModels(models);
+      setDefaultModelId(def);
+    }).catch(() => {});
   }, []);
 
   function openCreate() {
@@ -387,37 +391,12 @@ export function AgentsPanel({ onStartChat, onClose }: Props) {
           {/* Model */}
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold text-muted">Model</label>
-            <Select value={form.model || "__default__"}
-              onValueChange={v => setForm(f => ({...f, model: v === "__default__" ? "" : v, tools: []}))}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Use system default" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__default__"><span className="text-muted">Use system default</span></SelectItem>
-                {availableModels.length > 0 && <SelectSeparator />}
-                {(["ollama","openai","anthropic","google"] as const).map(pid => {
-                  const pm = availableModels.filter(m => m.provider === pid);
-                  if (!pm.length) return null;
-                  const labels: Record<string,string> = { ollama:"Local (Ollama)", openai:"OpenAI", anthropic:"Anthropic", google:"Google Gemini" };
-                  return (
-                    <SelectGroup key={pid}>
-                      <SelectLabel>{labels[pid]}</SelectLabel>
-                      {pm.map(m => {
-                        const isExternal = pid !== "ollama";
-                        const displayName = isExternal ? (m.label ?? m.id) : m.id;
-                        const hint = !isExternal ? m.label : null;
-                        return (
-                          <SelectItem key={m.id} value={m.id}>
-                            <span>{displayName}</span>
-                            {hint && <span className="ml-1.5 text-[11px] text-muted">{hint}</span>}
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectGroup>
-                  );
-                })}
-              </SelectContent>
-            </Select>
+            <ModelPicker
+              value={form.model}
+              onChange={(v) => setForm(f => ({ ...f, model: v, tools: [] }))}
+              models={availableModels}
+              defaultModelId={defaultModelId}
+            />
           </div>
 
           {/* Tools — only shown when model supports it */}

@@ -24,6 +24,7 @@ import { UsersService } from "../users/users.service";
 import { SettingsService } from "../settings/settings.service";
 import { LlmService } from "../llm/llm.service";
 import { ToolsService } from "../agents/tools.service";
+import { TelegramService } from "../telegram/telegram.service";
 
 @Controller("admin")
 @UseGuards(AdminGuard)
@@ -34,6 +35,7 @@ export class AdminController {
     private readonly llm: LlmService,
     private readonly apiKeys: ApiKeysService,
     private readonly toolsSvc: ToolsService,
+    private readonly telegram: TelegramService,
     @Inject(DATABASE) private readonly db: DatabaseConnection,
   ) {}
 
@@ -149,6 +151,30 @@ export class AdminController {
       if (!disabled.includes(name)) this.settings.setDisabledTools([...disabled, name]);
     }
     return this.toolsSvc.getAllWithStatus();
+  }
+
+  // ── Telegram integration ──────────────────────────────────────────────────
+
+  @Get("telegram")
+  getTelegram() {
+    return {
+      enabled:    this.telegram.isRunning(),
+      token:      this.settings.get("telegram_bot_token") ? "••••••••" : null,
+      allowedIds: this.settings.get("telegram_allowed_ids") ?? "",
+      model:      this.settings.get("telegram_model") ?? "",
+    };
+  }
+
+  @Put("telegram")
+  async saveTelegram(@Body() body: { token?: string; allowedIds?: string; model?: string; enabled?: boolean }) {
+    if (body.token)      this.settings.set("telegram_bot_token", body.token.trim());
+    if (body.allowedIds !== undefined) this.settings.set("telegram_allowed_ids", body.allowedIds.trim());
+    if (body.model !== undefined)      this.settings.set("telegram_model", body.model.trim());
+
+    if (body.enabled === true)  await this.telegram.start();
+    if (body.enabled === false) this.telegram.stop();
+
+    return { ok: true, running: this.telegram.isRunning() };
   }
 
   // ── Danger zone ───────────────────────────────────────────────────────────
