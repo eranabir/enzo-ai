@@ -11,19 +11,33 @@
       height: 100vh; display: flex; align-items: center; justify-content: center;
     }
     .card { width: 440px; padding: 40px; background: #16161e; border: 1px solid #2a2a38; border-radius: 20px; }
+
     .logo { font-size: 26px; font-weight: 700; margin-bottom: 4px; }
     .logo span { color: #7c6ef5; }
     .sub { font-size: 13px; color: #7a7a90; margin-bottom: 30px; }
-    h2 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: #7a7a90; margin-bottom: 12px; }
 
+    /* What's included */
+    .included {
+      background: #1a1a24; border: 1px solid #2a2a38; border-radius: 12px;
+      padding: 16px; margin-bottom: 20px;
+    }
+    .included h3 { font-size: 13px; font-weight: 600; margin-bottom: 10px; color: #b0b0c8; }
+    .included-item {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 13px; color: #c0c0d8; padding: 4px 0;
+    }
+    .included-item .dot { width: 6px; height: 6px; border-radius: 50%; background: #7c6ef5; flex-shrink: 0; }
+
+    hr { border: none; border-top: 1px solid #2a2a38; margin: 20px 0; }
+
+    /* CLI option */
     .option {
       display: flex; align-items: flex-start; gap: 14px;
       padding: 14px 16px; border: 1px solid #2a2a38; border-radius: 12px;
-      margin-bottom: 10px; cursor: pointer; transition: all .15s;
+      margin-bottom: 20px; cursor: pointer; transition: all .15s;
     }
-    .option:hover:not(.disabled) { background: #1e1e2a; }
+    .option:hover { background: #1e1e2a; }
     .option.selected { border-color: #7c6ef5; background: #7c6ef512; }
-    .option.disabled { opacity: .55; cursor: default; }
     .check {
       width: 20px; height: 20px; border-radius: 6px; border: 2px solid #3a3a50;
       flex-shrink: 0; margin-top: 1px; display: flex; align-items: center; justify-content: center;
@@ -31,10 +45,7 @@
     }
     .option.selected .check { background: #7c6ef5; border-color: #7c6ef5; color: #fff; }
     .info h3 { font-size: 14px; font-weight: 600; margin-bottom: 3px; }
-    .info p { font-size: 12px; color: #7a7a90; line-height: 1.45; }
-    .badge { font-size: 10px; background: #7c6ef520; color: #7c6ef5; border-radius: 4px; padding: 1px 6px; margin-left: 6px; vertical-align: middle; }
-
-    hr { border: none; border-top: 1px solid #2a2a38; margin: 24px 0; }
+    .info p  { font-size: 12px; color: #7a7a90; line-height: 1.45; }
 
     .btn {
       width: 100%; padding: 13px; border-radius: 12px; border: none;
@@ -45,12 +56,12 @@
     .btn:disabled { opacity: .45; cursor: not-allowed; }
 
     /* Progress */
-    #progress-section { display: none; margin-top: 20px; }
-    .progress-bar-wrap { background: #1e1e2a; border-radius: 8px; height: 6px; margin-bottom: 10px; overflow: hidden; }
+    #progress-section { display: none; }
+    .progress-bar-wrap { background: #1e1e2a; border-radius: 8px; height: 6px; margin: 20px 0 10px; overflow: hidden; }
     .progress-bar { height: 100%; border-radius: 8px; background: #7c6ef5; transition: width .3s; width: 0%; }
-    .step-label { font-size: 12px; color: #7a7a90; text-align: center; min-height: 18px; }
-    .error { color: #f87171; }
-    .done-msg { text-align: center; font-size: 14px; color: #7c6ef5; font-weight: 600; margin-top: 8px; }
+    .step-label { font-size: 13px; color: #7a7a90; text-align: center; min-height: 20px; }
+    .error-label { color: #f87171; }
+    .done-msg { text-align: center; font-size: 15px; color: #7c6ef5; font-weight: 600; margin-top: 16px; }
   </style>
 </head>
 <body>
@@ -58,36 +69,38 @@
   <div class="logo">⬡ enzo <span>ai</span></div>
   <div class="sub">Your private, local AI — running on your machine</div>
 
+  <!-- Selection screen -->
   <div id="select-section">
-    <h2>Choose what to install</h2>
 
-    <!-- Web UI — always required -->
-    <div class="option selected disabled" id="opt-webui">
-      <div class="check">✓</div>
-      <div class="info">
-        <h3>Web UI <span class="badge">required</span></h3>
-        <p>The Enzo AI app with server, AI engine (Ollama) and browser interface. Always installed.</p>
-      </div>
+    <!-- Always installed -->
+    <div class="included">
+      <h3>Always included</h3>
+      <div class="included-item"><div class="dot"></div>AI server + engine (Ollama)</div>
+      <div class="included-item"><div class="dot"></div>Web UI at localhost:1616</div>
+      <div class="included-item"><div class="dot"></div>Starts automatically on login</div>
     </div>
 
-    <!-- CLI — optional -->
+    <!-- Optional: CLI -->
     <div class="option" id="opt-cli">
       <div class="check" id="cli-check"></div>
       <div class="info">
-        <h3>CLI</h3>
-        <p>Use Enzo AI from any terminal. Adds <code style="background:#0d0d12;padding:1px 5px;border-radius:4px;font-size:11px">enzo-ai</code> to your PATH.</p>
+        <h3>CLI tools <span style="font-size:11px;color:#7a7a90;font-weight:400">(optional)</span></h3>
+        <p>Adds <code style="background:#0d0d12;padding:1px 5px;border-radius:4px;font-size:11px">enzo-ai</code> command to your terminal for scripting and quick access.</p>
       </div>
     </div>
 
-    <hr />
-    <button class="btn" id="btn-install">Install →</button>
+    <button class="btn" id="btn-install">Install Enzo AI →</button>
   </div>
 
+  <!-- Progress screen -->
   <div id="progress-section">
-    <h2>Installing…</h2>
+    <div class="logo">⬡ enzo <span>ai</span></div>
     <div class="progress-bar-wrap"><div class="progress-bar" id="bar"></div></div>
-    <div class="step-label" id="step"></div>
-    <div class="done-msg" id="done-msg" style="display:none">✓ Setup complete! Enzo AI is launching…</div>
+    <div class="step-label" id="step">Starting…</div>
+    <div class="done-msg" id="done-msg" style="display:none">
+      ✓ Enzo AI is installed!<br>
+      <span style="font-size:12px;font-weight:400;color:#7a7a90;margin-top:6px;display:block">Opening in your browser…</span>
+    </div>
   </div>
 </div>
 
@@ -117,14 +130,14 @@
       bar.style.width = progress + '%';
       if (error) {
         stepEl.textContent = '⚠ ' + error;
-        stepEl.className   = 'step-label error';
+        stepEl.classList.add('error-label');
       } else {
         stepEl.textContent = step;
       }
       if (done) doneMsg.style.display = 'block';
     });
 
-    await window.enzo.install({ webui: true, cli: cliSelected });
+    await window.enzo.install({ cli: cliSelected });
   });
 </script>
 </body>

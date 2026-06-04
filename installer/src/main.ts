@@ -160,38 +160,36 @@ async function installCli(platform: string, arch: string, onProgress: (pct: numb
 
 ipcMain.handle("get-info", () => platformInfo());
 
-ipcMain.handle("install", async (_event, components: { webui: boolean; cli: boolean }) => {
+ipcMain.handle("install", async (_event, components: { cli: boolean }) => {
   const { platform, arch } = platformInfo();
 
   const send = (step: string, progress: number, done = false, error?: string) =>
     win?.webContents.send("progress", { step, progress, done, error });
 
   try {
-    // Server (Web UI) — always install when webui selected
-    if (components.webui) {
-      send("Downloading Enzo AI…", 0);
-      await installServer(platform, arch, (p) => send("Downloading Enzo AI…", Math.round(p * 0.6)));
-      send("Enzo AI installed ✓", 60);
-    }
+    // ── Always: install the server + web UI ──────────────────────────────────
+    const cliShare = components.cli ? 0.6 : 0.9; // give CLI 30% of the bar if selected
+    send("Downloading Enzo AI…", 0);
+    await installServer(platform, arch, (p) => send("Downloading Enzo AI…", Math.round(p * cliShare)));
+    send("Enzo AI installed ✓", Math.round(cliShare * 100));
 
-    // CLI — optional
+    // ── Optional: CLI ─────────────────────────────────────────────────────────
     if (components.cli) {
-      send("Downloading CLI…", 62);
-      await installCli(platform, arch, (p) => send("Downloading CLI…", 62 + Math.round(p * 0.35)));
+      const base = Math.round(cliShare * 100);
+      send("Downloading CLI…", base);
+      await installCli(platform, arch, (p) => send("Downloading CLI…", base + Math.round(p * 0.37)));
       send("CLI installed ✓", 97);
     }
 
-    // Launch the app
-    if (components.webui) {
-      send("Launching Enzo AI…", 98);
-      if (platform === "windows") {
-        exec(`"C:\\Program Files\\Enzo AI\\Enzo AI.exe"`);
-      } else if (platform === "macos") {
-        exec("open -a 'Enzo AI'");
-      }
+    // ── Launch ────────────────────────────────────────────────────────────────
+    send("Launching Enzo AI…", 98);
+    if (platform === "windows") {
+      exec(`"C:\\Program Files\\Enzo AI\\Enzo AI.exe"`);
+    } else if (platform === "macos") {
+      exec("open -a 'Enzo AI'");
     }
 
-    send("Setup complete!", 100, true);
+    send("Done!", 100, true);
 
   } catch (err) {
     send("Installation failed", 0, false, (err as Error).message);
