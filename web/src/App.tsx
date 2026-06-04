@@ -94,6 +94,22 @@ export function App() {
     return () => clearInterval(t);
   }, [online, user, refreshConversations]);
 
+  // Poll messages every 4s when viewing an integration chat (Discord/Telegram)
+  // so new messages from the bot appear automatically without refreshing.
+  useEffect(() => {
+    if (!activeId || !online || !user || busy) return;
+    const activeConvo = conversations.find((c) => c.id === activeId);
+    if (!activeConvo?.integration) return; // only for integration chats
+
+    const t = setInterval(async () => {
+      try {
+        const detail = await api.getConversation(activeId);
+        setMessages(detail.messages);
+      } catch { /* ignore */ }
+    }, 4_000);
+    return () => clearInterval(t);
+  }, [activeId, online, user, busy, conversations]);
+
   const logout = useCallback(async () => {
     await api.logout().catch(() => {});
     setToken(null);
