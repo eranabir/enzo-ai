@@ -8,10 +8,11 @@ import { AgentsModule } from "../agents/agents.module";
 import { TelegramModule } from "../telegram/telegram.module";
 import { DiscordModule } from "../discord/discord.module";
 import { SlackModule } from "../slack/slack.module";
+import { CalendarModule } from "../calendar/calendar.module";
 import { AdminController } from "./admin.controller";
 
 @Module({
-  imports: [AuthModule, ApiKeysModule, UsersModule, SettingsModule, LlmModule, AgentsModule, TelegramModule, DiscordModule, SlackModule],
+  imports: [AuthModule, ApiKeysModule, UsersModule, SettingsModule, LlmModule, AgentsModule, TelegramModule, DiscordModule, SlackModule, CalendarModule],
   controllers: [AdminController],
 })
 export class AdminModule {}

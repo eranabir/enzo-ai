@@ -1,5 +1,6 @@
 import { Injectable, Logger, ForbiddenException } from "@nestjs/common";
 import { SettingsService } from "../settings/settings.service";
+import { CalendarService } from "../calendar/calendar.service";
 import { promises as fs } from "fs";
 import * as path from "path";
 import { execFile } from "child_process";
@@ -14,7 +15,7 @@ const SAFE_GIT_SUBCOMMANDS = new Set([
   "ls-tree", "rev-parse", "rev-list", "config", "stash",
 ]);
 
-export type ToolName = "get_datetime" | "calculator" | "web_search" | "read_url" | "read_file" | "list_directory" | "git";
+export type ToolName = "get_datetime" | "calculator" | "web_search" | "read_url" | "read_file" | "list_directory" | "git" | "get_calendar_events";
 
 export interface ToolDefinition {
   type: "function";
@@ -107,6 +108,19 @@ export const ALL_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     type: "function",
     function: {
+      name: "get_calendar_events",
+      description: "Get upcoming events from the user's Google Calendar.",
+      parameters: {
+        type: "object",
+        properties: {
+          days: { type: "number", description: "How many days ahead to look (default 7, max 30)" },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "git",
       description: `Run a read-only git command in a repository and return the output. Safe subcommands: ${[...SAFE_GIT_SUBCOMMANDS].join(", ")}. Examples: "log --oneline -20", "diff HEAD~1", "status", "blame src/index.ts", "branch -a".`,
       parameters: {
@@ -125,7 +139,10 @@ export const ALL_TOOL_DEFINITIONS: ToolDefinition[] = [
 export class ToolsService {
   private readonly logger = new Logger(ToolsService.name);
 
-  constructor(private readonly settings: SettingsService) {}
+  constructor(
+    private readonly settings: SettingsService,
+    private readonly calendar: CalendarService,
+  ) {}
 
   /** All tools with live enabled/disabled status. */
   getAllWithStatus(): Array<{ name: ToolName; description: string; enabled: boolean }> {
@@ -146,7 +163,7 @@ export class ToolsService {
   }
 
   /** Execute a single tool call and return the result string. */
-  async execute(name: string, args: Record<string, unknown>): Promise<string> {
+  async execute(name: string, args: Record<string, unknown>, userId?: string): Promise<string> {
     if (!this.settings.isToolEnabled(name)) {
       return `Tool "${name}" is currently disabled by the administrator.`;
     }
@@ -165,6 +182,8 @@ export class ToolsService {
           return await this.readFile(String(args.path ?? ""));
         case "list_directory":
           return await this.listDirectory(String(args.path ?? ""));
+        case "get_calendar_events":
+          return await this.getCalendarEvents(userId, Number(args.days ?? 7));
         case "git":
           return await this.runGit(String(args.command ?? ""), args.repo ? String(args.repo) : undefined);
         default:
@@ -263,6 +282,20 @@ export class ToolsService {
       }
       throw err;
     }
+  }
+
+  private async getCalendarEvents(userId: string | undefined, days: number): Promise<string> {
+    if (!userId) return "Calendar not available (no user context).";
+    const d = Math.min(Math.max(days, 1), 30);
+    const events = await this.calendar.getUpcomingEvents(userId, d);
+    if (!events.length) return `No events in the next ${d} days.`;
+    const lines = events.map(e => {
+      const when = e.allDay
+        ? e.start.split("T")[0]
+        : new Date(e.start).toLocaleString();
+      return `• ${e.title} — ${when}${e.location ? ` @ ${e.location}` : ""}`;
+    });
+    return `Upcoming events (next ${d} days):\n${lines.join("\n")}`;
   }
 
   private async runGit(command: string, repo?: string): Promise<string> {

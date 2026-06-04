@@ -108,6 +108,26 @@ export const api = {
 
   status: () => fetch("/api/models/status").then(parse<{ ollama: boolean }>),
 
+  // ── Google Calendar ───────────────────────────────────────────────────────
+  calendar: {
+    status: () =>
+      fetch("/api/calendar/status", { headers: headers() })
+        .then(parse<{ configured: boolean; connected: boolean; email?: string; name?: string }>),
+    authUrl: () =>
+      fetch("/api/calendar/auth/url", { headers: headers() })
+        .then(parse<{ url: string }>),
+    disconnect: () =>
+      fetch("/api/calendar", { method: "DELETE", headers: headers() })
+        .then(parse<{ ok: boolean }>),
+    adminConfig: () =>
+      fetch("/api/admin/calendar/config", { headers: headers() })
+        .then(parse<{ clientId: string | null; clientSecret: string | null; configured: boolean }>),
+    setAdminConfig: (body: { clientId?: string; clientSecret?: string }) =>
+      fetch("/api/admin/calendar/config", {
+        method: "PUT", headers: headers(true), body: JSON.stringify(body),
+      }).then(parse<{ ok: boolean; configured: boolean }>),
+  },
+
   /** Which integrations are currently connected (used by AgentsPanel). */
   integrations: () =>
     fetch("/api/health/integrations", { headers: headers() })

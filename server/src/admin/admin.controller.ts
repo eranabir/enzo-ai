@@ -27,6 +27,7 @@ import { ToolsService } from "../agents/tools.service";
 import { TelegramService } from "../telegram/telegram.service";
 import { DiscordService } from "../discord/discord.service";
 import { SlackService } from "../slack/slack.service";
+import { CalendarService } from "../calendar/calendar.service";
 
 @Controller("admin")
 @UseGuards(AdminGuard)
@@ -40,6 +41,7 @@ export class AdminController {
     private readonly telegram: TelegramService,
     private readonly discord: DiscordService,
     private readonly slack: SlackService,
+    private readonly calendarSvc: CalendarService,
     @Inject(DATABASE) private readonly db: DatabaseConnection,
   ) {}
 
@@ -261,6 +263,28 @@ export class AdminController {
     await this.slack.stop();
     this.slack.deleteConversation();
     return { ok: true, running: false };
+  }
+
+  // ── Google Calendar OAuth credentials (admin sets once, all users connect) ──
+
+  @Get("calendar/config")
+  getCalendarConfig() {
+    return {
+      clientId:     this.calendarSvc.getClientId() ? "••••••••" : null,
+      clientSecret: this.calendarSvc.getClientSecret() ? "••••••••" : null,
+      configured:   this.calendarSvc.isConfigured(),
+    };
+  }
+
+  @Put("calendar/config")
+  setCalendarConfig(@Body() body: { clientId?: string; clientSecret?: string }) {
+    if (body.clientId?.trim() || body.clientSecret?.trim()) {
+      this.calendarSvc.setCredentials(
+        body.clientId ?? this.calendarSvc.getClientId(),
+        body.clientSecret ?? this.calendarSvc.getClientSecret(),
+      );
+    }
+    return { ok: true, configured: this.calendarSvc.isConfigured() };
   }
 
   // ── Danger zone ───────────────────────────────────────────────────────────

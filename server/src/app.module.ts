@@ -23,6 +23,7 @@ import { DiscordModule } from "./discord/discord.module";
 import { DiscordService } from "./discord/discord.service";
 import { SlackModule } from "./slack/slack.module";
 import { SlackService } from "./slack/slack.service";
+import { CalendarModule } from "./calendar/calendar.module";
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { SlackService } from "./slack/slack.service";
     TelegramModule,
     DiscordModule,
     SlackModule,
+    CalendarModule,
   ],
   controllers: [AppController],
   // AppController needs TelegramService + DiscordService for /api/health/integrations
