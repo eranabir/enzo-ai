@@ -50,9 +50,6 @@ export class TelegramService implements OnModuleDestroy {
     // Verify the token is valid and get the bot info before launching
     const me = await this.bot.telegram.getMe();
 
-    // Create the dedicated conversation immediately so it appears in the web UI
-    this.getOrCreateConversation();
-
     this.registerHandlers();
 
     // Long polling — reaches out to Telegram, no public URL needed
@@ -103,7 +100,13 @@ export class TelegramService implements OnModuleDestroy {
 
     this.bot.on(message("text"), async (ctx) => {
       const telegramUserId = String(ctx.from.id);
-      const text           = ctx.message.text;
+      const chatId         = String(ctx.chat.id);
+      const isGroup        = ctx.chat.type === "group" || ctx.chat.type === "supergroup";
+      const senderName     = [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(" ")
+                             || ctx.from.username || "User";
+      const rawText        = ctx.message.text;
+      // In groups, prefix message with sender name so the AI knows who is speaking
+      const text           = isGroup ? `[${senderName}]: ${rawText}` : rawText;
 
       // Check allowlist (if configured)
       const allowed = this.settings.get("telegram_allowed_ids");
@@ -124,7 +127,11 @@ export class TelegramService implements OnModuleDestroy {
       await ctx.sendChatAction("typing");
 
       try {
-        const { userId, convoId } = this.getOrCreateConversation();
+        // Chat title: group name for groups, sender name for DMs
+        const chatTitle = isGroup
+          ? (("title" in ctx.chat ? ctx.chat.title : null) ?? `Group ${chatId}`)
+          : senderName;
+        const { userId, convoId } = this.getOrCreateChatConversation(chatId, chatTitle);
         const model = this.settings.get("telegram_model") ?? undefined;
 
         // Keep sending "typing" every 4s while the LLM processes
@@ -153,30 +160,47 @@ export class TelegramService implements OnModuleDestroy {
 
   // ── Conversation management ────────────────────────────────────────────────
 
-  /** Get or create the single dedicated Telegram conversation for the admin user. */
-  getOrCreateConversation(): { userId: string; convoId: string } {
+  /**
+   * Get or create a conversation for a Telegram chat (DM or group).
+   * One conversation per chat ID:
+   *   - DM → one conversation per person
+   *   - Group → one shared conversation for the whole group
+   */
+  getOrCreateChatConversation(chatId: string, chatTitle: string): { userId: string; convoId: string } {
     const botUser = this.users.listAll().find((u) => u.role === "admin");
     if (!botUser) throw new Error("No admin user found to run the bot as");
 
-    // Reuse existing integration conversation if already created
-    let convo = this.convos.getByIntegration(botUser.id, "telegram");
-    if (!convo) {
-      convo = this.convos.create(botUser.id, undefined, undefined, "telegram");
-      this.convos.rename(convo.id, "💬 Telegram");
+    const map = this.loadChatMap();
+
+    if (!map[chatId]) {
+      const convo = this.convos.create(botUser.id, undefined, undefined, "telegram");
+      this.convos.rename(convo.id, `💬 ${chatTitle}`);
+      map[chatId] = convo.id;
+      this.saveChatMap(map);
     }
 
-    return { userId: botUser.id, convoId: convo.id };
+    return { userId: botUser.id, convoId: map[chatId] };
   }
 
-  /** Delete the dedicated Telegram conversation (called from Integrations → Disconnect). */
+  /** Delete ALL Telegram conversations (called from Integrations → Disconnect). */
   deleteConversation(): void {
     const botUser = this.users.listAll().find((u) => u.role === "admin");
     if (!botUser) return;
-    const convo = this.convos.getByIntegration(botUser.id, "telegram");
-    if (convo) {
-      // Bypass the integration guard — we own this
-      this.convos.delete(convo.id);
+    const map = this.loadChatMap();
+    for (const convoId of Object.values(map)) {
+      try { this.convos.delete(convoId); } catch { /* already gone */ }
     }
+    this.settings.set("telegram_chat_map", "{}");
+  }
+
+  private loadChatMap(): Record<string, string> {
+    const raw = this.settings.get("telegram_chat_map");
+    if (!raw) return {};
+    try { return JSON.parse(raw); } catch { return {}; }
+  }
+
+  private saveChatMap(map: Record<string, string>): void {
+    this.settings.set("telegram_chat_map", JSON.stringify(map));
   }
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
