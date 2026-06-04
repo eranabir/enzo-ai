@@ -253,14 +253,11 @@ function IntegrationEntries({ value, onChange, availableOptions }: {
               {/* Type selector */}
               <Select value={entry.type} onValueChange={v => setEntry(i, { type: v as IntegrationType, chatId: "" })}>
                 <SelectTrigger className="w-36">
-                  <span className={`flex items-center gap-1.5 ${opt.color}`}>
-                    {opt.icon}
-                    <SelectValue />
-                  </span>
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {availableOptions.map(o => (
-                    <SelectItem key={o.type} value={o.type} label={<span className={`flex items-center gap-1.5 ${o.color}`}>{o.icon}<span>{o.label}</span></span>}>
+                    <SelectItem key={o.type} value={o.type}>
                       <span className={`flex items-center gap-1.5 ${o.color}`}>{o.icon}<span>{o.label}</span></span>
                     </SelectItem>
                   ))}
