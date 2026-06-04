@@ -30,12 +30,4 @@ mac:
 dmg:
   artifactName: "enzo-ai-installer-macos-${arch}.${ext}"
 
-linux:
-  icon: ../desktop/assets/icon.png
-  category: Utility
-  target:
-    - target: AppImage
-      arch: [x64]
-
-appImage:
-  artifactName: "enzo-ai-installer-linux.${ext}"
+# No Linux installer — Linux users download the server AppImage directly

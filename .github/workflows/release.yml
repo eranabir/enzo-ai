@@ -161,9 +161,6 @@ jobs:
           pkg cli/dist/bundle/index.js --targets node20-linux-x64  --output cli/dist/enzo-ai-cli-linux-x64  --compress Brotli
           pkg cli/dist/bundle/index.js --targets node20-linux-arm64 --output cli/dist/enzo-ai-cli-linux-arm64 --compress Brotli
 
-      - name: Package installer
-        run: yarn workspace @enzo-ai/installer package:linux
-
       - name: Save artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -174,7 +171,6 @@ jobs:
             desktop/dist/enzo-ai-linux-*.deb
             cli/dist/enzo-ai-cli-linux-x64
             cli/dist/enzo-ai-cli-linux-arm64
-            installer/dist/enzo-ai-installer-linux.AppImage
 
   # ════════════════════════════════════════════════════════════════════════════
   # PUBLISH — runs only when ALL jobs above pass
