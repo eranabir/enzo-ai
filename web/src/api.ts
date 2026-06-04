@@ -108,6 +108,11 @@ export const api = {
 
   status: () => fetch("/api/models/status").then(parse<{ ollama: boolean }>),
 
+  /** Which integrations are currently connected (used by AgentsPanel). */
+  integrations: () =>
+    fetch("/api/health/integrations", { headers: headers() })
+      .then(parse<{ telegram: boolean; discord: boolean }>),
+
   // ---- agents ----
   agents: {
     list: () => fetch("/api/agents", { headers: headers() }).then(parse<import("./types").Agent[]>),

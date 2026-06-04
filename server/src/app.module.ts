@@ -41,6 +41,7 @@ import { DiscordService } from "./discord/discord.service";
     DiscordModule,
   ],
   controllers: [AppController],
+  // AppController needs TelegramService + DiscordService for /api/health/integrations
 })
 export class AppModule implements OnModuleInit {
   constructor(private readonly moduleRef: ModuleRef) {}

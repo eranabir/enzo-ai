@@ -178,7 +178,7 @@ interface IntegrationEntry {
   chatId: string;
 }
 
-const INTEGRATION_OPTIONS: { type: IntegrationType; label: string; icon: React.ReactNode; color: string; placeholder: string }[] = [
+const ALL_INTEGRATION_OPTIONS: { type: IntegrationType; label: string; icon: React.ReactNode; color: string; placeholder: string }[] = [
   { type: "telegram", label: "Telegram", icon: <SiTelegram className="h-3.5 w-3.5" />, color: "text-[#2AABEE]", placeholder: "Chat ID — send /chatid to get it" },
   { type: "discord",  label: "Discord",  icon: <SiDiscord  className="h-3.5 w-3.5" />, color: "text-[#5865F2]", placeholder: "Channel ID — right-click channel → Copy Channel ID" },
 ];
@@ -194,7 +194,11 @@ function serialiseEntries(entries: IntegrationEntry[]): string {
   return entries.filter(e => e.chatId.trim()).map(e => e.chatId.trim()).join(",");
 }
 
-function IntegrationEntries({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function IntegrationEntries({ value, onChange, availableOptions }: {
+  value: string;
+  onChange: (v: string) => void;
+  availableOptions: typeof ALL_INTEGRATION_OPTIONS;
+}) {
   const [entries, setEntries] = useState<IntegrationEntry[]>(() => parseEntries(value));
 
   function update(next: IntegrationEntry[]) {
@@ -203,7 +207,8 @@ function IntegrationEntries({ value, onChange }: { value: string; onChange: (v: 
   }
 
   function addEntry() {
-    update([...entries, { type: "telegram", chatId: "" }]);
+    const firstType = availableOptions[0]?.type ?? "telegram";
+    update([...entries, { type: firstType, chatId: "" }]);
   }
 
   function removeEntry(i: number) {
@@ -218,23 +223,30 @@ function IntegrationEntries({ value, onChange }: { value: string; onChange: (v: 
     <div className="border-t border-border px-5 py-4 flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <label className="text-xs font-semibold text-muted">Integrations <span className="font-normal">(optional)</span></label>
-        <button
-          type="button"
-          onClick={addEntry}
-          className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-xs text-muted transition-colors hover:border-accent/60 hover:text-fg"
-        >
-          <Plus className="h-3 w-3" /> Add
-        </button>
+        {availableOptions.length > 0 && (
+          <button
+            type="button"
+            onClick={addEntry}
+            className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-xs text-muted transition-colors hover:border-accent/60 hover:text-fg"
+          >
+            <Plus className="h-3 w-3" /> Add
+          </button>
+        )}
       </div>
 
-      {entries.length === 0 && (
+      {availableOptions.length === 0 && (
         <p className="text-[11px] text-muted">
-          Send scheduled results to a Telegram chat or Discord channel.
+          No integrations connected. Set up Telegram or Discord in Admin Panel → Integrations.
+        </p>
+      )}
+      {availableOptions.length > 0 && entries.length === 0 && (
+        <p className="text-[11px] text-muted">
+          Send scheduled results to a connected chat or channel.
         </p>
       )}
 
       {entries.map((entry, i) => {
-        const opt = INTEGRATION_OPTIONS.find(o => o.type === entry.type) ?? INTEGRATION_OPTIONS[0];
+        const opt = availableOptions.find(o => o.type === entry.type) ?? availableOptions[0];
         return (
           <div key={i} className="flex flex-col gap-1.5 rounded-xl border border-border bg-surface-2 p-3">
             <div className="flex items-center gap-2">
@@ -247,7 +259,7 @@ function IntegrationEntries({ value, onChange }: { value: string; onChange: (v: 
                   </span>
                 </SelectTrigger>
                 <SelectContent>
-                  {INTEGRATION_OPTIONS.map(o => (
+                  {availableOptions.map(o => (
                     <SelectItem key={o.type} value={o.type} label={<span className={`flex items-center gap-1.5 ${o.color}`}>{o.icon}<span>{o.label}</span></span>}>
                       <span className={`flex items-center gap-1.5 ${o.color}`}>{o.icon}<span>{o.label}</span></span>
                     </SelectItem>
@@ -285,6 +297,7 @@ export function AgentsPanel({ onStartChat, onClose }: Props) {
   const [tools, setTools] = useState<ToolDefinition[]>([]);
   const [availableModels, setAvailableModels] = useState<ModelInfo[]>([]);
   const [defaultModelId, setDefaultModelId] = useState<string>("");
+  const [connectedIntegrations, setConnectedIntegrations] = useState<typeof ALL_INTEGRATION_OPTIONS>([]);
   const [view, setView] = useState<"list" | "form">("list");
   const [editing, setEditing] = useState<Agent | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
@@ -305,6 +318,11 @@ export function AgentsPanel({ onStartChat, onClose }: Props) {
     api.models().then(({ models, default: def }) => {
       setAvailableModels(models);
       setDefaultModelId(def);
+    }).catch(() => {});
+    api.integrations().then(({ telegram, discord }) => {
+      setConnectedIntegrations(ALL_INTEGRATION_OPTIONS.filter(o =>
+        (o.type === "telegram" && telegram) || (o.type === "discord" && discord)
+      ));
     }).catch(() => {});
   }, []);
 
@@ -586,6 +604,7 @@ export function AgentsPanel({ onStartChat, onClose }: Props) {
         <IntegrationEntries
           value={form.telegramChatIds}
           onChange={v => setForm(f => ({...f, telegramChatIds: v}))}
+          availableOptions={connectedIntegrations}
         />
 
         <div className="border-t border-border px-5 py-4 flex gap-3">
