@@ -55,9 +55,7 @@ jobs:
       - name: Install dependencies
         run: yarn install --frozen-lockfile --network-timeout 100000
       - run: yarn download:ollama
-      - run: yarn build
-      - run: yarn build:desktop
-      - run: yarn build:installer
+      - run: yarn build:all
 
       - name: Package Web UI (server component)
         run: yarn workspace @enzo-ai/desktop package:win
@@ -103,9 +101,7 @@ jobs:
       - name: Install dependencies
         run: yarn install --frozen-lockfile --network-timeout 100000
       - run: yarn download:ollama
-      - run: yarn build
-      - run: yarn build:desktop
-      - run: yarn build:installer
+      - run: yarn build:all
 
       - name: Package Web UI (server component)
         env:
@@ -159,8 +155,7 @@ jobs:
       - name: Install dependencies
         run: yarn install --frozen-lockfile --network-timeout 100000
       - run: yarn download:ollama
-      - run: yarn build
-      - run: yarn build:desktop
+      - run: yarn build:all
       - name: Package
         env:
           USE_SYSTEM_FPM: true
