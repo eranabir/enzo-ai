@@ -229,6 +229,9 @@ export class SlackService implements OnModuleDestroy {
       this.convos.rename(convo.id, chatTitle);
       map[channelId] = convo.id;
       this.saveChatMap(map);
+    } else if (chatTitle) {
+      // Update title in case it was previously saved as a raw channel ID
+      this.convos.rename(map[channelId], chatTitle);
     }
     return { userId: botUser.id, convoId: map[channelId] };
   }
