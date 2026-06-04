@@ -3,445 +3,601 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>EnzoAI — Your Private, Local AI</title>
-  <meta property="og:title" content="EnzoAI — Your Private, Local AI" />
-  <meta property="og:url" content="https://enzo-ai.app" />
+  <title>EnzoAI — Your AI. Your Machine. Your Rules.</title>
+  <meta name="description" content="EnzoAI is a self-hosted, local-first AI assistant. All your conversations stay on your machine. No cloud. No subscription. Full privacy." />
+  <meta name="theme-color" content="#03020c" />
+
+  <!-- Open Graph -->
+  <meta property="og:type"        content="website" />
+  <meta property="og:url"         content="https://enzo-ai.app" />
+  <meta property="og:title"       content="EnzoAI — Your AI. Your Machine. Your Rules." />
+  <meta property="og:description" content="Self-hosted, local-first AI assistant. Your data never leaves your machine." />
+  <meta property="og:image"       content="https://enzo-ai.app/og-image.png" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card"        content="summary_large_image" />
+  <meta name="twitter:title"       content="EnzoAI — Your AI. Your Machine. Your Rules." />
+  <meta name="twitter:description" content="Self-hosted, local-first AI assistant. Your data never leaves your machine." />
+  <meta name="twitter:image"       content="https://enzo-ai.app/og-image.png" />
+
+  <!-- Canonical -->
   <link rel="canonical" href="https://enzo-ai.app" />
-  <meta name="description" content="A self-hosted, local-first AI assistant. Your conversations and memory never leave your machine." />
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    :root {
-      --bg:        #0a0a10;
-      --surface:   #13131c;
-      --surface-2: #1a1a26;
-      --border:    #252535;
-      --accent:    #7c6ef5;
-      --accent-2:  #9b8fff;
-      --fg:        #e2e2f0;
-      --muted:     #8080a0;
-      --ok:        #4ade80;
-      --radius:    14px;
-    }
-
-    html { scroll-behavior: smooth; }
-
-    body {
-      background: var(--bg);
-      color: var(--fg);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      line-height: 1.6;
-    }
-
-    a { color: var(--accent-2); text-decoration: none; }
-    a:hover { text-decoration: underline; }
-
-    /* ── Layout ── */
-    .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
-    section { padding: 80px 0; }
-
-    /* ── Nav ── */
-    nav {
-      position: sticky; top: 0; z-index: 100;
-      border-bottom: 1px solid var(--border);
-      backdrop-filter: blur(16px);
-      background: rgba(10,10,16,0.85);
-    }
-    .nav-inner {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 16px 24px; max-width: 1100px; margin: 0 auto;
-    }
-    .logo { display: flex; align-items: center; gap: 10px; font-size: 1.2rem; font-weight: 700; }
-    .logo-hex { color: var(--accent-2); font-size: 1.4rem; }
-    .nav-links { display: flex; gap: 28px; align-items: center; }
-    .nav-links a { color: var(--muted); font-size: 0.9rem; font-weight: 500; }
-    .nav-links a:hover { color: var(--fg); text-decoration: none; }
-    .btn-nav {
-      background: var(--accent); color: #fff;
-      padding: 8px 18px; border-radius: 10px; font-size: 0.875rem; font-weight: 600;
-    }
-    .btn-nav:hover { background: var(--accent-2); text-decoration: none; }
-
-    /* ── Hero ── */
-    .hero {
-      text-align: center;
-      padding: 120px 0 80px;
-      position: relative;
-      overflow: hidden;
-    }
-    .hero::before {
-      content: "";
-      position: absolute; top: -200px; left: 50%; transform: translateX(-50%);
-      width: 800px; height: 800px; border-radius: 50%;
-      background: radial-gradient(circle, rgba(124,110,245,0.12) 0%, transparent 70%);
-      pointer-events: none;
-    }
-    .hero-badge {
-      display: inline-flex; align-items: center; gap: 8px;
-      background: rgba(124,110,245,0.12); border: 1px solid rgba(124,110,245,0.3);
-      color: var(--accent-2); padding: 6px 16px; border-radius: 100px;
-      font-size: 0.8rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;
-      margin-bottom: 28px;
-    }
-    .hero-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
-    h1 {
-      font-size: clamp(2.4rem, 6vw, 4rem);
-      font-weight: 800; letter-spacing: -0.03em; line-height: 1.1;
-      margin-bottom: 20px;
-    }
-    h1 em { font-style: normal; color: var(--accent-2); }
-    .hero-sub {
-      font-size: 1.15rem; color: var(--muted); max-width: 560px; margin: 0 auto 40px;
-    }
-    .hero-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
-    .btn-primary {
-      background: var(--accent); color: #fff;
-      padding: 14px 28px; border-radius: 12px; font-size: 1rem; font-weight: 700;
-      box-shadow: 0 0 28px rgba(124,110,245,0.35);
-      transition: all .15s;
-    }
-    .btn-primary:hover { background: var(--accent-2); text-decoration: none; box-shadow: 0 0 40px rgba(155,143,255,0.45); }
-    .btn-secondary {
-      background: var(--surface-2); color: var(--fg);
-      padding: 14px 28px; border-radius: 12px; font-size: 1rem; font-weight: 600;
-      border: 1px solid var(--border); transition: all .15s;
-    }
-    .btn-secondary:hover { border-color: var(--accent); text-decoration: none; }
-
-    /* ── Privacy bar ── */
-    .privacy-bar {
-      display: flex; justify-content: center; gap: 32px; flex-wrap: wrap;
-      margin-top: 52px; padding-top: 40px; border-top: 1px solid var(--border);
-      font-size: 0.85rem; color: var(--muted);
-    }
-    .privacy-bar span { display: flex; align-items: center; gap: 7px; }
-    .privacy-bar svg { width: 15px; height: 15px; color: var(--ok); flex-shrink: 0; }
-
-    /* ── Features ── */
-    .section-label {
-      font-size: 0.75rem; font-weight: 700; text-transform: uppercase;
-      letter-spacing: .1em; color: var(--accent-2); text-align: center; margin-bottom: 12px;
-    }
-    h2 {
-      font-size: clamp(1.8rem, 4vw, 2.6rem); font-weight: 800;
-      letter-spacing: -.02em; text-align: center; margin-bottom: 14px;
-    }
-    .section-sub { text-align: center; color: var(--muted); margin-bottom: 56px; font-size: 1.05rem; }
-
-    .features-grid {
-      display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;
-    }
-    .feature-card {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 28px;
-      transition: border-color .2s;
-    }
-    .feature-card:hover { border-color: rgba(124,110,245,0.4); }
-    .feature-icon { font-size: 1.8rem; margin-bottom: 14px; }
-    .feature-card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 8px; }
-    .feature-card p { font-size: 0.9rem; color: var(--muted); line-height: 1.55; }
-
-    /* ── Integrations ── */
-    .integrations-section { background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-    .integrations-grid {
-      display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px;
-    }
-    .integration-card {
-      background: var(--bg); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 24px;
-      display: flex; align-items: flex-start; gap: 16px;
-    }
-    .integration-icon { font-size: 2rem; flex-shrink: 0; }
-    .integration-card h3 { font-size: 0.95rem; font-weight: 700; margin-bottom: 6px; }
-    .integration-card p { font-size: 0.85rem; color: var(--muted); }
-
-    /* ── Install ── */
-    .install-steps {
-      display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px;
-      counter-reset: steps;
-    }
-    .install-step {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 28px;
-      counter-increment: steps; position: relative;
-    }
-    .install-step::before {
-      content: counter(steps);
-      position: absolute; top: 20px; right: 20px;
-      font-size: 2.5rem; font-weight: 900; color: var(--border);
-      line-height: 1;
-    }
-    .install-step h3 { font-size: 0.95rem; font-weight: 700; margin-bottom: 10px; color: var(--accent-2); }
-    .install-step p { font-size: 0.875rem; color: var(--muted); }
-    code {
-      background: var(--surface-2); border: 1px solid var(--border);
-      padding: 2px 7px; border-radius: 6px; font-size: 0.85em;
-      font-family: "SF Mono", "Fira Code", monospace; color: var(--accent-2);
-    }
-    pre {
-      background: var(--surface-2); border: 1px solid var(--border);
-      border-radius: 10px; padding: 16px 20px; margin-top: 12px;
-      font-size: 0.875rem; overflow-x: auto; color: var(--fg);
-      font-family: "SF Mono", "Fira Code", monospace; line-height: 1.6;
-    }
-
-    /* ── Download ── */
-    .download-grid {
-      display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px;
-    }
-    .download-card {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 24px;
-      display: flex; flex-direction: column; align-items: center; gap: 12px;
-      text-align: center; transition: border-color .2s;
-    }
-    .download-card:hover { border-color: var(--accent); }
-    .download-card .os-icon { font-size: 2.2rem; }
-    .download-card h3 { font-weight: 700; font-size: 1rem; }
-    .download-card p { color: var(--muted); font-size: 0.8rem; }
-    .btn-download {
-      background: var(--accent); color: #fff;
-      padding: 9px 20px; border-radius: 9px; font-size: 0.875rem; font-weight: 600;
-      width: 100%; text-align: center; display: block;
-      transition: background .15s;
-    }
-    .btn-download:hover { background: var(--accent-2); text-decoration: none; }
-    .btn-download-secondary {
-      background: transparent; color: var(--muted);
-      padding: 9px 20px; border-radius: 9px; font-size: 0.875rem; font-weight: 600;
-      border: 1px solid var(--border); width: 100%; text-align: center; display: block;
-      transition: all .15s;
-    }
-    .btn-download-secondary:hover { border-color: var(--accent); color: var(--fg); text-decoration: none; }
-
-    /* ── Footer ── */
-    footer {
-      border-top: 1px solid var(--border); padding: 40px 0;
-      text-align: center; color: var(--muted); font-size: 0.875rem;
-    }
-    .footer-links { display: flex; justify-content: center; gap: 24px; margin-bottom: 16px; }
-    .footer-links a { color: var(--muted); }
-    .footer-links a:hover { color: var(--fg); }
-
-    /* ── Responsive ── */
-    @media (max-width: 640px) {
-      section { padding: 56px 0; }
-      .hero { padding: 80px 0 56px; }
-      .nav-links { display: none; }
-      .privacy-bar { gap: 16px; }
-    }
-  </style>
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
-<!-- Nav -->
-<nav>
-  <div class="nav-inner">
-    <div class="logo">
-      <span class="logo-hex">⬡</span>
-      EnzoAI
-    </div>
-    <div class="nav-links">
-      <a href="#features">Features</a>
-      <a href="#integrations">Integrations</a>
-      <a href="#install">Install</a>
-      <a href="https://github.com/eranabir/enzo-ai" target="_blank">GitHub</a>
-      <a href="https://github.com/eranabir/enzo-ai/releases/latest" class="btn-nav">Download</a>
-    </div>
-  </div>
-</nav>
+  <!-- ── Custom Cursor ── -->
+  <div class="cursor-dot"  id="cursor-dot"></div>
+  <div class="cursor-glow" id="cursor-glow"></div>
 
-<!-- Hero -->
-<section class="hero">
-  <div class="container">
-    <div class="hero-badge">
-      <span class="dot"></span>
-      100% Local · Zero Telemetry
-    </div>
-    <h1>Your AI, on your<br><em>own machine</em></h1>
-    <p class="hero-sub">
-      EnzoAI is a self-hosted, local-first AI assistant. Conversations, memory and API keys never leave your device.
-    </p>
-    <div class="hero-actions">
-      <a href="https://github.com/eranabir/enzo-ai/releases/latest" class="btn-primary">↓ Download</a>
-      <a href="#install" class="btn-secondary">Run with Docker</a>
-    </div>
-    <div class="privacy-bar">
-      <span>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 12l2 2 4-4"/><path d="M12 3a9 9 0 100 18 9 9 0 000-18z"/></svg>
-        No data leaves your machine
-      </span>
-      <span>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 12l2 2 4-4"/><path d="M12 3a9 9 0 100 18 9 9 0 000-18z"/></svg>
-        No subscription required
-      </span>
-      <span>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 12l2 2 4-4"/><path d="M12 3a9 9 0 100 18 9 9 0 000-18z"/></svg>
-        Open source · MIT license
-      </span>
-      <span>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 12l2 2 4-4"/><path d="M12 3a9 9 0 100 18 9 9 0 000-18z"/></svg>
-        Works offline
-      </span>
-    </div>
+  <!-- ── Aurora Background ── -->
+  <div class="aurora" aria-hidden="true">
+    <div class="aurora-orb"></div>
+    <div class="aurora-orb"></div>
+    <div class="aurora-orb"></div>
+    <div class="aurora-orb"></div>
   </div>
-</section>
 
-<!-- Features -->
-<section id="features">
-  <div class="container">
-    <p class="section-label">Everything you need</p>
-    <h2>Private by design,<br>powerful by default</h2>
-    <p class="section-sub">Local models via Ollama, or connect your own OpenAI / Anthropic / Gemini keys.</p>
-    <div class="features-grid">
-      <div class="feature-card">
-        <div class="feature-icon">🧠</div>
-        <h3>Long-term memory</h3>
-        <p>Automatically extracts facts, preferences and context from your conversations. EnzoAI remembers you across sessions.</p>
+  <!-- ── Noise Overlay ── -->
+  <div class="noise" aria-hidden="true"></div>
+
+  <!-- ════════════════════════════════════════ -->
+  <!-- NAV                                      -->
+  <!-- ════════════════════════════════════════ -->
+  <nav>
+    <div class="container">
+      <!-- Logo -->
+      <a href="/" class="nav-logo">
+        <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="logoGrad" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#7c6ef5"/>
+              <stop offset="1" stop-color="#a78bfa"/>
+            </linearGradient>
+          </defs>
+          <rect width="32" height="32" rx="9" fill="url(#logoGrad)" opacity="0.15"/>
+          <rect x="0.5" y="0.5" width="31" height="31" rx="8.5" stroke="url(#logoGrad)" stroke-opacity="0.5"/>
+          <path d="M8 10h10a6 6 0 0 1 0 12H8V10Z" stroke="url(#logoGrad)" stroke-width="2" stroke-linejoin="round" fill="none"/>
+          <path d="M8 16h8" stroke="url(#logoGrad)" stroke-width="2" stroke-linecap="round"/>
+          <circle cx="22" cy="22" r="2" fill="url(#logoGrad)"/>
+        </svg>
+        EnzoAI
+      </a>
+
+      <!-- Pill links -->
+      <div class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#integrations">Integrations</a>
+        <a href="#install">Install</a>
+        <a href="#download">Download</a>
       </div>
-      <div class="feature-card">
-        <div class="feature-icon">🤖</div>
-        <h3>Agents with schedules</h3>
-        <p>Create custom AI assistants with their own instructions, tools, and cron schedules. Run tasks automatically and deliver results to any platform.</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">🔧</div>
-        <h3>Built-in tools</h3>
-        <p>Agents can search the web, read files, browse directories, run git commands, and evaluate math — all server-side.</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">📸</div>
-        <h3>Image uploads</h3>
-        <p>Attach images to any message. Works with all vision-capable models — local (LLaVA, Llama 3.2 Vision) and external (GPT-4o, Claude, Gemini).</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">👥</div>
-        <h3>Multi-user</h3>
-        <p>Multiple profiles on one machine, each with isolated conversations, memory and settings. Password + optional PIN login.</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">🌐</div>
-        <h3>External providers</h3>
-        <p>Add your own OpenAI, Anthropic or Google Gemini API keys. Switch models per conversation from the header.</p>
-      </div>
+
+      <!-- CTA -->
+      <a href="https://github.com/eranabir/enzo-ai" target="_blank" rel="noopener" class="nav-cta">
+        <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.009-.868-.013-1.703-2.782.604-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.464-1.11-1.464-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0 1 12 6.836a9.59 9.59 0 0 1 2.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.202 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10Z"/>
+        </svg>
+        GitHub
+      </a>
     </div>
-  </div>
-</section>
+  </nav>
 
-<!-- Integrations -->
-<section id="integrations" class="integrations-section">
-  <div class="container">
-    <p class="section-label">Integrations</p>
-    <h2>Chat from anywhere</h2>
-    <p class="section-sub">Connect to your favourite messaging platforms. Each chat gets its own conversation, visible in the web UI.</p>
-    <div class="integrations-grid">
-      <div class="integration-card">
-        <span class="integration-icon">✈️</span>
-        <div>
-          <h3>Telegram</h3>
-          <p>Create a bot via @BotFather, paste the token and connect. DMs, group chats and scheduled agent delivery all supported.</p>
+  <main>
+
+    <!-- ════════════════════════════════════════ -->
+    <!-- HERO                                     -->
+    <!-- ════════════════════════════════════════ -->
+    <section class="hero">
+      <div class="container">
+        <!-- Badge -->
+        <div class="hero-badge">
+          <span class="badge-dot"></span>
+          Open Source &nbsp;&middot;&nbsp; v0.1 now available
+        </div>
+
+        <!-- Heading -->
+        <h1 class="hero-h1">
+          Your AI.<br>
+          <span class="gradient-text">Your machine.</span><br>
+          Your rules.
+        </h1>
+
+        <!-- Subtitle -->
+        <p class="hero-sub">
+          EnzoAI is a fully self-hosted AI assistant that runs entirely on your hardware.
+          Conversations stay on your device — no cloud, no subscriptions, no surveillance.
+        </p>
+
+        <!-- CTA buttons -->
+        <div class="hero-actions">
+          <a href="#download" class="btn-primary">
+            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Download Free
+          </a>
+          <a href="#install" class="btn-secondary">
+            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <path d="M3 9h18M9 21V9"/>
+            </svg>
+            Run with Docker
+          </a>
+        </div>
+
+        <!-- Trust badges -->
+        <div class="trust-badges">
+          <span class="trust-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+            No data leaves your machine
+          </span>
+          <span class="trust-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="1" y="4" width="22" height="16" rx="2"/>
+              <line x1="1" y1="10" x2="23" y2="10"/>
+            </svg>
+            No subscription
+          </span>
+          <span class="trust-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="1" y1="1" x2="23" y2="23"/>
+              <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55M5 12.55a10.94 10.94 0 0 1 5.17-2.39M10.71 5.05A16 16 0 0 1 22.56 9M1.42 9a15.91 15.91 0 0 1 4.7-2.88M8.53 16.11a6 6 0 0 1 6.95 0"/>
+              <line x1="12" y1="20" x2="12.01" y2="20"/>
+            </svg>
+            Works offline
+          </span>
+          <span class="trust-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            MIT License
+          </span>
         </div>
       </div>
-      <div class="integration-card">
-        <span class="integration-icon">🎮</span>
-        <div>
-          <h3>Discord</h3>
-          <p>Invite your bot to any server. @mention it in channels or DM it directly. Responds with your local AI.</p>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- ════════════════════════════════════════ -->
+    <!-- FEATURES                                 -->
+    <!-- ════════════════════════════════════════ -->
+    <section class="section" id="features">
+      <div class="container">
+        <div class="section-header reveal">
+          <div class="section-tag">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            Features
+          </div>
+          <h2 class="section-h2">Built different.<br><span class="gradient-text">Runs private.</span></h2>
+          <p class="section-sub">Everything you'd expect from a frontier AI assistant — minus the surveillance, minus the fees.</p>
+        </div>
+
+        <div class="features-grid">
+
+          <!-- Memory — wide card -->
+          <div class="feature-card wide reveal reveal-delay-1">
+            <div class="card-inner">
+              <div>
+                <div class="card-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <ellipse cx="12" cy="5" rx="9" ry="3"/>
+                    <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+                    <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+                  </svg>
+                </div>
+                <p class="card-title">Persistent Memory</p>
+                <p class="card-body">EnzoAI remembers context across sessions, learning your preferences and building up a private knowledge base — all stored in a local SQLite database only you control.</p>
+              </div>
+              <div class="card-visual" style="background: rgba(124,110,245,0.05); border:1px solid rgba(124,110,245,0.12); border-radius:12px; padding:22px; font-family:'JetBrains Mono','Fira Code',monospace; font-size:0.78rem; line-height:1.9; color:var(--text-secondary);">
+                <div style="color:var(--accent-light); margin-bottom:4px;">~ Memory Store</div>
+                <div>&#x250C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2510;</div>
+                <div>&#x2502; <span style="color:#a78bfa">user_prefs</span> &nbsp;&nbsp;&nbsp; 4.2 KB &#x2502;</div>
+                <div>&#x2502; <span style="color:#a78bfa">conversations</span> &nbsp;18 MB &#x2502;</div>
+                <div>&#x2502; <span style="color:#a78bfa">embeddings</span> &nbsp; 512 MB &#x2502;</div>
+                <div>&#x2502; <span style="color:#4ade80">&#x2713; encrypted at rest</span> &#x2502;</div>
+                <div>&#x2514;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2518;</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Agents -->
+          <div class="feature-card reveal reveal-delay-2">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.07 4.93A10 10 0 0 0 4.93 4.93M4.93 19.07a10 10 0 0 0 14.14 0"/>
+                <path d="M12 2v2M12 20v2M2 12h2M20 12h2"/>
+              </svg>
+            </div>
+            <p class="card-title">Autonomous Agents</p>
+            <p class="card-body">Spin up local agents that browse the web, run code, manage files, and complete complex multi-step tasks — no API keys required for local models.</p>
+          </div>
+
+          <!-- Tools -->
+          <div class="feature-card reveal reveal-delay-3">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+              </svg>
+            </div>
+            <p class="card-title">Extensible Tools</p>
+            <p class="card-body">Plugin architecture lets you add custom tools — calendar, home automation, file ops — all running locally without any cloud dependency.</p>
+          </div>
+
+          <!-- Vision -->
+          <div class="feature-card reveal reveal-delay-1">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+            </div>
+            <p class="card-title">Vision &amp; Multimodal</p>
+            <p class="card-body">Analyze images, PDFs, and documents locally with multimodal models like LLaVA. No uploads to foreign servers — ever.</p>
+          </div>
+
+          <!-- Providers -->
+          <div class="feature-card reveal reveal-delay-2">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="3" width="20" height="14" rx="2"/>
+                <path d="M8 21h8M12 17v4"/>
+              </svg>
+            </div>
+            <p class="card-title">Any Model Provider</p>
+            <p class="card-body">Ollama, LM Studio, llama.cpp, or remote fallbacks like OpenAI and Anthropic — switch providers per conversation without reconfiguring anything.</p>
+          </div>
+
         </div>
       </div>
-      <div class="integration-card">
-        <span class="integration-icon">💼</span>
-        <div>
-          <h3>Slack</h3>
-          <p>Socket Mode — no public URL required. Install in your workspace, invite the bot to channels and start chatting.</p>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- ════════════════════════════════════════ -->
+    <!-- INTEGRATIONS                             -->
+    <!-- ════════════════════════════════════════ -->
+    <section class="section" id="integrations">
+      <div class="container">
+        <div class="integrations-glass reveal">
+          <div class="integrations-left">
+            <div class="section-tag" style="margin-bottom:20px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+              </svg>
+              Integrations
+            </div>
+            <h2 class="section-h2" style="margin-bottom:16px;">
+              Chat where<br><span class="gradient-text">you already are.</span>
+            </h2>
+            <p class="section-sub">
+              EnzoAI plugs into your favourite messaging platforms. Your AI, in your workflow — privately.
+            </p>
+          </div>
+
+          <div class="integrations-pills">
+
+            <!-- Telegram -->
+            <div class="int-pill telegram">
+              <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0Zm5.894 8.221-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L7.196 13.68l-2.965-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.957.88Z"/>
+              </svg>
+              Telegram Bot
+              <span class="int-pill-label">Self-hosted</span>
+            </div>
+
+            <!-- Discord -->
+            <div class="int-pill discord">
+              <svg viewBox="0 0 24 24" fill="#7289da" xmlns="http://www.w3.org/2000/svg">
+                <path d="M20.317 4.492c-1.53-.69-3.17-1.2-4.885-1.49a.075.075 0 0 0-.079.036c-.21.369-.444.85-.608 1.23a18.566 18.566 0 0 0-5.487 0 12.36 12.36 0 0 0-.617-1.23A.077.077 0 0 0 8.562 3c-1.714.29-3.354.8-4.885 1.491a.07.07 0 0 0-.032.027C.533 9.093-.32 13.555.099 17.961a.08.08 0 0 0 .031.055 20.03 20.03 0 0 0 5.993 2.98.078.078 0 0 0 .084-.026 13.83 13.83 0 0 0 1.226-1.963.074.074 0 0 0-.041-.104 13.175 13.175 0 0 1-1.872-.878.075.075 0 0 1-.008-.125c.126-.093.252-.19.372-.287a.075.075 0 0 1 .078-.01c3.927 1.764 8.18 1.764 12.061 0a.075.075 0 0 1 .079.009c.12.098.245.195.372.288a.075.075 0 0 1-.006.125c-.598.344-1.22.635-1.873.877a.075.075 0 0 0-.041.105c.36.687.772 1.341 1.225 1.962a.077.077 0 0 0 .084.028 19.963 19.963 0 0 0 6.002-2.981.076.076 0 0 0 .032-.054c.5-5.094-.838-9.52-3.549-13.442a.06.06 0 0 0-.031-.028ZM8.02 15.278c-1.182 0-2.157-1.069-2.157-2.38 0-1.312.956-2.38 2.157-2.38 1.21 0 2.176 1.077 2.157 2.38 0 1.312-.956 2.38-2.157 2.38Zm7.975 0c-1.183 0-2.157-1.069-2.157-2.38 0-1.312.955-2.38 2.157-2.38 1.21 0 2.176 1.077 2.157 2.38 0 1.312-.946 2.38-2.157 2.38Z"/>
+              </svg>
+              Discord Bot
+              <span class="int-pill-label">Community preview</span>
+            </div>
+
+            <!-- Slack -->
+            <div class="int-pill slack">
+              <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" width="22" height="22">
+                <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52z" fill="#E01E5A"/>
+                <path d="M6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313z" fill="#E01E5A"/>
+                <path d="M8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834z" fill="#36C5F0"/>
+                <path d="M8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312z" fill="#36C5F0"/>
+                <path d="M18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834z" fill="#2EB67D"/>
+                <path d="M17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312z" fill="#2EB67D"/>
+                <path d="M15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52z" fill="#ECB22E"/>
+                <path d="M15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z" fill="#ECB22E"/>
+              </svg>
+              Slack App
+              <span class="int-pill-label">Coming soon</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- ════════════════════════════════════════ -->
+    <!-- INSTALL / TERMINAL                       -->
+    <!-- ════════════════════════════════════════ -->
+    <section class="section" id="install">
+      <div class="container">
+        <div class="section-header" style="text-align:center;">
+          <div class="section-tag reveal" style="margin:0 auto 20px;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <path d="M3 9h18M9 21V9"/>
+            </svg>
+            Quick Start
+          </div>
+          <h2 class="section-h2 reveal reveal-delay-1">Up and running<br><span class="gradient-text">in 30 seconds.</span></h2>
+          <p class="section-sub reveal reveal-delay-2" style="margin:0 auto;">One Docker command. No configuration wizards, no cloud sign-up, no API keys needed to get started.</p>
+        </div>
+
+        <div class="terminal-wrap reveal reveal-delay-3" style="margin-top:56px;">
+          <div class="terminal">
+            <div class="terminal-header">
+              <div class="term-dot red"></div>
+              <div class="term-dot yellow"></div>
+              <div class="term-dot green"></div>
+              <span class="terminal-title">bash &mdash; enzo-ai</span>
+            </div>
+            <div class="terminal-body">
+              <div class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">docker run -d \</span></div>
+              <div class="term-line">&nbsp;&nbsp;&nbsp;&nbsp;<span class="term-cmd">--name enzo-ai \</span></div>
+              <div class="term-line">&nbsp;&nbsp;&nbsp;&nbsp;<span class="term-cmd">-p 1616:1616 \</span></div>
+              <div class="term-line">&nbsp;&nbsp;&nbsp;&nbsp;<span class="term-cmd">-v ~/.enzo:/data \</span></div>
+              <div class="term-line">&nbsp;&nbsp;&nbsp;&nbsp;<span class="term-cmd">ghcr.io/eranabir/enzo-ai:latest</span></div>
+              <div class="term-line">&nbsp;</div>
+              <div class="term-line"><span class="term-info">&#x2139; Pulling ghcr.io/eranabir/enzo-ai:latest...</span></div>
+              <div class="term-line"><span class="term-success">&#x2714; Image pulled successfully</span></div>
+              <div class="term-line"><span class="term-success">&#x2714; Container started: enzo-ai</span></div>
+              <div class="term-line"><span class="term-success">&#x2714; Data volume mounted at ~/.enzo</span></div>
+              <div class="term-line"><span class="term-warn">&#x26A1; Connecting to Ollama on localhost:11434</span></div>
+              <div class="term-line"><span class="term-success">&#x2714; Ollama reachable &mdash; model: llama3.2:latest</span></div>
+              <div class="term-line">&nbsp;</div>
+              <div class="term-line"><span class="term-success">&#x2714; EnzoAI ready at http://localhost:1616</span>  <span class="term-comment"># open in browser</span></div>
+              <div class="term-line"><span class="term-prompt">$</span> <span class="term-cursor"></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- ════════════════════════════════════════ -->
+    <!-- DOWNLOAD                                 -->
+    <!-- ════════════════════════════════════════ -->
+    <section class="section" id="download">
+      <div class="container">
+        <div class="section-header" style="text-align:center;">
+          <div class="section-tag reveal" style="margin:0 auto 20px;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Download
+          </div>
+          <h2 class="section-h2 reveal reveal-delay-1">Every platform.<br><span class="gradient-text">One experience.</span></h2>
+          <p class="section-sub reveal reveal-delay-2" style="margin:0 auto;">Native apps for Windows, macOS, and Linux. Or deploy anywhere with Docker.</p>
+        </div>
+
+        <div class="downloads-grid" style="margin-top:56px;">
+
+          <!-- Windows -->
+          <div class="dl-card reveal reveal-delay-1">
+            <div class="dl-icon">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.549H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801" fill="#0078D4"/>
+              </svg>
+            </div>
+            <p class="dl-name">Windows</p>
+            <p class="dl-detail">.exe installer &middot; x64 &middot; Windows 10+</p>
+            <a href="https://github.com/eranabir/enzo-ai/releases/latest/download/enzo-ai-setup.exe" class="dl-btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Download .exe
+            </a>
+          </div>
+
+          <!-- macOS -->
+          <div class="dl-card reveal reveal-delay-2">
+            <div class="dl-icon">
+              <svg viewBox="0 0 24 24" fill="var(--text-primary)" xmlns="http://www.w3.org/2000/svg">
+                <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+              </svg>
+            </div>
+            <p class="dl-name">macOS</p>
+            <p class="dl-detail">.dmg &middot; Apple Silicon + Intel</p>
+            <a href="https://github.com/eranabir/enzo-ai/releases/latest/download/enzo-ai.dmg" class="dl-btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Download .dmg
+            </a>
+          </div>
+
+          <!-- Linux -->
+          <div class="dl-card reveal reveal-delay-3">
+            <div class="dl-icon">
+              <svg viewBox="0 0 24 24" fill="var(--accent-light)" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12.504 0c-.155 0-.315.008-.475.021-4.226.333-3.105 4.807-3.17 6.298-.076 1.092-.3 1.953-1.05 3.02-.885 1.051-2.127 2.75-2.716 4.521-.278.832-.41 1.684-.287 2.489.028 1.213.476 2.062 1.084 2.771.218.308.4.571.537.784.943 1.419 1.098 2.701 1.175 3.925.068.978.052 1.907-.108 2.669.127-.028.52.068.982.148.625.1 1.382.185 2.097.185.715 0 1.472-.085 2.098-.185.462-.08.855-.176.982-.148-.16-.762-.176-1.691-.108-2.669.077-1.224.232-2.506 1.175-3.925.137-.213.32-.476.537-.784.608-.709 1.056-1.558 1.084-2.771.123-.805-.009-1.657-.287-2.489-.589-1.771-1.831-3.47-2.716-4.521-.75-1.067-.974-1.928-1.05-3.02-.065-1.491 1.056-5.965-3.17-6.298-.16-.013-.32-.021-.475-.021zm.03 5.789a.762.762 0 1 1 0 1.524.762.762 0 0 1 0-1.524zm-2.553.333a.762.762 0 1 1 0 1.524.762.762 0 0 1 0-1.524z"/>
+              </svg>
+            </div>
+            <p class="dl-name">Linux</p>
+            <p class="dl-detail">.deb package &middot; Ubuntu 22.04+</p>
+            <a href="https://github.com/eranabir/enzo-ai/releases/latest/download/enzo-ai.deb" class="dl-btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Download .deb
+            </a>
+          </div>
+
+          <!-- Docker -->
+          <div class="dl-card reveal reveal-delay-4">
+            <div class="dl-icon">
+              <svg viewBox="0 0 24 24" fill="#2496ED" xmlns="http://www.w3.org/2000/svg">
+                <path d="M13.983 11.078h2.119a.186.186 0 0 0 .186-.185V9.006a.186.186 0 0 0-.186-.186h-2.119a.185.185 0 0 0-.185.185v1.888c0 .102.083.185.185.185m-2.954-5.43h2.118a.186.186 0 0 0 .186-.186V3.574a.186.186 0 0 0-.186-.185h-2.118a.185.185 0 0 0-.185.185v1.888c0 .102.082.185.185.185m0 2.716h2.118a.187.187 0 0 0 .186-.186V6.29a.186.186 0 0 0-.186-.185h-2.118a.185.185 0 0 0-.185.185v1.887c0 .102.082.185.185.186m-2.93 0h2.12a.186.186 0 0 0 .184-.186V6.29a.185.185 0 0 0-.185-.185H8.1a.185.185 0 0 0-.185.185v1.887c0 .102.083.185.185.186m-2.964 0h2.119a.186.186 0 0 0 .185-.186V6.29a.185.185 0 0 0-.185-.185H5.136a.186.186 0 0 0-.186.185v1.887c0 .102.084.185.186.186m5.893 2.715h2.118a.186.186 0 0 0 .186-.185V9.006a.186.186 0 0 0-.186-.186h-2.118a.185.185 0 0 0-.185.185v1.888c0 .102.082.185.185.185m-2.93 0h2.12a.185.185 0 0 0 .184-.185V9.006a.185.185 0 0 0-.184-.186h-2.12a.185.185 0 0 0-.185.185v1.888c0 .102.083.185.185.185m-2.964 0h2.119a.185.185 0 0 0 .185-.185V9.006a.185.185 0 0 0-.184-.186h-2.12a.186.186 0 0 0-.186.186v1.887c0 .102.084.185.186.185m-2.92 0h2.12a.185.185 0 0 0 .184-.185V9.006a.185.185 0 0 0-.184-.186h-2.12a.185.185 0 0 0-.185.185v1.888c0 .102.082.185.185.185M23.763 9.89c-.065-.051-.672-.51-1.954-.51-.338.001-.676.03-1.01.087-.248-1.7-1.653-2.53-1.716-2.566l-.344-.199-.226.327c-.284.438-.49.922-.612 1.43-.23.97-.09 1.882.403 2.661-.595.332-1.55.413-1.744.42H.751a.751.751 0 0 0-.75.748 11.376 11.376 0 0 0 .692 4.062c.545 1.428 1.355 2.48 2.41 3.124 1.18.723 3.1 1.137 5.275 1.137.983.003 1.963-.086 2.93-.266a12.248 12.248 0 0 0 3.823-1.389c.98-.567 1.86-1.288 2.61-2.136 1.252-1.418 1.998-2.997 2.553-4.4h.221c1.372 0 2.215-.549 2.68-1.009.309-.293.55-.65.707-1.046l.098-.288Z"/>
+              </svg>
+            </div>
+            <p class="dl-name">Docker</p>
+            <p class="dl-detail">GHCR &middot; amd64 / arm64</p>
+            <a href="https://github.com/eranabir/enzo-ai/pkgs/container/enzo-ai" target="_blank" rel="noopener" class="dl-btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+              </svg>
+              View on GHCR
+            </a>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ════════════════════════════════════════ -->
+  <!-- FOOTER                                   -->
+  <!-- ════════════════════════════════════════ -->
+  <footer>
+    <div class="container">
+      <div class="footer-inner">
+        <div class="footer-brand">
+          <div class="footer-brand-logo">
+            <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="footerGrad" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+                  <stop stop-color="#7c6ef5"/>
+                  <stop offset="1" stop-color="#a78bfa"/>
+                </linearGradient>
+              </defs>
+              <rect width="32" height="32" rx="9" fill="url(#footerGrad)" opacity="0.15"/>
+              <rect x="0.5" y="0.5" width="31" height="31" rx="8.5" stroke="url(#footerGrad)" stroke-opacity="0.4"/>
+              <path d="M8 10h10a6 6 0 0 1 0 12H8V10Z" stroke="url(#footerGrad)" stroke-width="2" stroke-linejoin="round" fill="none"/>
+              <path d="M8 16h8" stroke="url(#footerGrad)" stroke-width="2" stroke-linecap="round"/>
+              <circle cx="22" cy="22" r="2" fill="url(#footerGrad)"/>
+            </svg>
+            EnzoAI
+          </div>
+          <p class="footer-tagline">A self-hosted, local-first AI assistant. Your data, your hardware, your control. MIT licensed and open source.</p>
+        </div>
+
+        <div class="footer-col">
+          <h4>Product</h4>
+          <ul>
+            <li><a href="#features">Features</a></li>
+            <li><a href="#integrations">Integrations</a></li>
+            <li><a href="#install">Quick Start</a></li>
+            <li><a href="#download">Download</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h4>Resources</h4>
+          <ul>
+            <li><a href="https://github.com/eranabir/enzo-ai/blob/main/README.md" target="_blank" rel="noopener">Documentation</a></li>
+            <li><a href="https://github.com/eranabir/enzo-ai/releases" target="_blank" rel="noopener">Changelog</a></li>
+            <li><a href="https://github.com/eranabir/enzo-ai/issues" target="_blank" rel="noopener">Issues</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h4>Community</h4>
+          <ul>
+            <li><a href="https://github.com/eranabir/enzo-ai" target="_blank" rel="noopener">GitHub</a></li>
+            <li><a href="https://discord.gg/enzo-ai" target="_blank" rel="noopener">Discord</a></li>
+            <li><a href="https://t.me/enzoai" target="_blank" rel="noopener">Telegram</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <span class="footer-copy">&copy; 2026 EnzoAI. Open source under MIT License.</span>
+        <div class="footer-links">
+          <a href="/privacy">Privacy</a>
+          <a href="/terms">Terms</a>
+          <a href="https://github.com/eranabir/enzo-ai" target="_blank" rel="noopener">GitHub</a>
         </div>
       </div>
     </div>
-  </div>
-</section>
+  </footer>
 
-<!-- Install -->
-<section id="install">
-  <div class="container">
-    <p class="section-label">Get started</p>
-    <h2>Up and running in minutes</h2>
-    <p class="section-sub">Choose the installation method that suits you best.</p>
+  <!-- ── JavaScript ── -->
+  <script>
+    // ── Custom Cursor ──────────────────────────────
+    const dot  = document.getElementById('cursor-dot');
+    const glow = document.getElementById('cursor-glow');
+    let mx = -999, my = -999;
+    let gx = -999, gy = -999;
+    let rafId;
 
-    <h3 style="font-size:1rem;font-weight:700;margin-bottom:20px;color:var(--muted);">Option 1 — Desktop app</h3>
-    <div class="install-steps" style="margin-bottom:52px">
-      <div class="install-step">
-        <h3>Download</h3>
-        <p>Grab the installer for your platform from the GitHub releases page. Includes Ollama — no separate install needed.</p>
-      </div>
-      <div class="install-step">
-        <h3>First launch</h3>
-        <p>A setup screen appears. Choose whether to also add the CLI to your PATH. The AI server starts automatically.</p>
-      </div>
-      <div class="install-step">
-        <h3>Start chatting</h3>
-        <p>Your browser opens to <code>localhost:1616</code>. Create your account, pull a model, and start your first conversation.</p>
-      </div>
-    </div>
+    document.addEventListener('mousemove', e => {
+      mx = e.clientX;
+      my = e.clientY;
+      dot.style.transform = `translate(${mx}px, ${my}px) translate(-50%, -50%)`;
+    });
 
-    <h3 style="font-size:1rem;font-weight:700;margin-bottom:20px;color:var(--muted);">Option 2 — Docker (NAS / server / headless)</h3>
-    <p style="color:var(--muted);font-size:0.9rem;margin-bottom:12px;">Ollama is bundled inside the image — single container, no sidecar needed.</p>
-    <pre>docker run -d \
-  -p 1616:1616 \
-  -v enzo-data:/app/data \
-  ghcr.io/eranabir/enzo-ai:latest</pre>
-    <p style="color:var(--muted);font-size:0.85rem;margin-top:10px;">Then open <code>http://your-server-ip:1616</code> from any browser on your network.</p>
-  </div>
-</section>
+    function animateGlow() {
+      gx += (mx - gx) * 0.08;
+      gy += (my - gy) * 0.08;
+      glow.style.transform = `translate(${gx}px, ${gy}px) translate(-50%, -50%)`;
+      rafId = requestAnimationFrame(animateGlow);
+    }
+    animateGlow();
 
-<!-- Download -->
-<section style="background:var(--surface);border-top:1px solid var(--border)">
-  <div class="container">
-    <p class="section-label">Download</p>
-    <h2>All platforms</h2>
-    <p class="section-sub">Native installers for every OS. Or pull the Docker image for headless deployment.</p>
-    <div class="download-grid">
-      <div class="download-card">
-        <div class="os-icon">🪟</div>
-        <h3>Windows</h3>
-        <p>Windows 10 / 11 · x64</p>
-        <a href="https://github.com/eranabir/enzo-ai/releases/latest" class="btn-download">Download .exe</a>
-      </div>
-      <div class="download-card">
-        <div class="os-icon">🍎</div>
-        <h3>macOS</h3>
-        <p>Intel · Apple Silicon</p>
-        <a href="https://github.com/eranabir/enzo-ai/releases/latest" class="btn-download">Download .dmg</a>
-      </div>
-      <div class="download-card">
-        <div class="os-icon">🐧</div>
-        <h3>Linux</h3>
-        <p>Debian / Ubuntu · x64</p>
-        <a href="https://github.com/eranabir/enzo-ai/releases/latest" class="btn-download">Download .deb</a>
-      </div>
-      <div class="download-card">
-        <div class="os-icon">🐳</div>
-        <h3>Docker</h3>
-        <p>linux/amd64 · linux/arm64</p>
-        <a href="https://github.com/eranabir/enzo-ai/pkgs/container/enzo-ai" class="btn-download-secondary">ghcr.io/eranabir/enzo-ai</a>
-      </div>
-    </div>
-  </div>
-</section>
+    document.addEventListener('mouseleave', () => {
+      dot.style.opacity  = '0';
+      glow.style.opacity = '0';
+    });
+    document.addEventListener('mouseenter', () => {
+      dot.style.opacity  = '1';
+      glow.style.opacity = '1';
+    });
 
-<!-- Footer -->
-<footer>
-  <div class="container">
-    <div class="footer-links">
-      <a href="https://github.com/eranabir/enzo-ai">GitHub</a>
-      <a href="https://github.com/eranabir/enzo-ai/releases">Releases</a>
-      <a href="https://github.com/eranabir/enzo-ai/blob/main/README.md">Docs</a>
-      <a href="https://github.com/eranabir/enzo-ai/issues">Issues</a>
-    </div>
-    <p>
-      <strong style="color:var(--accent-2)">⬡ EnzoAI</strong> · MIT License · Built with Electron, NestJS, React and Ollama
-    </p>
-  </div>
-</footer>
+    // ── Scroll Reveal ─────────────────────────────
+    const reveals = document.querySelectorAll('.reveal');
+    const revealObs = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          revealObs.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+    reveals.forEach(el => revealObs.observe(el));
+
+    // ── Nav — deepen background on scroll ────────
+    const navEl = document.querySelector('nav');
+    window.addEventListener('scroll', () => {
+      if (window.scrollY > 10) {
+        navEl.style.background = 'rgba(3,2,12,0.92)';
+        navEl.style.boxShadow  = '0 1px 40px rgba(0,0,0,0.5)';
+      } else {
+        navEl.style.background = 'rgba(3,2,12,0.7)';
+        navEl.style.boxShadow  = 'none';
+      }
+    }, { passive: true });
+  </script>
 
 </body>
 </html>
