@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { Settings, Shield, LogOut, ChevronUp, ChevronLeft, ChevronRight, Users, MoreHorizontal, Pencil, Trash2, Bot, SquarePen, MessagesSquare } from "lucide-react";
-import { SiTelegram, SiDiscord, SiSlack } from "react-icons/si";
+import { SiTelegram, SiDiscord } from "react-icons/si";
+import { SlackIcon } from "./ui/SlackIcon";
 import type { Conversation, User } from "../types";
 import {
   DropdownMenu,
@@ -168,7 +169,7 @@ export function Sidebar({
                     className={c.id === activeId ? "bg-surface-2 text-fg" : ""}>
                     {c.integration === "telegram" && <SiTelegram className="h-3 w-3 flex-shrink-0 text-[#2AABEE]" />}
                 {c.integration === "discord"  && <SiDiscord  className="h-3 w-3 flex-shrink-0 text-[#5865F2]" />}
-                {c.integration === "slack"    && <SiSlack    className="h-3 w-3 flex-shrink-0 text-[#E01E5A]" />}
+                {c.integration === "slack"    && <SlackIcon className="h-3 w-3 flex-shrink-0" />}
                     <span className="truncate">{c.title}</span>
                   </DropdownMenuItem>
                 ))}
@@ -313,7 +314,7 @@ export function Sidebar({
                 <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
                   {c.integration === "telegram" && <SiTelegram className="h-3 w-3 flex-shrink-0 text-[#2AABEE]" />}
                 {c.integration === "discord"  && <SiDiscord  className="h-3 w-3 flex-shrink-0 text-[#5865F2]" />}
-                {c.integration === "slack"    && <SiSlack    className="h-3 w-3 flex-shrink-0 text-[#E01E5A]" />}
+                {c.integration === "slack"    && <SlackIcon className="h-3 w-3 flex-shrink-0" />}
                   <span className="truncate text-sm">{c.title}</span>
                 </div>
               )}

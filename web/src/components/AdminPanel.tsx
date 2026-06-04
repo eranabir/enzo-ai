@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Cpu } from "lucide-react";
-import { SiTelegram, SiDiscord, SiSlack } from "react-icons/si";
+import { SiTelegram, SiDiscord } from "react-icons/si";
+import { SlackIcon } from "./ui/SlackIcon";
 import { api, streamPullModel } from "../api";
 import type { ModelInfo, User } from "../types";
 import { ModelPicker } from "./ui/ModelPicker";
@@ -544,7 +545,7 @@ interface IntegrationDef {
 const INTEGRATIONS: IntegrationDef[] = [
   { id: "telegram", name: "Telegram", icon: <SiTelegram className="h-6 w-6" />, color: "text-[#2AABEE]", description: "Chat with your AI via Telegram from anywhere.",   available: true  },
   { id: "discord",  name: "Discord",  icon: <SiDiscord  className="h-6 w-6" />, color: "text-[#5865F2]", description: "Bring Enzo AI into your Discord server.",        available: true  },
-  { id: "slack",    name: "Slack",    icon: <SiSlack    className="h-6 w-6" />, color: "text-[#E01E5A]", description: "Use Enzo AI directly in your Slack workspace.",  available: true  },
+  { id: "slack",    name: "Slack",    icon: <SlackIcon className="h-6 w-6" />, color: "text-[#E01E5A]", description: "Use Enzo AI directly in your Slack workspace.",  available: true  },
 ];
 
 // ── Telegram config screen ────────────────────────────────────────────────────
@@ -599,7 +600,7 @@ function SlackConfig({ onBack }: { onBack: () => void }) {
         ← Back to integrations
       </button>
       <div className="mb-5 flex items-center gap-3">
-        <SiSlack className="h-8 w-8 flex-shrink-0 text-[#E01E5A]" />
+        <SlackIcon className="h-8 w-8 flex-shrink-0" />
         <div>
           <h3 className="font-semibold text-fg">Slack</h3>
           <p className="text-xs text-muted">Bring Enzo AI into your Slack workspace.</p>
