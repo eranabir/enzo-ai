@@ -133,22 +133,24 @@ export class DiscordService implements OnModuleDestroy {
       // 2. Send connection message to each guild + create conversations
       for (const [, guild] of c.guilds.cache) {
         try {
-          // Prefer the system channel; fall back to first writable text channel
-          const channel = (guild.systemChannel
-            ?? guild.channels.cache.find(
-              (ch) => ch.isTextBased() && (ch as TextChannel).permissionsFor?.(c.user)?.has("SendMessages"),
-            )) as TextChannel | undefined;
+          // Fetch fresh channel list so cache is populated
+          const channels = await guild.channels.fetch();
+          this.logger.log(`Guild "${guild.name}" has ${channels.size} channels`);
 
-          if (channel?.isTextBased()) {
-            // Eagerly create the conversation so it appears in the web UI immediately
-            this.getOrCreateChatConversation(channel.id, `#${channel.name}`);
+          // Prefer system channel, then first text channel
+          const textChannel = (guild.systemChannel
+            ?? channels.find((ch) => ch?.isTextBased())) as TextChannel | undefined;
 
-            await channel.send(
+          this.logger.log(`Using channel: ${textChannel?.name ?? "none found"}`);
+
+          if (textChannel) {
+            this.getOrCreateChatConversation(textChannel.id, `#${textChannel.name}`);
+            await textChannel.send(
               `✅ **Enzo AI is online!**\n@mention me in this channel to chat with your local AI.\nYou can also DM me directly.`,
             );
           }
         } catch (e) {
-          this.logger.warn(`Could not send connection message to guild ${guild.name}: ${(e as Error).message}`);
+          this.logger.error(`Guild "${guild.name}" connection error: ${(e as Error).message}`);
         }
       }
 
