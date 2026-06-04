@@ -125,6 +125,8 @@ export class DiscordService implements OnModuleDestroy {
 
     this.client.once(Events.ClientReady, (c) => {
       this.logger.log(`Discord ready: ${c.user.tag}`);
+      // Set bot status to Online so it appears correctly in Discord
+      c.user.setPresence({ status: "online", activities: [{ name: "Enzo AI", type: 4 }] });
     });
 
     this.client.on(Events.MessageCreate, async (message: Message) => {
