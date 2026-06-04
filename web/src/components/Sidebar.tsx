@@ -157,14 +157,42 @@ export function Sidebar({
           <ChevronRight className="h-4 w-4" />
         </button>
 
-        {/* Avatar */}
-        <button
-          onClick={toggleCollapse}
-          title={displayLabel}
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-accent/20 text-sm font-bold text-accent-2"
-        >
-          {user.username.charAt(0).toUpperCase()}
-        </button>
+        {/* Avatar — opens profile dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              title={displayLabel}
+              className="relative flex h-8 w-8 items-center justify-center rounded-full bg-accent/20 text-sm font-bold text-accent-2 transition-colors hover:bg-accent/30 focus:outline-none"
+            >
+              {user.username.charAt(0).toUpperCase()}
+              {user.isAdmin && (
+                <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-accent text-[7px] font-black text-white">A</span>
+              )}
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="right" align="end" className="w-52">
+            <div className="px-2.5 py-2">
+              <p className="text-sm font-semibold text-fg">{displayLabel}</p>
+              {subLabel && <p className="text-xs text-muted">{subLabel}</p>}
+            </div>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
+              <Settings className="h-4 w-4 text-muted" /> Settings
+            </DropdownMenuItem>
+            {user.isAdmin && (
+              <DropdownMenuItem onClick={onAdminOpen}>
+                <Shield className="h-4 w-4 text-accent-2" /> Admin panel
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={onLogout}>
+              <Users className="h-4 w-4 text-muted" /> Switch user
+            </DropdownMenuItem>
+            <DropdownMenuItem className="text-danger focus:bg-danger/10 focus:text-danger" onClick={onLogout}>
+              <LogOut className="h-4 w-4" /> Log out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </aside>
     );
   }
