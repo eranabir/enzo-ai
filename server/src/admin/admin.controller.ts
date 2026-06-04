@@ -166,19 +166,24 @@ export class AdminController {
   }
 
   @Put("telegram")
-  async saveTelegram(@Body() body: { token?: string; allowedIds?: string; model?: string; enabled?: boolean }) {
-    if (body.token?.trim())    this.settings.set("telegram_bot_token", body.token.trim());
+  async saveTelegram(@Body() body: { token?: string; allowedIds?: string; model?: string }) {
     if (body.allowedIds != null) this.settings.set("telegram_allowed_ids", String(body.allowedIds).trim());
     if (body.model != null)      this.settings.set("telegram_model", String(body.model).trim());
 
-    if (body.enabled === true) {
-      const token = this.settings.get("telegram_bot_token");
-      if (!token) throw new BadRequestException("Save a bot token before starting the bot");
-      await this.telegram.start();
+    // Always (re)start the bot when a token is provided
+    if (body.token?.trim()) {
+      this.settings.set("telegram_bot_token", body.token.trim());
+      const { username } = await this.telegram.start();
+      return { ok: true, running: true, username };
     }
-    if (body.enabled === false) this.telegram.stop();
 
     return { ok: true, running: this.telegram.isRunning() };
+  }
+
+  @Delete("telegram")
+  stopTelegram() {
+    this.telegram.stop();
+    return { ok: true, running: false };
   }
 
   // ── Danger zone ───────────────────────────────────────────────────────────

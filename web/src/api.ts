@@ -200,12 +200,16 @@ export const api = {
       fetch("/api/admin/telegram", { headers: headers() })
         .then(parse<{ enabled: boolean; token: string | null; allowedIds: string; model: string }>),
 
-    saveTelegram: (body: { token?: string; allowedIds?: string; model?: string; enabled?: boolean }) =>
+    saveTelegram: (body: { token?: string; allowedIds?: string; model?: string }) =>
       fetch("/api/admin/telegram", {
         method: "PUT",
         headers: headers(true),
         body: JSON.stringify(body),
-      }).then(parse<{ ok: boolean; running: boolean }>),
+      }).then(parse<{ ok: boolean; running: boolean; username?: string }>),
+
+    stopTelegram: () =>
+      fetch("/api/admin/telegram", { method: "DELETE", headers: headers() })
+        .then(parse<{ ok: boolean; running: boolean }>),
   },
 };
 

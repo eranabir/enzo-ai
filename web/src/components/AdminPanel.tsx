@@ -554,42 +554,36 @@ function TelegramConfig({ onBack }: { onBack: () => void }) {
   const [allowedIds, setAllowed] = useState("");
   const [model, setModel]       = useState("");
   const [running, setRunning]   = useState(false);
-  const [hasToken, setHasToken] = useState(false);
+  const [botName, setBotName]   = useState<string | null>(null);
   const [busy, setBusy]         = useState(false);
-  const [msg, setMsg]           = useState<{ text: string; ok: boolean } | null>(null);
+  const [error, setError]       = useState<string | null>(null);
 
   useEffect(() => {
     api.admin.getTelegram().then((d) => {
       setRunning(d.enabled);
       setAllowed(d.allowedIds);
       setModel(d.model);
-      setHasToken(!!d.token);
     }).catch(() => {});
   }, []);
 
   async function save() {
-    setBusy(true); setMsg(null);
+    if (!token.trim()) return;
+    setBusy(true); setError(null); setBotName(null);
     try {
-      const body: Record<string, string> = { allowedIds, model };
-      if (token) body.token = token;
-      const res = await api.admin.saveTelegram(body);
+      const res = await api.admin.saveTelegram({ token, allowedIds, model });
       setRunning(res.running);
-      if (token) setHasToken(true);   // token was just saved
+      if (res.username) setBotName(res.username);
       setToken("");
-      setMsg({ text: "Saved", ok: true });
     } catch (e) {
-      setMsg({ text: (e as Error).message, ok: false });
+      setError((e as Error).message);
     } finally { setBusy(false); }
   }
 
-  async function toggleBot() {
-    setBusy(true); setMsg(null);
+  async function stop() {
+    setBusy(true);
     try {
-      const res = await api.admin.saveTelegram({ enabled: !running });
-      setRunning(res.running);
-      setMsg({ text: res.running ? "Bot started" : "Bot stopped", ok: true });
-    } catch (e) {
-      setMsg({ text: (e as Error).message, ok: false });
+      await api.admin.stopTelegram();
+      setRunning(false); setBotName(null);
     } finally { setBusy(false); }
   }
 
@@ -605,62 +599,77 @@ function TelegramConfig({ onBack }: { onBack: () => void }) {
           <h3 className="font-semibold text-fg">Telegram</h3>
           <p className="text-xs text-muted">Chat with your AI via Telegram from anywhere in the world.</p>
         </div>
-        <div className={`ml-auto flex items-center gap-1.5 text-xs font-semibold ${running ? "text-ok" : "text-muted"}`}>
-          <span className="text-[10px]">●</span>
-          {running ? "Running" : "Stopped"}
-        </div>
+        {running && (
+          <div className="ml-auto flex items-center gap-1.5 text-xs font-semibold text-ok">
+            <span className="text-[10px]">●</span> Running
+          </div>
+        )}
       </div>
 
-      <div className="flex flex-col gap-3">
-        <div>
-          <label className="mb-1.5 block text-xs font-semibold text-muted">Bot Token</label>
-          <p className="mb-1.5 text-[11px] text-muted">Get one from <span className="text-accent-2">@BotFather</span> on Telegram → /newbot</p>
-          <input
-            className={inputCls}
-            type="password"
-            placeholder={running ? "Token saved — leave blank to keep" : "Paste your bot token"}
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-          />
-        </div>
-
-        <div>
-          <label className="mb-1.5 block text-xs font-semibold text-muted">
-            Allowed User IDs <span className="font-normal text-muted">(optional — comma separated)</span>
-          </label>
-          <p className="mb-1.5 text-[11px] text-muted">Leave blank to allow anyone. Find your ID via <span className="text-accent-2">@userinfobot</span></p>
-          <input
-            className={inputCls}
-            placeholder="123456789, 987654321"
-            value={allowedIds}
-            onChange={(e) => setAllowed(e.target.value)}
-          />
-        </div>
-
-        <div>
-          <label className="mb-1.5 block text-xs font-semibold text-muted">Model</label>
-          <ModelPicker value={model} onChange={setModel} />
-        </div>
-
-        <div className="flex gap-2 pt-1">
-          <button onClick={save} disabled={busy}
-            className="rounded-lg border border-border bg-surface-2 px-4 py-2 text-sm font-semibold text-fg transition-colors hover:border-accent disabled:opacity-50">
-            Save
+      {/* Success state — bot is running */}
+      {running && !busy && (
+        <div className="mb-4 rounded-xl border border-ok/30 bg-ok/10 px-4 py-3">
+          <p className="text-sm font-semibold text-ok">
+            ✓ Bot {botName ? `@${botName}` : ""} is live
+          </p>
+          <p className="mt-0.5 text-xs text-muted">
+            Open Telegram and send it a message — it will reply using your local AI.
+          </p>
+          <button onClick={stop} disabled={busy}
+            className="mt-2 text-xs text-danger hover:underline disabled:opacity-50">
+            Disconnect bot
           </button>
-          {hasToken && (
-            <button onClick={toggleBot} disabled={busy}
-              className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50 ${
-                running
-                  ? "border border-danger/40 bg-danger/10 text-danger hover:bg-danger/20"
-                  : "bg-accent text-white hover:bg-accent-2"
-              }`}>
-              {running ? "Stop Bot" : "Start Bot"}
-            </button>
-          )}
         </div>
+      )}
 
-        {msg && <p className={`text-xs ${msg.ok ? "text-ok" : "text-danger"}`}>{msg.text}</p>}
-      </div>
+      {/* Config form — show when not running or when updating */}
+      {!running && (
+        <div className="flex flex-col gap-3">
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-muted">Bot Token</label>
+            <p className="mb-1.5 text-[11px] text-muted">
+              Get one from <span className="text-accent-2">@BotFather</span> on Telegram → /newbot
+            </p>
+            <input
+              className={inputCls}
+              type="password"
+              placeholder="Paste your bot token"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-muted">
+              Allowed User IDs <span className="font-normal">(optional)</span>
+            </label>
+            <p className="mb-1.5 text-[11px] text-muted">
+              Leave blank = anyone can use it. Your ID via <span className="text-accent-2">@userinfobot</span>
+            </p>
+            <input
+              className={inputCls}
+              placeholder="123456789, 987654321"
+              value={allowedIds}
+              onChange={(e) => setAllowed(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-muted">Model</label>
+            <ModelPicker value={model} onChange={setModel} />
+          </div>
+
+          <button
+            onClick={save}
+            disabled={busy || !token.trim()}
+            className="rounded-xl bg-accent py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent-2 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {busy ? "Connecting…" : "Save & Connect"}
+          </button>
+
+          {error && <p className="text-xs text-danger">{error}</p>}
+        </div>
+      )}
     </div>
   );
 }

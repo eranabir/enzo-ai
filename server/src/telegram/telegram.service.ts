@@ -41,18 +41,25 @@ export class TelegramService implements OnModuleDestroy {
 
   // ── Public API ─────────────────────────────────────────────────────────────
 
-  async start(): Promise<void> {
+  /** Start the bot and return the verified bot username. */
+  async start(): Promise<{ username: string }> {
     const token = this.settings.get("telegram_bot_token");
     if (!token) throw new Error("Bot token not configured");
     if (this.bot) this.stop();
 
     this.bot = new Telegraf(token);
+
+    // Verify the token is valid and get the bot info before launching
+    const me = await this.bot.telegram.getMe();
+
     this.registerHandlers();
 
     // Long polling — reaches out to Telegram, no public URL needed
     this.bot.launch().catch((e) => this.logger.error("Bot crashed:", e.message));
     this.settings.set("telegram_enabled", "1");
-    this.logger.log("Telegram bot started (long polling)");
+    this.logger.log(`Telegram bot @${me.username} started`);
+
+    return { username: me.username ?? me.first_name };
   }
 
   stop(): void {
