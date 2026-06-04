@@ -176,7 +176,7 @@ export function Sidebar({
               {integrations.length > 0 && (
                 <div className="mb-1">
                   <p className="px-2.5 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-widest text-muted/60">
-                    Integrations
+                    Integration Chats
                   </p>
                   <div className="flex flex-col gap-0.5">
                     {integrations.map(renderConvo)}
@@ -187,7 +187,7 @@ export function Sidebar({
               {/* ── Local chats section ── */}
               {integrations.length > 0 && local.length > 0 && (
                 <p className="px-2.5 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-widest text-muted/60">
-                  Chats
+                  Local Chats
                 </p>
               )}
               <div className="flex flex-col gap-0.5">
