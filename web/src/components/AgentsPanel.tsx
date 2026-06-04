@@ -235,36 +235,38 @@ function IntegrationEntries({ value, onChange }: { value: string; onChange: (v: 
 
       {entries.map((entry, i) => {
         const opt = INTEGRATION_OPTIONS.find(o => o.type === entry.type) ?? INTEGRATION_OPTIONS[0];
-        const nextType = INTEGRATION_OPTIONS[(INTEGRATION_OPTIONS.findIndex(o => o.type === entry.type) + 1) % INTEGRATION_OPTIONS.length].type;
         return (
-        <div key={i} className="flex items-center gap-2">
-          {/* Integration type — click to cycle between Telegram / Discord */}
-          <button
-            type="button"
-            title="Click to switch integration"
-            onClick={() => setEntry(i, { type: nextType })}
-            className="flex items-center gap-1.5 rounded-lg border border-border bg-surface-2 px-2.5 py-1.5 flex-shrink-0 transition-colors hover:border-accent/60"
-          >
-            <span className={opt.color}>{opt.icon}</span>
-            <span className={`text-xs font-medium ${opt.color}`}>{opt.label}</span>
-          </button>
+          <div key={i} className="flex flex-col gap-1.5 rounded-xl border border-border bg-surface-2 p-3">
+            <div className="flex items-center gap-2">
+              {/* Type selector */}
+              <Select value={entry.type} onValueChange={v => setEntry(i, { type: v as IntegrationType, chatId: "" })}>
+                <SelectTrigger className="w-36">
+                  <span className={`flex items-center gap-1.5 ${opt.color}`}>
+                    {opt.icon}
+                    <SelectValue />
+                  </span>
+                </SelectTrigger>
+                <SelectContent>
+                  {INTEGRATION_OPTIONS.map(o => (
+                    <SelectItem key={o.type} value={o.type} label={<span className={`flex items-center gap-1.5 ${o.color}`}>{o.icon}<span>{o.label}</span></span>}>
+                      <span className={`flex items-center gap-1.5 ${o.color}`}>{o.icon}<span>{o.label}</span></span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-          {/* Chat / Channel ID input */}
-          <input
-            className={`${inputCls} flex-1`}
-            placeholder={opt.placeholder}
-            value={entry.chatId}
-            onChange={e => setEntry(i, { chatId: e.target.value })}
-          />
+              <button type="button" onClick={() => removeEntry(i)} className="ml-auto text-muted hover:text-danger transition-colors">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
 
-          <button
-            type="button"
-            onClick={() => removeEntry(i)}
-            className="flex-shrink-0 text-muted hover:text-danger transition-colors"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+            <input
+              className={inputCls}
+              placeholder={opt.placeholder}
+              value={entry.chatId}
+              onChange={e => setEntry(i, { chatId: e.target.value })}
+            />
+          </div>
         );
       })}
     </div>
