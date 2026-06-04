@@ -741,7 +741,8 @@ function IntegrationsTab() {
               <p className="text-xs text-muted">{integration.description}</p>
             </div>
             {integration.available && (
-              <span className="text-muted text-sm flex-shrink-0">→</span>
+              <span className={`flex-shrink-0 text-sm ${connected ? "text-ok" : "text-muted"}`}>
+                {connected ? "●" : "→"}</span>
             )}
           </button>
           );
