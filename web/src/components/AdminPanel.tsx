@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Cpu } from "lucide-react";
+import { SiTelegram, SiDiscord, SiSlack } from "react-icons/si";
 import { api, streamPullModel } from "../api";
 import type { ModelInfo, User } from "../types";
 import { ModelPicker } from "./ui/ModelPicker";
@@ -534,15 +535,16 @@ type IntegrationId = "telegram";
 interface IntegrationDef {
   id: IntegrationId | "discord" | "slack";
   name: string;
-  icon: string;
+  icon: React.ReactNode;
+  color: string;
   description: string;
   available: boolean;
 }
 
 const INTEGRATIONS: IntegrationDef[] = [
-  { id: "telegram", name: "Telegram",  icon: "✈️", description: "Chat with your AI via Telegram from anywhere.", available: true },
-  { id: "discord",  name: "Discord",   icon: "🎮", description: "Bring Enzo AI into your Discord server.",       available: false },
-  { id: "slack",    name: "Slack",     icon: "💬", description: "Use Enzo AI directly in your Slack workspace.", available: false },
+  { id: "telegram", name: "Telegram", icon: <SiTelegram className="h-6 w-6" />, color: "text-[#2AABEE]", description: "Chat with your AI via Telegram from anywhere.",   available: true  },
+  { id: "discord",  name: "Discord",  icon: <SiDiscord  className="h-6 w-6" />, color: "text-[#5865F2]", description: "Bring Enzo AI into your Discord server.",        available: false },
+  { id: "slack",    name: "Slack",    icon: <SiSlack    className="h-6 w-6" />, color: "text-[#4A154B]", description: "Use Enzo AI directly in your Slack workspace.",  available: false },
 ];
 
 // ── Telegram config screen ────────────────────────────────────────────────────
@@ -595,7 +597,7 @@ function TelegramConfig({ onBack }: { onBack: () => void }) {
       </button>
 
       <div className="mb-5 flex items-center gap-3">
-        <span className="text-3xl">✈️</span>
+        <SiTelegram className="h-8 w-8 flex-shrink-0 text-[#2AABEE]" />
         <div>
           <h3 className="font-semibold text-fg">Telegram</h3>
           <p className="text-xs text-muted">Chat with your AI via Telegram from anywhere in the world.</p>
@@ -685,7 +687,7 @@ function IntegrationsTab() {
                 : "border-border/50 bg-surface-2/50 cursor-not-allowed opacity-50"
             }`}
           >
-            <span className="text-2xl flex-shrink-0">{integration.icon}</span>
+            <span className={`flex-shrink-0 ${integration.color}`}>{integration.icon}</span>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-semibold text-fg">{integration.name}</span>
