@@ -31,9 +31,9 @@ async function bootstrap() {
     console.log(`  web assets:    dev mode (Vite)`);
   }
 
-  await app.listen(config.port, "127.0.0.1");
+  await app.listen(config.port, config.host);
 
-  console.log(`\n  enzo-ai engine (NestJS) listening on http://127.0.0.1:${config.port}`);
+  console.log(`\n  enzo-ai engine (NestJS) listening on http://${config.host}:${config.port}`);
   console.log(`  data dir:      ${config.dataDir}`);
   console.log(`  ollama:        ${config.ollamaUrl}`);
   console.log(`  default model: ${config.defaultModel}\n`);

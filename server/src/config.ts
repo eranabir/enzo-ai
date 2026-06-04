@@ -6,16 +6,16 @@ import * as path from "node:path";
  * same code works in dev and inside a packaged desktop app later.
  */
 export const config = {
-  port: Number(process.env.ENZO_PORT ?? 1616),  // dev default; Electron overrides to 6666
+  port: Number(process.env.ENZO_PORT ?? 1616),
 
-  // Where local data (conversations, memory) lives. A real file on disk so it
-  // is portable and backup-able, unlike browser storage.
+  // Bind address — 127.0.0.1 for local-only (desktop), 0.0.0.0 for Docker/NAS
+  host: process.env.ENZO_HOST ?? "127.0.0.1",
+
   dataDir: process.env.ENZO_DATA_DIR ?? path.resolve(__dirname, "../../data"),
 
-  // Ollama runs locally as a managed dependency and exposes this API.
+  // Ollama — use OLLAMA_URL to point at a sidecar container in Docker
   ollamaUrl: process.env.OLLAMA_URL ?? "http://127.0.0.1:11434",
 
-  // The small, fast default model. Users can switch in the UI.
   defaultModel: process.env.ENZO_DEFAULT_MODEL ?? "llama3.2:3b",
 } as const;
 

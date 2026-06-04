@@ -1,0 +1,45 @@
+appId: com.enzo-ai.installer
+productName: Enzo AI Installer
+copyright: "© 2025 Enzo AI"
+electronVersion: "34.5.8"
+
+# The installer is intentionally small — it downloads components at install time
+files:
+  - dist/**/*
+  - src/renderer/**/*
+  - package.json
+
+publish:
+  provider: github
+  releaseType: release
+
+win:
+  icon: ../desktop/assets/icon.ico
+  target:
+    - target: nsis
+      arch: [x64]
+
+nsis:
+  artifactName: "enzo-ai-installer-windows.${ext}"
+  oneClick: true
+  runAfterFinish: true
+
+mac:
+  icon: ../desktop/assets/icon.icns
+  category: public.app-category.utilities
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+
+dmg:
+  artifactName: "enzo-ai-installer-macos-${arch}.${ext}"
+
+linux:
+  icon: ../desktop/assets/icon.png
+  category: Utility
+  target:
+    - target: AppImage
+      arch: [x64]
+
+appImage:
+  artifactName: "enzo-ai-installer-linux.${ext}"

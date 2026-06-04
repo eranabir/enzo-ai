@@ -1,0 +1,62 @@
+version: '3.8'
+
+# Enzo AI — self-hosted local AI assistant
+#
+# Usage:
+#   docker compose up -d
+#   then open http://localhost:1616 in your browser
+#
+# On a NAS, replace localhost with your NAS IP.
+# Point the CLI at it with:  enzo-ai config server http://nas-ip:1616
+
+services:
+  enzo-ai:
+    image: ghcr.io/eranabir/enzo-ai:latest
+    # Or build locally:  build: .
+    container_name: enzo-ai
+    restart: unless-stopped
+    ports:
+      - "1616:1616"       # Web UI + API
+    volumes:
+      - enzo-data:/app/data   # SQLite, uploads, master.key — keep this safe!
+    environment:
+      ENZO_HOST: "0.0.0.0"
+      ENZO_PORT: "1616"
+      OLLAMA_URL: "http://ollama:11434"   # sidecar container
+      ENZO_DEFAULT_MODEL: "llama3.2:3b"
+    depends_on:
+      ollama:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:1616/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: enzo-ollama
+    restart: unless-stopped
+    volumes:
+      - ollama-data:/root/.ollama   # downloaded models persist here
+    ports:
+      - "11434:11434"               # expose if you want to use Ollama directly
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s             # Ollama needs time to start
+
+    # Uncomment for GPU support (NVIDIA):
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+volumes:
+  enzo-data:
+  ollama-data:

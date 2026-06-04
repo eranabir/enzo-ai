@@ -3,6 +3,10 @@ productName: Enzo AI
 copyright: "© 2025 Enzo AI"
 electronVersion: "34.5.8"
 
+publish:
+  provider: github
+  releaseType: release
+
 files:
   - dist/**/*
   - package.json
@@ -60,6 +64,7 @@ mac:
       arch: [x64, arm64]
 
 dmg:
+  artifactName: "enzo-ai-macos-${version}-${arch}.${ext}"
   title: "Install Enzo AI"
   window:
     width: 540
@@ -73,12 +78,12 @@ win:
       arch: [x64]
 
 nsis:
+  artifactName: "enzo-ai-windows-${version}.${ext}"
   oneClick: false
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
   runAfterFinish: true
-  # installer.nsh adds the install dir to PATH so `enzo-ai` works in any terminal.
   include: "build/installer.nsh"
 
 # ── Linux ────────────────────────────────────────────────────────────────────
@@ -90,3 +95,9 @@ linux:
       arch: [x64, arm64]
     - target: deb
       arch: [x64]
+
+appImage:
+  artifactName: "enzo-ai-linux-${version}.${ext}"
+
+deb:
+  artifactName: "enzo-ai-linux-${arch}.${ext}"

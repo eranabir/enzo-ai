@@ -15,6 +15,41 @@ program
   .description("Enzo AI — local-first AI assistant CLI")
   .version("0.1.0");
 
+// ── config ────────────────────────────────────────────────────────────────────
+
+const configCmd = program.command("config").description("View and set CLI configuration");
+
+configCmd
+  .command("show", { isDefault: true })
+  .description("Show current configuration")
+  .action(() => {
+    const cfg = loadConfig();
+    console.log("\n" + brand);
+    divider();
+    console.log(`  Server URL  ${accent(cfg.serverUrl)}`);
+    console.log(`  Username    ${cfg.username ? dim(cfg.username) : dim("not logged in")}`);
+    console.log(`  Config file ${dim(require("node:path").join(require("node:os").homedir(), ".enzo-ai", "config.json"))}`);
+    console.log();
+    console.log(dim("  Tip: enzo-ai config server <url>  to change server"));
+    console.log();
+  });
+
+configCmd
+  .command("server <url>")
+  .description("Set the Enzo AI server URL (useful for NAS / Docker deployments)")
+  .action((url: string) => {
+    try {
+      new URL(url); // validate
+    } catch {
+      console.error(error(`\n  Invalid URL: ${url}\n`));
+      console.error(dim("  Example: enzo-ai config server http://192.168.1.100:1616\n"));
+      process.exit(1);
+    }
+    saveConfig({ serverUrl: url });
+    console.log(ok(`\n  ✓ Server URL set to ${accent(url)}`));
+    console.log(dim("    Run: enzo-ai login  to authenticate with the new server\n"));
+  });
+
 // ── status ───────────────────────────────────────────────────────────────────
 
 program

@@ -1,117 +1,195 @@
 name: Release
 
+# One tag → one GitHub Release with these assets:
+#
+#  INSTALLERS (what users download)
+#   enzo-ai-installer-windows.exe       ← downloads + installs server + chosen clients
+#   enzo-ai-installer-macos-x64.dmg
+#   enzo-ai-installer-macos-arm64.dmg
+#   enzo-ai-installer-linux.AppImage
+#
+#  SERVER PACKAGES (downloaded by installer at install time)
+#   enzo-ai-windows-{version}.exe       ← Electron tray app (server)
+#   enzo-ai-macos-{version}-x64.dmg
+#   enzo-ai-macos-{version}-arm64.dmg
+#   enzo-ai-linux-{version}.AppImage
+#   enzo-ai-linux-amd64.deb
+#
+#  CLI CLIENTS (downloaded by installer if CLI option selected)
+#   enzo-ai-cli-windows-x64.exe
+#   enzo-ai-cli-macos-x64
+#   enzo-ai-cli-macos-arm64
+#   enzo-ai-cli-linux-x64
+#   enzo-ai-cli-linux-arm64
+#
+# Secrets:  GH_TOKEN (PAT Contents:write), GITHUB_TOKEN (auto)
+
 on:
-  # Run when you push a version tag: git tag v0.2.0 && git push --tags
   push:
     tags:
-      - "v*"
-  # Or trigger manually from the GitHub UI for a test build
-  workflow_dispatch:
+      - 'v*'
 
 jobs:
-  build:
-    strategy:
-      fail-fast: false          # let other platforms finish even if one fails
-      matrix:
-        include:
-          - os: windows-latest
-            platform: win32
-            artifact_glob: "desktop/dist/*.exe"
-          - os: macos-latest
-            platform: darwin
-            artifact_glob: "desktop/dist/*.dmg"
-          - os: ubuntu-latest
-            platform: linux
-            artifact_glob: "desktop/dist/*.AppImage desktop/dist/*.deb"
-
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: yarn
-
-      - name: Install dependencies
-        run: yarn install --frozen-lockfile
-
-      # Linux needs extra libs for electron-builder
-      - name: Linux build deps
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y rpm fakeroot dpkg
-
-      - name: Download Ollama binary
-        run: yarn download:ollama
-        env:
-          OLLAMA_PLATFORM: ${{ matrix.platform }}
-
-      - name: Build server
-        run: yarn build:server
-
-      - name: Build web
-        run: yarn build:web
-
-      - name: Build CLI bundle
-        run: yarn build:cli
-
-      - name: Build desktop
-        run: yarn build:desktop
-
-      - name: Package installer
-        run: yarn workspace @enzo-ai/desktop dist
-        env:
-          # macOS code signing (set these secrets in GitHub repo settings)
-          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          # Windows code signing
-          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
-          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
-          # GitHub token for publishing to a Release (auto-provided)
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload installer artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: enzo-ai-${{ matrix.os }}
-          path: desktop/dist/
-          if-no-files-found: error
-          retention-days: 30
-
-  # After all three builds succeed, attach everything to a GitHub Release
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
+  # ════════════════════════════════════════════════════════════════════════════
+  # WINDOWS — installer + server package + CLI binary
+  # ════════════════════════════════════════════════════════════════════════════
+  windows:
+    runs-on: windows-latest
     permissions:
       contents: write
-
     steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          path: artifacts/
+          node-version: '20'
+          cache: 'yarn'
+      - run: yarn install --frozen-lockfile
+      - run: yarn download:ollama
+      - run: yarn build
 
-      - name: Create GitHub Release
+      - name: Build server package → enzo-ai-windows-{version}.exe
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: yarn workspace @enzo-ai/desktop dist:win:publish
+
+      - name: Build CLI binary → enzo-ai-cli-windows-x64.exe
+        run: |
+          npm install -g @yao-pkg/pkg
+          pkg cli/dist/bundle/index.js --targets node20-win-x64 --output cli/dist/enzo-ai-cli-windows-x64.exe --compress Brotli
+
+      - name: Upload CLI binary
         uses: softprops/action-gh-release@v2
         with:
-          name: "Enzo AI ${{ github.ref_name }}"
-          draft: false
-          prerelease: ${{ contains(github.ref_name, '-') }}  # v1.0.0-beta → pre-release
-          files: |
-            artifacts/**/*.exe
-            artifacts/**/*.dmg
-            artifacts/**/*.AppImage
-            artifacts/**/*.deb
-          generate_release_notes: true
+          tag_name: ${{ github.ref_name }}
+          files: cli/dist/enzo-ai-cli-windows-x64.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build installer → enzo-ai-installer-windows.exe
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: yarn workspace @enzo-ai/installer dist:win:publish
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # macOS — installer + server packages + CLI binaries
+  # ════════════════════════════════════════════════════════════════════════════
+  macos:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'yarn'
+      - run: yarn install --frozen-lockfile
+      - run: yarn download:ollama
+      - run: yarn build
+
+      - name: Build server packages → enzo-ai-macos-{version}-{arch}.dmg
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: yarn workspace @enzo-ai/desktop dist:mac:publish
+
+      - name: Build CLI binaries
+        run: |
+          npm install -g @yao-pkg/pkg
+          pkg cli/dist/bundle/index.js --targets node20-macos-x64  --output cli/dist/enzo-ai-cli-macos-x64  --compress Brotli
+          pkg cli/dist/bundle/index.js --targets node20-macos-arm64 --output cli/dist/enzo-ai-cli-macos-arm64 --compress Brotli
+
+      - name: Upload CLI binaries
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: |
+            cli/dist/enzo-ai-cli-macos-x64
+            cli/dist/enzo-ai-cli-macos-arm64
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build installer → enzo-ai-installer-macos-{arch}.dmg
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: yarn workspace @enzo-ai/installer dist:mac:publish
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # LINUX — installer + server packages + CLI binaries
+  # ════════════════════════════════════════════════════════════════════════════
+  linux:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'yarn'
+      - run: sudo apt-get install -y libarchive-tools rpm fakeroot
+      - run: yarn install --frozen-lockfile
+      - run: yarn download:ollama
+      - run: yarn build
+
+      - name: Build server packages → enzo-ai-linux-{version}.AppImage + .deb
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: yarn workspace @enzo-ai/desktop dist:linux:publish
+
+      - name: Build CLI binaries
+        run: |
+          npm install -g @yao-pkg/pkg
+          pkg cli/dist/bundle/index.js --targets node20-linux-x64  --output cli/dist/enzo-ai-cli-linux-x64  --compress Brotli
+          pkg cli/dist/bundle/index.js --targets node20-linux-arm64 --output cli/dist/enzo-ai-cli-linux-arm64 --compress Brotli
+
+      - name: Upload CLI binaries
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: |
+            cli/dist/enzo-ai-cli-linux-x64
+            cli/dist/enzo-ai-cli-linux-arm64
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build installer → enzo-ai-installer-linux.AppImage
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: yarn workspace @enzo-ai/installer dist:linux:publish
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # DOCKER — build and push to GitHub Container Registry (ghcr.io)
+  # ════════════════════════════════════════════════════════════════════════════
+  docker:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write   # needed to push to ghcr.io
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx (multi-platform builds)
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract version from tag
+        id: meta
+        run: echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/enzo-ai:latest
+            ghcr.io/${{ github.repository_owner }}/enzo-ai:${{ steps.meta.outputs.version }}
