@@ -50,6 +50,7 @@ export class SlackService implements OnModuleDestroy {
     const botName = String(info.user ?? "enzo-ai");
 
     this.settings.set("slack_enabled", "1");
+    this.settings.set("slack_bot_name", botName); // store for DM titles
     this.logger.log(`Slack bot @${botName} connected via Socket Mode`);
 
     // List channels the bot is a member of and create conversations eagerly
@@ -174,11 +175,13 @@ export class SlackService implements OnModuleDestroy {
         // In channels, prefix with sender name
         const content = isDM ? text : `[${senderName}]: ${text}`;
 
-        // Channel name for the conversation title
-        let chatTitle = `#${channelId}`;
+        // Conversation title
+        let chatTitle: string;
         if (isDM) {
-          chatTitle = senderName;
+          // Use bot name for DM conversations — clean and consistent
+          chatTitle = this.settings.get("slack_bot_name") ?? "EnzoAI";
         } else {
+          chatTitle = `#${channelId}`;
           try {
             const chInfo = await client.conversations.info({ channel: channelId });
             chatTitle = `#${(chInfo.channel as any)?.name ?? channelId}`;
