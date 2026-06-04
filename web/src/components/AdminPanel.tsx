@@ -554,6 +554,7 @@ function TelegramConfig({ onBack }: { onBack: () => void }) {
   const [allowedIds, setAllowed] = useState("");
   const [model, setModel]       = useState("");
   const [running, setRunning]   = useState(false);
+  const [hasToken, setHasToken] = useState(false);
   const [botName, setBotName]   = useState<string | null>(null);
   const [busy, setBusy]         = useState(false);
   const [error, setError]       = useState<string | null>(null);
@@ -563,15 +564,19 @@ function TelegramConfig({ onBack }: { onBack: () => void }) {
       setRunning(d.enabled);
       setAllowed(d.allowedIds);
       setModel(d.model);
+      setHasToken(!!d.token);
     }).catch(() => {});
   }, []);
 
   async function save() {
-    if (!token.trim()) return;
-    setBusy(true); setError(null); setBotName(null);
+    if (!token.trim() && !hasToken) return;
+    setBusy(true); setError(null);
     try {
-      const res = await api.admin.saveTelegram({ token, allowedIds, model });
+      const body: { token?: string; allowedIds: string; model: string } = { allowedIds, model };
+      if (token.trim()) body.token = token;
+      const res = await api.admin.saveTelegram(body);
       setRunning(res.running);
+      setHasToken(true);
       if (res.username) setBotName(res.username);
       setToken("");
     } catch (e) {
@@ -601,13 +606,13 @@ function TelegramConfig({ onBack }: { onBack: () => void }) {
         </div>
         {running && (
           <div className="ml-auto flex items-center gap-1.5 text-xs font-semibold text-ok">
-            <span className="text-[10px]">●</span> Running
+            <span className="text-[10px]">●</span> Connected
           </div>
         )}
       </div>
 
-      {/* Success state — bot is running */}
-      {running && !busy && (
+      {/* Success banner */}
+      {running && (
         <div className="mb-4 rounded-xl border border-ok/30 bg-ok/10 px-4 py-3">
           <p className="text-sm font-semibold text-ok">
             ✓ Bot {botName ? `@${botName}` : ""} is live
@@ -615,61 +620,63 @@ function TelegramConfig({ onBack }: { onBack: () => void }) {
           <p className="mt-0.5 text-xs text-muted">
             Open Telegram and send it a message — it will reply using your local AI.
           </p>
-          <button onClick={stop} disabled={busy}
-            className="mt-2 text-xs text-danger hover:underline disabled:opacity-50">
-            Disconnect bot
-          </button>
         </div>
       )}
 
-      {/* Config form — show when not running or when updating */}
-      {!running && (
-        <div className="flex flex-col gap-3">
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-muted">Bot Token</label>
-            <p className="mb-1.5 text-[11px] text-muted">
-              Get one from <span className="text-accent-2">@BotFather</span> on Telegram → /newbot
-            </p>
-            <input
-              className={inputCls}
-              type="password"
-              placeholder="Paste your bot token"
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-            />
-          </div>
+      {/* Always-visible config form */}
+      <div className="flex flex-col gap-3">
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-muted">Bot Token</label>
+          <p className="mb-1.5 text-[11px] text-muted">
+            Get one from <span className="text-accent-2">@BotFather</span> on Telegram → /newbot
+          </p>
+          <input
+            className={inputCls}
+            type="password"
+            placeholder={hasToken ? "••••••••  (configured — paste to replace)" : "Paste your bot token"}
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+          />
+        </div>
 
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-muted">
-              Allowed User IDs <span className="font-normal">(optional)</span>
-            </label>
-            <p className="mb-1.5 text-[11px] text-muted">
-              Leave blank = anyone can use it. Your ID via <span className="text-accent-2">@userinfobot</span>
-            </p>
-            <input
-              className={inputCls}
-              placeholder="123456789, 987654321"
-              value={allowedIds}
-              onChange={(e) => setAllowed(e.target.value)}
-            />
-          </div>
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-muted">
+            Allowed User IDs <span className="font-normal">(optional)</span>
+          </label>
+          <p className="mb-1.5 text-[11px] text-muted">
+            Leave blank = anyone can use it. Your ID via <span className="text-accent-2">@userinfobot</span>
+          </p>
+          <input
+            className={inputCls}
+            placeholder="123456789, 987654321"
+            value={allowedIds}
+            onChange={(e) => setAllowed(e.target.value)}
+          />
+        </div>
 
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-muted">Model</label>
-            <ModelPicker value={model} onChange={setModel} />
-          </div>
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-muted">Model</label>
+          <ModelPicker value={model} onChange={setModel} />
+        </div>
 
+        <div className="flex gap-2">
           <button
             onClick={save}
-            disabled={busy || !token.trim()}
-            className="rounded-xl bg-accent py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent-2 disabled:opacity-40 disabled:cursor-not-allowed"
+            disabled={busy || (!token.trim() && !hasToken)}
+            className="flex-1 rounded-xl bg-accent py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent-2 disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {busy ? "Connecting…" : "Save & Connect"}
+            {busy ? "Connecting…" : running ? "Save & Reconnect" : "Save & Connect"}
           </button>
-
-          {error && <p className="text-xs text-danger">{error}</p>}
+          {running && (
+            <button onClick={stop} disabled={busy}
+              className="rounded-xl border border-danger/40 bg-danger/10 px-4 text-sm font-semibold text-danger hover:bg-danger/20 disabled:opacity-50">
+              Disconnect
+            </button>
+          )}
         </div>
-      )}
+
+        {error && <p className="text-xs text-danger">{error}</p>}
+      </div>
     </div>
   );
 }
@@ -677,11 +684,22 @@ function TelegramConfig({ onBack }: { onBack: () => void }) {
 // ── Integrations overview ─────────────────────────────────────────────────────
 
 function IntegrationsTab() {
-  const [selected, setSelected] = useState<IntegrationId | null>(null);
+  const [selected, setSelected]       = useState<IntegrationId | null>(null);
+  const [telegramRunning, setTgRunning] = useState(false);
+
+  useEffect(() => {
+    api.admin.getTelegram().then((d) => setTgRunning(d.enabled)).catch(() => {});
+  }, []);
 
   if (selected === "telegram") {
-    return <TelegramConfig onBack={() => setSelected(null)} />;
+    return <TelegramConfig onBack={() => {
+      setSelected(null);
+      // Refresh status when coming back
+      api.admin.getTelegram().then((d) => setTgRunning(d.enabled)).catch(() => {});
+    }} />;
   }
+
+  const connectedMap: Record<string, boolean> = { telegram: telegramRunning };
 
   return (
     <div>
@@ -690,14 +708,18 @@ function IntegrationsTab() {
       </p>
 
       <div className="flex flex-col gap-3">
-        {INTEGRATIONS.map((integration) => (
+        {INTEGRATIONS.map((integration) => {
+          const connected = connectedMap[integration.id] ?? false;
+          return (
           <button
             key={integration.id}
             disabled={!integration.available}
             onClick={() => integration.available && setSelected(integration.id as IntegrationId)}
             className={`flex items-center gap-4 rounded-xl border px-4 py-3.5 text-left transition-colors ${
               integration.available
-                ? "border-border bg-surface-2 hover:border-accent/60 hover:bg-surface cursor-pointer"
+                ? connected
+                  ? "border-ok/40 bg-ok/5 hover:border-ok/60 cursor-pointer"
+                  : "border-border bg-surface-2 hover:border-accent/60 hover:bg-surface cursor-pointer"
                 : "border-border/50 bg-surface-2/50 cursor-not-allowed opacity-50"
             }`}
           >
@@ -705,6 +727,11 @@ function IntegrationsTab() {
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-semibold text-fg">{integration.name}</span>
+                {connected && (
+                  <span className="rounded-full bg-ok/15 px-2 py-0.5 text-[10px] font-semibold text-ok border border-ok/30">
+                    Connected
+                  </span>
+                )}
                 {!integration.available && (
                   <span className="rounded-full bg-surface px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted border border-border">
                     Coming soon
@@ -717,7 +744,8 @@ function IntegrationsTab() {
               <span className="text-muted text-sm flex-shrink-0">→</span>
             )}
           </button>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
