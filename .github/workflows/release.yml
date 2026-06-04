@@ -131,12 +131,14 @@ jobs:
         with:
           node-version: '20'
           cache: 'yarn'
-      - name: Cache Electron binary + builder tools
+      - name: Cache Electron binary + builder tools + fpm gem
         uses: actions/cache@v4
         with:
           path: |
             ~/.cache/electron
             ~/.cache/electron-builder
+            /var/lib/gems
+            /usr/local/lib/ruby/gems
           key: electron-linux-${{ hashFiles('desktop/package.json') }}
       - name: Install fpm via Ruby (avoids flaky GitHub CDN download)
         run: |
