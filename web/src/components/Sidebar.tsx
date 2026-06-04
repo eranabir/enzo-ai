@@ -11,6 +11,11 @@ import {
 } from "./ui/DropdownMenu";
 import { SettingsPanel } from "./SettingsPanel";
 
+/** Strip leading emoji from integration chat titles (old DB records may have 💬 🎮 prefixes). */
+function cleanTitle(title: string): string {
+  return title.replace(/^[\p{Emoji_Presentation}\p{Extended_Pictographic}]\s*/u, "").trim();
+}
+
 /** Small ⋯ button using Radix DropdownMenu (portal-rendered — not clipped by nav overflow). */
 function ConvoMenu({
   onRename,
@@ -167,7 +172,7 @@ export function Sidebar({
                     className={c.id === activeId ? "bg-surface-2 text-fg" : ""}>
                     {c.integration === "telegram" && <SiTelegram className="h-3 w-3 flex-shrink-0 text-[#2AABEE]" />}
                 {c.integration === "discord"  && <SiDiscord  className="h-3 w-3 flex-shrink-0 text-[#5865F2]" />}
-                    <span className="truncate">{c.title}</span>
+                    <span className="truncate">{c.integration ? cleanTitle(c.title) : c.title}</span>
                   </DropdownMenuItem>
                 ))}
                 {conversations.filter(c => !c.integration).length > 0 && <DropdownMenuSeparator />}
@@ -183,7 +188,7 @@ export function Sidebar({
                 {conversations.filter(c => !c.integration).map(c => (
                   <DropdownMenuItem key={c.id} onClick={() => onSelect(c.id)}
                     className={c.id === activeId ? "bg-surface-2 text-fg" : ""}>
-                    <span className="truncate">{c.title}</span>
+                    <span className="truncate">{c.integration ? cleanTitle(c.title) : c.title}</span>
                   </DropdownMenuItem>
                 ))}
               </>
@@ -311,7 +316,7 @@ export function Sidebar({
                 <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
                   {c.integration === "telegram" && <SiTelegram className="h-3 w-3 flex-shrink-0 text-[#2AABEE]" />}
                 {c.integration === "discord"  && <SiDiscord  className="h-3 w-3 flex-shrink-0 text-[#5865F2]" />}
-                  <span className="truncate text-sm">{c.title}</span>
+                  <span className="truncate text-sm">{c.integration ? cleanTitle(c.title) : c.title}</span>
                 </div>
               )}
 
