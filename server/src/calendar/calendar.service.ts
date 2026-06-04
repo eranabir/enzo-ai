@@ -53,7 +53,7 @@ export class CalendarService {
   /** Generate the Google OAuth URL to redirect the user to. */
   getAuthUrl(userId: string, redirectBase: string): string {
     const state = Buffer.from(userId).toString("base64");
-    const redirect = `${redirectBase}/api/calendar/callback`;
+    const redirect = `${redirectBase}/api/apps/google-calendar/callback`;
     const params = new URLSearchParams({
       client_id:     this.getClientId(userId),
       redirect_uri:  redirect,
@@ -68,7 +68,7 @@ export class CalendarService {
 
   /** Exchange auth code for tokens, fetch user info, persist. */
   async handleCallback(code: string, userId: string, redirectBase: string): Promise<GoogleTokens> {
-    const redirect = `${redirectBase}/api/calendar/callback`;
+    const redirect = `${redirectBase}/api/apps/google-calendar/callback`;
 
     // Exchange code for tokens
     const tokenRes = await fetch("https://oauth2.googleapis.com/token", {

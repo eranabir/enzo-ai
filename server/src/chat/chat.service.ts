@@ -9,6 +9,7 @@ import { MemoriesService } from "../memories/memories.service";
 import { MemoryExtractionService } from "../memories/memory-extraction.service";
 import { AgentsService } from "../agents/agents.service";
 import { ToolsService, type ToolName } from "../agents/tools.service";
+import { McpService } from "../mcp/mcp.service";
 import type { ChatMessage } from "../llm/provider.types";
 import type { ConversationRow } from "../database/database.types";
 import type { UserRow } from "../users/users.types";
@@ -34,6 +35,7 @@ export class ChatService {
     private readonly extraction: MemoryExtractionService,
     private readonly agentsService: AgentsService,
     private readonly toolsService: ToolsService,
+    private readonly mcpService: McpService,
   ) {}
 
   /**
@@ -173,10 +175,15 @@ export class ChatService {
       }
 
       // ── Tool-use loop ─────────────────────────────────────────────────────
-      // If the agent has tools, run non-streaming rounds until no more tool calls,
-      // then stream the final response.
-      if (agentTools.length > 0 && provider.id === "ollama") {
-        const toolDefs = this.toolsService.getDefinitions(agentTools);
+      // Merge built-in tools + user's MCP server tools
+      const mcpTools = await this.mcpService.getToolsForUser(userId).catch(() => []);
+      const hasMcpTools = mcpTools.length > 0;
+
+      if ((agentTools.length > 0 || hasMcpTools) && provider.id === "ollama") {
+        const builtinDefs = this.toolsService.getDefinitions(agentTools);
+        // Strip _mcp metadata before sending to LLM (it only needs type/function)
+        const mcpDefs = mcpTools.map(({ type, function: fn }) => ({ type, function: fn }));
+        const toolDefs = [...builtinDefs, ...mcpDefs];
         let loopMessages = [...messages];
         const MAX_TOOL_ROUNDS = 5;
 
@@ -202,14 +209,19 @@ export class ChatService {
             break;
           }
 
-          // Execute each tool call
+          // Execute each tool call — route to MCP or built-in
           loopMessages.push({ role: "assistant", content: msg.content ?? "" });
           for (const tc of msg.tool_calls) {
-            const toolName = tc.function?.name;
+            const toolName = tc.function?.name as string;
             const toolArgs = tc.function?.arguments ?? {};
             this.logger.debug(`Tool call: ${toolName}(${JSON.stringify(toolArgs)})`);
             yield { token: `\n\`🔧 ${toolName}\`\n` };
-            const result = await this.toolsService.execute(toolName, toolArgs);
+            let result: string;
+            if (this.mcpService.isMcpTool(toolName)) {
+              result = await this.mcpService.callTool(userId, toolName, toolArgs);
+            } else {
+              result = await this.toolsService.execute(toolName, toolArgs, userId);
+            }
             loopMessages.push({ role: "tool", content: result } as any);
           }
         }

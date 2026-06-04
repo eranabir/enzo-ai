@@ -1,5 +1,5 @@
-import { useRef, useState } from "react";
-import { Settings, Shield, LogOut, ChevronUp, ChevronLeft, ChevronRight, Users, MoreHorizontal, Pencil, Trash2, Bot, SquarePen, MessagesSquare } from "lucide-react";
+import { useRef, useState, useEffect } from "react";
+import { Settings, Shield, LogOut, ChevronUp, ChevronLeft, ChevronRight, Users, MoreHorizontal, Pencil, Trash2, MessagesSquare } from "lucide-react";
 import { SiTelegram, SiDiscord } from "react-icons/si";
 import { SlackIcon } from "./ui/SlackIcon";
 import type { Conversation, User } from "../types";
@@ -12,6 +12,124 @@ import {
 } from "./ui/DropdownMenu";
 import { SettingsPanel } from "./SettingsPanel";
 
+
+// ── Animated "New" button ────────────────────────────────────────────────────
+
+const NEW_BTN_CSS = `
+  @keyframes nz-spin { to { transform: rotate(360deg); } }
+  @keyframes nz-shimmer {
+    0%   { transform: translateX(-200%) skewX(-15deg); }
+    100% { transform: translateX(400%)  skewX(-15deg); }
+  }
+  @keyframes nz-star {
+    0%,100% { opacity:.3; transform:scale(.9) rotate(-8deg); }
+    50%     { opacity:.9; transform:scale(1.15) rotate(8deg); }
+  }
+  @keyframes nz-glow {
+    0%,100% { box-shadow:0 0 12px 1px rgba(109,94,252,.4),0 0 24px 3px rgba(109,94,252,.1); }
+    50%     { box-shadow:0 0 20px 3px rgba(109,94,252,.6),0 0 40px 6px rgba(167,139,250,.2),0 0 56px 8px rgba(56,189,248,.08); }
+  }
+  @keyframes nz-glow-sm {
+    0%,100% { box-shadow:0 0 8px 1px rgba(109,94,252,.45); }
+    50%     { box-shadow:0 0 16px 2px rgba(109,94,252,.65),0 0 28px 4px rgba(167,139,250,.2); }
+  }
+
+  /* Default state — no animations running */
+  .nz-btn    { border-radius: 12px; }
+  .nz-btn-sm { border-radius: 12px; }
+  .nz-shimmer { transform: translateX(-200%) skewX(-15deg); } /* parked off-screen */
+  .nz-star    { opacity: 0.35; }
+
+  /* Hover — animations start fresh from frame 0 every time */
+  .nz-btn:hover              { animation: nz-glow    4s ease-in-out infinite; }
+  .nz-btn:hover .nz-spin     { animation: nz-spin    8s linear      infinite; }
+  .nz-btn:hover .nz-shimmer  { animation: nz-shimmer 5s ease-in-out infinite 1.5s; }
+  .nz-btn:hover .nz-star     { animation: nz-star    5s ease-in-out infinite; }
+
+  .nz-btn-sm:hover           { animation: nz-glow-sm 4s ease-in-out infinite; }
+  .nz-btn-sm:hover .nz-spin  { animation: nz-spin    8s linear      infinite; }
+  .nz-btn-sm:hover .nz-star  { animation: nz-star    5s ease-in-out infinite; }
+`;
+
+function useNewBtnStyles() {
+  useEffect(() => {
+    const id = "nz-new-btn-styles";
+    if (!document.getElementById(id)) {
+      const el = document.createElement("style");
+      el.id = id;
+      el.textContent = NEW_BTN_CSS;
+      document.head.appendChild(el);
+    }
+  }, []);
+}
+
+interface NewBtnProps {
+  collapsed?: boolean;
+  children: React.ReactNode; // the DropdownMenuContent
+  trigger: React.ReactNode;  // unused, we build trigger internally
+  onNew: () => void;
+  onAgentsOpen: () => void;
+  onMcpOpen: () => void;
+}
+
+function NewButton({ collapsed, onNew, onAgentsOpen, onMcpOpen }: Omit<NewBtnProps, "children" | "trigger">) {
+  useNewBtnStyles();
+
+  if (collapsed) {
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button title="New" className="nz-btn-sm relative">
+            <div style={{ position: "relative", overflow: "hidden", borderRadius: "12px", padding: "1.5px", width: "36px", height: "36px" }}>
+              <div className="nz-spin" style={{ position: "absolute", inset: "-50%", background: "conic-gradient(from 0deg,#6d5efc 0%,#a78bfa 28%,#38bdf8 52%,#818cf8 76%,#6d5efc 100%)" }} />
+              <div style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden", borderRadius: "9px", background: "#0e0b24", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <span className="nz-star" style={{ display: "inline-block", color: "white", fontSize: "15px" }}>✦</span>
+              </div>
+            </div>
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent side="right" align="start" className="w-40">
+          <DropdownMenuItem onClick={onNew}>New chat</DropdownMenuItem>
+          <DropdownMenuItem onClick={onAgentsOpen}>Agents</DropdownMenuItem>
+          <DropdownMenuItem onClick={onMcpOpen}>MCP Servers</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className="nz-btn relative w-full">
+          {/* Spinning conic-gradient border */}
+          <div style={{ position: "relative", overflow: "hidden", borderRadius: "12px", padding: "1.5px" }}>
+            <div className="nz-spin" style={{ position: "absolute", inset: "-50%", background: "conic-gradient(from 0deg,#6d5efc 0%,#a78bfa 28%,#38bdf8 52%,#818cf8 76%,#6d5efc 100%)" }} />
+
+            {/* Button face */}
+            <div style={{ position: "relative", overflow: "hidden", borderRadius: "10px", background: "#0d0b22", padding: "10px 16px" }}>
+              {/* Shimmer sweep */}
+              <div className="nz-shimmer" style={{
+                position: "absolute", top: 0, bottom: 0, width: "64px",
+                background: "linear-gradient(90deg,transparent,rgba(255,255,255,.14),transparent)",
+                pointerEvents: "none",
+              }} />
+
+              <span style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", color: "white", fontWeight: 600, letterSpacing: "0.06em", fontSize: "14px" }}>
+                <span className="nz-star" style={{ display: "inline-block" }}>✦</span>
+                New
+              </span>
+            </div>
+          </div>
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-48">
+        <DropdownMenuItem onClick={onNew}>New chat</DropdownMenuItem>
+        <DropdownMenuItem onClick={onAgentsOpen}>Agents</DropdownMenuItem>
+        <DropdownMenuItem onClick={onMcpOpen}>MCP Servers</DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 /** Small ⋯ button using Radix DropdownMenu (portal-rendered — not clipped by nav overflow). */
 function ConvoMenu({
@@ -61,6 +179,7 @@ export function Sidebar({
   onLogout,
   onAdminOpen,
   onAgentsOpen,
+  onMcpOpen,
   onUserUpdated,
 }: {
   conversations: Conversation[];
@@ -72,6 +191,7 @@ export function Sidebar({
   onDelete: (id: string) => void;
   onRename: (id: string, title: string) => void;
   onAgentsOpen: () => void;
+  onMcpOpen: () => void;
   onLogout: () => void;
   onAdminOpen: () => void;
   onUserUpdated: (u: User) => void;
@@ -129,23 +249,8 @@ export function Sidebar({
 
         <div className="h-px w-8 bg-border" />
 
-        {/* New chat */}
-        <button
-          title="New chat"
-          onClick={onNew}
-          className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent text-white shadow-[0_0_12px_rgba(109,94,252,0.3)] transition-colors hover:bg-accent-2"
-        >
-          <SquarePen className="h-4 w-4" />
-        </button>
-
-        {/* Agents */}
-        <button
-          title="Agents"
-          onClick={onAgentsOpen}
-          className="flex h-9 w-9 items-center justify-center rounded-xl border border-border text-muted transition-colors hover:border-accent hover:text-fg"
-        >
-          <Bot className="h-4 w-4" />
-        </button>
+        {/* + New dropdown */}
+        <NewButton collapsed onNew={onNew} onAgentsOpen={onAgentsOpen} onMcpOpen={onMcpOpen} />
 
         {/* Chats popover */}
         <DropdownMenu>
@@ -267,21 +372,7 @@ export function Sidebar({
         </button>
       </div>
 
-      <div className="flex flex-col gap-2">
-        <button
-          className="w-full rounded-xl bg-accent py-2.5 font-semibold text-white transition-colors hover:bg-accent-2"
-          onClick={onNew}
-        >
-          + New chat
-        </button>
-        <button
-          className="flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-surface-2 py-2 text-sm font-medium text-muted transition-colors hover:border-accent hover:text-fg"
-          onClick={onAgentsOpen}
-        >
-          <Bot className="h-4 w-4" />
-          Agents
-        </button>
-      </div>
+      <NewButton onNew={onNew} onAgentsOpen={onAgentsOpen} onMcpOpen={onMcpOpen} />
 
       <nav className="flex flex-1 flex-col overflow-y-auto">
         {(() => {

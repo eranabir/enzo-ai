@@ -24,6 +24,8 @@ import { DiscordService } from "./discord/discord.service";
 import { SlackModule } from "./slack/slack.module";
 import { SlackService } from "./slack/slack.service";
 import { CalendarModule } from "./calendar/calendar.module";
+import { AppsModule } from "./apps/apps.module";
+import { McpModule } from "./mcp/mcp.module";
 
 @Module({
   imports: [
@@ -44,6 +46,8 @@ import { CalendarModule } from "./calendar/calendar.module";
     DiscordModule,
     SlackModule,
     CalendarModule,
+    AppsModule,
+    McpModule,
   ],
   controllers: [AppController],
   // AppController needs TelegramService + DiscordService for /api/health/integrations

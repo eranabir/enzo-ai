@@ -111,18 +111,37 @@ export const api = {
   // ── Google Calendar ───────────────────────────────────────────────────────
   calendar: {
     status: () =>
-      fetch("/api/calendar/status", { headers: headers() })
+      fetch("/api/google-calendar/status", { headers: headers() })
         .then(parse<{ hasCredentials: boolean; connected: boolean; email?: string; name?: string }>),
     saveCredentials: (body: { clientId: string; clientSecret: string }) =>
-      fetch("/api/calendar/credentials", {
+      fetch("/api/google-calendar/credentials", {
         method: "PUT", headers: headers(true), body: JSON.stringify(body),
       }).then(parse<{ ok: boolean }>),
     authUrl: () =>
-      fetch("/api/calendar/auth/url", { headers: headers() })
+      fetch("/api/google-calendar/auth/url", { headers: headers() })
         .then(parse<{ url: string }>),
     disconnect: () =>
-      fetch("/api/calendar", { method: "DELETE", headers: headers() })
+      fetch("/api/google-calendar", { method: "DELETE", headers: headers() })
         .then(parse<{ ok: boolean }>),
+  },
+
+  // ── MCP Servers ──────────────────────────────────────────────────────────
+  mcp: {
+    list: () =>
+      fetch("/api/mcp/servers", { headers: headers() })
+        .then(parse<import("./types").McpServer[]>),
+    create: (body: { name: string; type: "stdio" | "http"; command?: string; args?: string[]; env?: Record<string, string>; url?: string }) =>
+      fetch("/api/mcp/servers", { method: "POST", headers: headers(true), body: JSON.stringify(body) })
+        .then(parse<import("./types").McpServer>),
+    update: (id: string, body: Partial<{ name: string; type: "stdio" | "http"; command: string; args: string[]; env: Record<string, string>; url: string; enabled: boolean }>) =>
+      fetch(`/api/mcp/servers/${id}`, { method: "PATCH", headers: headers(true), body: JSON.stringify(body) })
+        .then(parse<import("./types").McpServer>),
+    delete: (id: string) =>
+      fetch(`/api/mcp/servers/${id}`, { method: "DELETE", headers: headers() })
+        .then(parse<{ ok: boolean }>),
+    connect: (id: string) =>
+      fetch(`/api/mcp/servers/${id}/connect`, { method: "POST", headers: headers() })
+        .then(parse<{ ok: boolean; toolCount: number; tools: string[] }>),
   },
 
   /** Which integrations are currently connected (used by AgentsPanel). */

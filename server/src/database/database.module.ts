@@ -110,10 +110,25 @@ export type DatabaseConnection = Database.Database;
 
           CREATE INDEX IF NOT EXISTS idx_messages_conversation
             ON messages(conversation_id, created_at);
+          CREATE TABLE IF NOT EXISTS mcp_servers (
+            id         TEXT PRIMARY KEY,
+            user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            name       TEXT NOT NULL,
+            type       TEXT NOT NULL DEFAULT 'stdio',
+            command    TEXT,
+            args       TEXT NOT NULL DEFAULT '[]',
+            env        TEXT NOT NULL DEFAULT '{}',
+            url        TEXT,
+            enabled    INTEGER NOT NULL DEFAULT 1,
+            created_at INTEGER NOT NULL
+          );
+
           CREATE INDEX IF NOT EXISTS idx_agents_user
             ON agents(user_id, created_at);
           CREATE INDEX IF NOT EXISTS idx_memories_user
             ON memories(user_id, created_at);
+          CREATE INDEX IF NOT EXISTS idx_mcp_servers_user
+            ON mcp_servers(user_id, created_at);
         `);
 
         // Migrations — run before any indexes that reference the new columns.

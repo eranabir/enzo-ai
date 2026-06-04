@@ -36,6 +36,19 @@ export interface ToolDefinition {
   enabled: boolean;
 }
 
+export interface McpServer {
+  id: string;
+  user_id: string;
+  name: string;
+  type: "stdio" | "http";
+  command: string | null;
+  args: string[];
+  env: Record<string, string>;
+  url: string | null;
+  enabled: boolean;
+  created_at: number;
+}
+
 export interface Memory {
   id: string;
   type: MemoryType;

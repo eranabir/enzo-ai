@@ -8,6 +8,7 @@ import { Header } from "./components/Header";
 import { AuthScreen } from "./components/AuthScreen";
 import { AdminPanel } from "./components/AdminPanel";
 import { AgentsPanel } from "./components/AgentsPanel";
+import { McpPanel } from "./components/McpPanel";
 
 export function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -21,6 +22,7 @@ export function App() {
   const [busy, setBusy] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
   const [agentsOpen, setAgentsOpen] = useState(false);
+  const [mcpOpen, setMcpOpen] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
   // Restore an existing session on load, if any.
@@ -256,6 +258,7 @@ export function App() {
 
   return (
     <div className="flex h-screen">
+      {mcpOpen && <McpPanel onClose={() => setMcpOpen(false)} />}
       {agentsOpen && (
         <AgentsPanel
           onStartChat={async (agentId) => {
@@ -293,6 +296,7 @@ export function App() {
         onLogout={logout}
         onAdminOpen={() => setAdminOpen(true)}
         onAgentsOpen={() => setAgentsOpen(true)}
+        onMcpOpen={() => setMcpOpen(true)}
         onUserUpdated={setUser}
       />
       <main className="flex flex-1 flex-col min-w-0">

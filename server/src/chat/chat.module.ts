@@ -6,11 +6,12 @@ import { UsersModule } from "../users/users.module";
 import { SettingsModule } from "../settings/settings.module";
 import { MemoriesModule } from "../memories/memories.module";
 import { AgentsModule } from "../agents/agents.module";
+import { McpModule } from "../mcp/mcp.module";
 import { ChatService } from "./chat.service";
 import { ChatController } from "./chat.controller";
 
 @Module({
-  imports: [AuthModule, ConversationsModule, LlmModule, UsersModule, SettingsModule, MemoriesModule, AgentsModule],
+  imports: [AuthModule, ConversationsModule, LlmModule, UsersModule, SettingsModule, MemoriesModule, AgentsModule, McpModule],
   providers: [ChatService],
   controllers: [ChatController],
   exports: [ChatService],
