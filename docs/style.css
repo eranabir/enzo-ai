@@ -246,13 +246,17 @@ nav .container {
 
 /* ── Hero ── */
 .hero {
-  padding: 100px 0 120px;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  padding: 120px 0 80px;
   text-align: center;
 }
 .hero .container {
   display: flex;
   flex-direction: column;
   align-items: center;
+  width: 100%;
 }
 .hero-badge {
   display: inline-flex;
