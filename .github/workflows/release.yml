@@ -53,7 +53,7 @@ jobs:
       - run: yarn download:ollama
       - run: yarn build
       - run: yarn build:desktop
-      - run: yarn build:installer
+      - run: yarn build:clients
 
       - name: Package server
         run: yarn workspace @enzo-ai/desktop package:win
@@ -97,7 +97,7 @@ jobs:
       - run: yarn download:ollama
       - run: yarn build
       - run: yarn build:desktop
-      - run: yarn build:installer
+      - run: yarn build:clients
 
       - name: Package server
         env:
@@ -153,7 +153,7 @@ jobs:
       - run: yarn download:ollama
       - run: yarn build
       - run: yarn build:desktop
-      - run: yarn build:installer
+      - run: yarn build:clients
 
       - name: Package server
         env:

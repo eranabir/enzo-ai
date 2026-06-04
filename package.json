@@ -19,7 +19,7 @@
     "build:server": "yarn workspace @enzo-ai/server build",
     "build:web": "yarn workspace @enzo-ai/web build",
     "build:desktop": "yarn workspace @enzo-ai/desktop build",
-    "build:installer": "yarn workspace @enzo-ai/installer build",
+    "build:clients": "yarn workspace @enzo-ai/installer build",
     "cli": "node cli/dist/index.js",
     "build:cli": "yarn workspace @enzo-ai/cli build && ncc build cli/dist/index.js -o cli/dist/bundle -q",
     "build": "yarn build:server && yarn build:web && yarn build:cli",
@@ -30,10 +30,8 @@
     "dist:win": "yarn build && yarn build:desktop && yarn workspace @enzo-ai/desktop dist:win && yarn fix:sqlite",
     "dist:mac": "yarn build && yarn build:desktop && yarn workspace @enzo-ai/desktop dist:mac && yarn fix:sqlite",
     "dist:linux": "yarn build && yarn build:desktop && yarn workspace @enzo-ai/desktop dist:linux && yarn fix:sqlite",
-    "build:installer": "yarn workspace @enzo-ai/installer build",
-    "dist:installer:win": "yarn build:installer && yarn workspace @enzo-ai/installer dist:win",
-    "dist:installer:mac": "yarn build:installer && yarn workspace @enzo-ai/installer dist:mac",
-    "dist:installer:linux": "yarn build:installer && yarn workspace @enzo-ai/installer dist:linux"
+    "dist:clients:win": "yarn build:clients && yarn workspace @enzo-ai/installer dist:win",
+    "dist:clients:mac": "yarn build:clients && yarn workspace @enzo-ai/installer dist:mac"
 
   },
   "devDependencies": {
