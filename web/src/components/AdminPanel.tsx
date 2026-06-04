@@ -554,6 +554,7 @@ function TelegramConfig({ onBack }: { onBack: () => void }) {
   const [allowedIds, setAllowed] = useState("");
   const [model, setModel]       = useState("");
   const [running, setRunning]   = useState(false);
+  const [hasToken, setHasToken] = useState(false);
   const [busy, setBusy]         = useState(false);
   const [msg, setMsg]           = useState<{ text: string; ok: boolean } | null>(null);
 
@@ -562,6 +563,7 @@ function TelegramConfig({ onBack }: { onBack: () => void }) {
       setRunning(d.enabled);
       setAllowed(d.allowedIds);
       setModel(d.model);
+      setHasToken(!!d.token);
     }).catch(() => {});
   }, []);
 
@@ -572,6 +574,7 @@ function TelegramConfig({ onBack }: { onBack: () => void }) {
       if (token) body.token = token;
       const res = await api.admin.saveTelegram(body);
       setRunning(res.running);
+      if (token) setHasToken(true);   // token was just saved
       setToken("");
       setMsg({ text: "Saved", ok: true });
     } catch (e) {
@@ -644,14 +647,16 @@ function TelegramConfig({ onBack }: { onBack: () => void }) {
             className="rounded-lg border border-border bg-surface-2 px-4 py-2 text-sm font-semibold text-fg transition-colors hover:border-accent disabled:opacity-50">
             Save
           </button>
-          <button onClick={toggleBot} disabled={busy}
-            className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50 ${
-              running
-                ? "border border-danger/40 bg-danger/10 text-danger hover:bg-danger/20"
-                : "bg-accent text-white hover:bg-accent-2"
-            }`}>
-            {running ? "Stop Bot" : "Start Bot"}
-          </button>
+          {hasToken && (
+            <button onClick={toggleBot} disabled={busy}
+              className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50 ${
+                running
+                  ? "border border-danger/40 bg-danger/10 text-danger hover:bg-danger/20"
+                  : "bg-accent text-white hover:bg-accent-2"
+              }`}>
+              {running ? "Stop Bot" : "Start Bot"}
+            </button>
+          )}
         </div>
 
         {msg && <p className={`text-xs ${msg.ok ? "text-ok" : "text-danger"}`}>{msg.text}</p>}
