@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Pencil, Trash2, Play, Clock, Zap, Globe, Calculator, Calendar, ChevronDown, ChevronRight, FileText, FolderOpen, GitBranch } from "lucide-react";
-import { SiTelegram } from "react-icons/si";
+import { SiTelegram, SiDiscord } from "react-icons/si";
 import { Plus, X } from "lucide-react";
 
 // ── Schedule builder ──────────────────────────────────────────────────────────
@@ -171,26 +171,27 @@ function modelSupportsTools(modelId: string, models: ModelInfo[]): boolean {
 
 // ── Integration entry selector ────────────────────────────────────────────────
 
-type IntegrationType = "telegram"; // extend when Discord/Slack are available
+type IntegrationType = "telegram" | "discord";
 
 interface IntegrationEntry {
   type: IntegrationType;
   chatId: string;
 }
 
-const INTEGRATION_OPTIONS: { type: IntegrationType; label: string; icon: React.ReactNode; color: string; available: boolean }[] = [
-  { type: "telegram", label: "Telegram", icon: <SiTelegram className="h-3.5 w-3.5" />, color: "text-[#2AABEE]", available: true },
+const INTEGRATION_OPTIONS: { type: IntegrationType; label: string; icon: React.ReactNode; color: string; placeholder: string }[] = [
+  { type: "telegram", label: "Telegram", icon: <SiTelegram className="h-3.5 w-3.5" />, color: "text-[#2AABEE]", placeholder: "Chat ID — send /chatid to get it" },
+  { type: "discord",  label: "Discord",  icon: <SiDiscord  className="h-3.5 w-3.5" />, color: "text-[#5865F2]", placeholder: "Channel ID — right-click channel → Copy Channel ID" },
 ];
 
-/** Parses comma-separated telegramChatIds string into entries array */
-function parseEntries(telegramChatIds: string): IntegrationEntry[] {
-  return telegramChatIds.split(",").map(s => s.trim()).filter(Boolean)
+/** Parses comma-separated chatIds string into entries (type unknown, assume telegram for existing data) */
+function parseEntries(chatIds: string): IntegrationEntry[] {
+  return chatIds.split(",").map(s => s.trim()).filter(Boolean)
     .map(chatId => ({ type: "telegram" as IntegrationType, chatId }));
 }
 
-/** Serialises entries back to telegramChatIds comma-separated string */
+/** Serialises entries back to comma-separated string (all IDs, regardless of type) */
 function serialiseEntries(entries: IntegrationEntry[]): string {
-  return entries.filter(e => e.type === "telegram" && e.chatId.trim()).map(e => e.chatId.trim()).join(",");
+  return entries.filter(e => e.chatId.trim()).map(e => e.chatId.trim()).join(",");
 }
 
 function IntegrationEntries({ value, onChange }: { value: string; onChange: (v: string) => void }) {
@@ -228,25 +229,30 @@ function IntegrationEntries({ value, onChange }: { value: string; onChange: (v: 
 
       {entries.length === 0 && (
         <p className="text-[11px] text-muted">
-          Send scheduled results to a Telegram group or chat.
-          Use <code className="bg-surface px-1 rounded text-[10px]">/chatid</code> in the chat to get the ID.
+          Send scheduled results to a Telegram chat or Discord channel.
         </p>
       )}
 
-      {entries.map((entry, i) => (
+      {entries.map((entry, i) => {
+        const opt = INTEGRATION_OPTIONS.find(o => o.type === entry.type) ?? INTEGRATION_OPTIONS[0];
+        const nextType = INTEGRATION_OPTIONS[(INTEGRATION_OPTIONS.findIndex(o => o.type === entry.type) + 1) % INTEGRATION_OPTIONS.length].type;
+        return (
         <div key={i} className="flex items-center gap-2">
-          {/* Integration type selector */}
-          <div className="flex items-center gap-1.5 rounded-lg border border-border bg-surface-2 px-2.5 py-1.5 text-sm flex-shrink-0">
-            {INTEGRATION_OPTIONS.find(o => o.type === entry.type)?.icon}
-            <span className={`text-xs font-medium ${INTEGRATION_OPTIONS.find(o => o.type === entry.type)?.color}`}>
-              {INTEGRATION_OPTIONS.find(o => o.type === entry.type)?.label}
-            </span>
-          </div>
+          {/* Integration type — click to cycle between Telegram / Discord */}
+          <button
+            type="button"
+            title="Click to switch integration"
+            onClick={() => setEntry(i, { type: nextType })}
+            className="flex items-center gap-1.5 rounded-lg border border-border bg-surface-2 px-2.5 py-1.5 flex-shrink-0 transition-colors hover:border-accent/60"
+          >
+            <span className={opt.color}>{opt.icon}</span>
+            <span className={`text-xs font-medium ${opt.color}`}>{opt.label}</span>
+          </button>
 
-          {/* Chat ID input */}
+          {/* Chat / Channel ID input */}
           <input
             className={`${inputCls} flex-1`}
-            placeholder="Chat ID (send /chatid to get it)"
+            placeholder={opt.placeholder}
             value={entry.chatId}
             onChange={e => setEntry(i, { chatId: e.target.value })}
           />
@@ -259,7 +265,8 @@ function IntegrationEntries({ value, onChange }: { value: string; onChange: (v: 
             <X className="h-4 w-4" />
           </button>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
