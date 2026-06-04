@@ -31,7 +31,11 @@ on:
 
 jobs:
   # ════════════════════════════════════════════════════════════════════════════
-  # WINDOWS — complete desktop app (server + web UI + CLI setup screen)
+  # WINDOWS
+  # Produces:
+  #   enzo-ai-installer-windows.exe  ← tiny installer (user downloads this)
+  #   enzo-ai-windows-{v}.exe        ← Web UI component (installer fetches this)
+  #   enzo-ai-cli-windows-x64.exe    ← CLI component    (installer fetches this)
   # ════════════════════════════════════════════════════════════════════════════
   windows:
     runs-on: windows-latest
@@ -53,17 +57,35 @@ jobs:
       - run: yarn download:ollama
       - run: yarn build
       - run: yarn build:desktop
-      - name: Package
+      - run: yarn build:installer
+
+      - name: Package Web UI (server component)
         run: yarn workspace @enzo-ai/desktop package:win
+
+      - name: Package CLI component
+        run: |
+          npm install -g @yao-pkg/pkg
+          pkg cli/dist/bundle/index.js --targets node20-win-x64 --output cli/dist/enzo-ai-cli-windows-x64.exe --compress Brotli
+
+      - name: Package installer (tiny — no components bundled)
+        run: yarn workspace @enzo-ai/installer package:win
+
       - name: Save artifacts
         uses: actions/upload-artifact@v4
         with:
           name: windows-assets
           retention-days: 1
-          path: desktop/dist/enzo-ai-windows-*.exe
+          path: |
+            installer/dist/enzo-ai-installer-windows.exe
+            desktop/dist/enzo-ai-windows-*.exe
+            cli/dist/enzo-ai-cli-windows-x64.exe
 
   # ════════════════════════════════════════════════════════════════════════════
-  # macOS — complete desktop app (server + web UI + CLI setup screen)
+  # macOS
+  # Produces:
+  #   enzo-ai-installer-macos-{arch}.dmg  ← tiny installer (user downloads this)
+  #   enzo-ai-macos-{v}-{arch}.dmg        ← Web UI component
+  #   enzo-ai-cli-macos-{arch}            ← CLI component
   # ════════════════════════════════════════════════════════════════════════════
   macos:
     runs-on: macos-latest
@@ -83,19 +105,37 @@ jobs:
       - run: yarn download:ollama
       - run: yarn build
       - run: yarn build:desktop
-      - name: Package
+      - run: yarn build:installer
+
+      - name: Package Web UI (server component)
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
         run: yarn workspace @enzo-ai/desktop package:mac
+
+      - name: Package CLI component
+        run: |
+          npm install -g @yao-pkg/pkg
+          pkg cli/dist/bundle/index.js --targets node20-macos-x64  --output cli/dist/enzo-ai-cli-macos-x64  --compress Brotli
+          pkg cli/dist/bundle/index.js --targets node20-macos-arm64 --output cli/dist/enzo-ai-cli-macos-arm64 --compress Brotli
+
+      - name: Package installer (tiny — no components bundled)
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: yarn workspace @enzo-ai/installer package:mac
+
       - name: Save artifacts
         uses: actions/upload-artifact@v4
         with:
           name: macos-assets
           retention-days: 1
-          path: desktop/dist/enzo-ai-macos-*.dmg
+          path: |
+            installer/dist/enzo-ai-installer-macos-*.dmg
+            desktop/dist/enzo-ai-macos-*.dmg
+            cli/dist/enzo-ai-cli-macos-x64
+            cli/dist/enzo-ai-cli-macos-arm64
 
   # ════════════════════════════════════════════════════════════════════════════
-  # LINUX — .deb package (server + web UI, CLI available inside)
+  # LINUX — .deb only (no installer; Linux users install via package manager)
   # ════════════════════════════════════════════════════════════════════════════
   linux:
     runs-on: ubuntu-latest

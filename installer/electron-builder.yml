@@ -1,0 +1,31 @@
+appId: com.enzo-ai.installer
+productName: Enzo AI Installer
+electronVersion: "34.5.8"
+
+# Tiny — only the UI. Components are downloaded at install time.
+files:
+  - dist/**/*
+  - src/index.html
+  - package.json
+
+win:
+  icon: ../desktop/assets/icon.ico
+  target:
+    - target: nsis
+      arch: [x64]
+
+nsis:
+  artifactName: "enzo-ai-installer-windows.${ext}"
+  oneClick: false
+  allowToChangeInstallationDirectory: false
+  runAfterFinish: true
+
+mac:
+  icon: ../desktop/assets/icon.icns
+  category: public.app-category.utilities
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+
+dmg:
+  artifactName: "enzo-ai-installer-macos-${arch}.${ext}"
