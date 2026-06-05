@@ -271,7 +271,6 @@ nav .container {
   min-height: calc(100vh - var(--nav-h));
   display: flex;
   align-items: center;
-  padding: 80px 0;
   text-align: center;
 }
 .hero .container {
