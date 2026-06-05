@@ -62,6 +62,15 @@ buildDependenciesFromSource: false
 mac:
   category: public.app-category.productivity
   icon: assets/icon.icns
+  # Code signing + notarization. These only activate in CI when the credentials
+  # are present (CSC_LINK/CSC_KEY_PASSWORD for the Developer ID cert; APPLE_ID +
+  # APPLE_APP_SPECIFIC_PASSWORD + APPLE_TEAM_ID for notarization). Without them,
+  # electron-builder skips signing/notarization and produces an unsigned build.
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  notarize: true
   target:
     - target: dmg
 
