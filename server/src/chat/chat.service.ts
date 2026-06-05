@@ -38,6 +38,21 @@ export class ChatService {
     private readonly mcpService: McpService,
   ) {}
 
+  // Wired from app.module to push assistant replies out to an integration
+  // (Telegram/Discord/Slack) when a message is sent from the web UI in an
+  // integration-linked conversation. Avoids a circular module dependency.
+  private relayToIntegration?: (
+    integration: string,
+    convoId: string,
+    text: string,
+  ) => Promise<void>;
+
+  setIntegrationRelay(
+    fn: (integration: string, convoId: string, text: string) => Promise<void>,
+  ): void {
+    this.relayToIntegration = fn;
+  }
+
   /**
    * Build the system prompt.
    *
@@ -127,6 +142,10 @@ export class ChatService {
     signal: AbortSignal,
     imageBase64?: string,
     imageMime?: string,
+    // Where this message came from ("telegram"/"discord"/"slack" for inbound
+    // platform messages, undefined for the web UI). Used to avoid echoing a
+    // reply back to the platform that already received it via its own handler.
+    origin?: string,
   ): AsyncIterable<ChatEvent> {
     // Load attached agent (if any)
     const agent = (convo as any).agent_id
@@ -235,6 +254,16 @@ export class ChatService {
 
       this.convos.addMessage(convo.id, "assistant", assistant);
 
+      // If this conversation is linked to an integration and the message did NOT
+      // originate from that integration (i.e. it was sent from the web UI),
+      // push the assistant reply out to the platform so both sides stay in sync.
+      const integration = (convo as any).integration as string | null;
+      if (integration && integration !== origin && this.relayToIntegration) {
+        this.relayToIntegration(integration, convo.id, assistant).catch((e) =>
+          this.logger.error(`Failed to relay reply to ${integration}: ${e.message}`),
+        );
+      }
+
       if (convo.title === "New chat") {
         const title = (agent ? `[${agent.emoji} ${agent.name}] ` : "") + content.slice(0, 50) + (content.length > 50 ? "…" : "");
         this.convos.rename(convo.id, title);
@@ -258,12 +287,12 @@ export class ChatService {
    * Process a message in an existing conversation and return the complete reply.
    * Used by Telegram, CLI, and other non-streaming clients.
    */
-  async processMessage(userId: string, convoId: string, content: string, model?: string): Promise<string> {
+  async processMessage(userId: string, convoId: string, content: string, model?: string, origin?: string): Promise<string> {
     const convo = this.convos.get(convoId, userId);
     if (!convo) throw new Error(`Conversation ${convoId} not found for user ${userId}`);
     const controller = new AbortController();
     let reply = "";
-    for await (const event of this.streamReply(convo, userId, content, model, controller.signal)) {
+    for await (const event of this.streamReply(convo, userId, content, model, controller.signal, undefined, undefined, origin)) {
       if (event.token) reply += event.token;
       if (event.error) throw new Error(event.error);
     }

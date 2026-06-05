@@ -56,6 +56,12 @@ export class ConversationsService {
       .run(title, now(), id);
   }
 
+  setAgent(id: string, agentId: string | null): void {
+    this.db
+      .prepare(`UPDATE conversations SET agent_id = ?, updated_at = ? WHERE id = ?`)
+      .run(agentId, now(), id);
+  }
+
   setModel(id: string, model: string): void {
     this.db
       .prepare(`UPDATE conversations SET model = ?, updated_at = ? WHERE id = ?`)

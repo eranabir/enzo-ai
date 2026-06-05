@@ -6,6 +6,9 @@ import { ConversationsService } from "../conversations/conversations.service";
 import { UsersService } from "../users/users.service";
 import { AgentsService } from "../agents/agents.service";
 
+/** Placeholder key in the chat map for the conversation created at connect time,
+ *  before any real Telegram chat id is known. The first inbound chat adopts it. */
+const PENDING_KEY = "__pending__";
 
 @Injectable()
 export class TelegramService implements OnModuleDestroy {
@@ -116,9 +119,10 @@ export class TelegramService implements OnModuleDestroy {
       const isGroup        = ctx.chat.type === "group" || ctx.chat.type === "supergroup";
       const senderName     = [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(" ")
                              || ctx.from.username || "User";
-      const rawText        = ctx.message.text;
-      // In groups, prefix message with sender name so the AI knows who is speaking
-      const text           = isGroup ? `[${senderName}]: ${rawText}` : rawText;
+      // Store the raw message text so it renders cleanly in the web UI, the same
+      // as a web chat message. (Previously group messages baked "[Name]: " into
+      // the content, which then showed awkwardly next to the "You" label.)
+      const text           = ctx.message.text;
 
       // Check allowlist (if configured)
       const allowed = this.settings.get("telegram_allowed_ids");
@@ -181,10 +185,31 @@ export class TelegramService implements OnModuleDestroy {
   // ── Conversation management ────────────────────────────────────────────────
 
   /**
+   * Create a fresh, clean conversation the moment the integration is connected,
+   * so it shows up in the UI right away (rather than only after the first
+   * inbound message). Any stale Telegram conversations from a previous setup are
+   * removed first, so the new session is clean and unrelated to older chats.
+   * The first inbound chat binds to this pending conversation instead of
+   * creating another one.
+   */
+  prepareConversation(): void {
+    const botUser = this.users.listAll().find((u) => u.role === "admin");
+    if (!botUser) return;
+    // Wipe leftover Telegram conversations + mappings from any previous connect.
+    this.deleteConversation();
+    const convo = this.convos.create(botUser.id, undefined, undefined, "telegram");
+    this.convos.rename(convo.id, "Telegram");
+    this.saveChatMap({ [PENDING_KEY]: convo.id });
+    this.logger.log(`Prepared clean Telegram conversation ${convo.id}`);
+  }
+
+  /**
    * Get or create a conversation for a Telegram chat (DM or group).
    * One conversation per chat ID:
    *   - DM → one conversation per person
    *   - Group → one shared conversation for the whole group
+   * The first chat to arrive after connect adopts the pending conversation
+   * created by prepareConversation().
    */
   getOrCreateChatConversation(chatId: string, chatTitle: string, agentId?: string): { userId: string; convoId: string } {
     const botUser = this.users.listAll().find((u) => u.role === "admin");
@@ -193,13 +218,36 @@ export class TelegramService implements OnModuleDestroy {
     const map = this.loadChatMap();
 
     if (!map[chatId]) {
-      const convo = this.convos.create(botUser.id, undefined, agentId, "telegram");
-      this.convos.rename(convo.id, chatTitle);
-      map[chatId] = convo.id;
+      if (map[PENDING_KEY]) {
+        // Adopt the clean conversation created at connect time.
+        const convoId = map[PENDING_KEY];
+        delete map[PENDING_KEY];
+        this.convos.rename(convoId, chatTitle);
+        if (agentId) this.convos.setAgent(convoId, agentId);
+        map[chatId] = convoId;
+      } else {
+        const convo = this.convos.create(botUser.id, undefined, agentId, "telegram");
+        this.convos.rename(convo.id, chatTitle);
+        map[chatId] = convo.id;
+      }
       this.saveChatMap(map);
     }
 
     return { userId: botUser.id, convoId: map[chatId] };
+  }
+
+  /** Send a message to the Telegram chat backing a given conversation.
+   *  Used to relay web-UI replies back to Telegram so both sides stay in sync. */
+  async sendToConversation(convoId: string, text: string): Promise<void> {
+    if (!this.bot || !text.trim()) return;
+    const map = this.loadChatMap();
+    const chatId = Object.keys(map).find((k) => k !== PENDING_KEY && map[k] === convoId);
+    if (!chatId) return; // no Telegram chat has messaged this conversation yet
+    for (const chunk of splitMessage(text)) {
+      await this.bot.telegram.sendMessage(chatId, chunk, { parse_mode: "Markdown" }).catch((e) =>
+        this.logger.error(`Failed to relay to Telegram chat ${chatId}: ${e.message}`),
+      );
+    }
   }
 
   /** Find an agent that has this Telegram chat ID in its telegram_chat_ids. */

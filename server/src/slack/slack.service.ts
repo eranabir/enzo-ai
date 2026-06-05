@@ -130,6 +130,20 @@ export class SlackService implements OnModuleDestroy {
     this.settings.set("slack_chat_map", "{}");
   }
 
+  /** Send a message to the Slack channel/DM backing a conversation.
+   *  Relays web-UI replies back to Slack so both sides stay in sync. */
+  async sendToConversation(convoId: string, text: string): Promise<void> {
+    if (!this.app || !text.trim()) return;
+    const map = this.loadChatMap();
+    const channelId = Object.keys(map).find((k) => map[k] === convoId);
+    if (!channelId) return;
+    for (const chunk of splitMessage(text)) {
+      await this.app.client.chat.postMessage({ channel: channelId, text: chunk }).catch((e) =>
+        this.logger.error(`Failed to relay to Slack channel ${channelId}: ${e.message}`),
+      );
+    }
+  }
+
   // ── Handlers ───────────────────────────────────────────────────────────────
 
   private registerHandlers(): void {
@@ -165,15 +179,8 @@ export class SlackService implements OnModuleDestroy {
       const isDM = channelType === "im";
 
       try {
-        // Get sender display name
-        let senderName = slackUserId;
-        try {
-          const userInfo = await client.users.info({ user: slackUserId });
-          senderName = (userInfo.user as any)?.display_name || userInfo.user?.real_name || slackUserId;
-        } catch { /* ignore */ }
-
-        // In channels, prefix with sender name
-        const content = isDM ? text : `[${senderName}]: ${text}`;
+        // Store the raw text so it renders cleanly in the web UI (same as web chat).
+        const content = text;
 
         // Conversation title
         let chatTitle: string;

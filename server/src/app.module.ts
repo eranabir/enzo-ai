@@ -80,7 +80,7 @@ export class AppModule implements OnModuleInit {
     const telegram = this.moduleRef.get(TelegramService, { strict: false });
     if (telegram && chat) {
       telegram.setRunner((userId, convoId, content, model) =>
-        chat.processMessage(userId, convoId, content, model),
+        chat.processMessage(userId, convoId, content, model, "telegram"),
       );
     }
 
@@ -88,7 +88,7 @@ export class AppModule implements OnModuleInit {
     const discordSvc = this.moduleRef.get(DiscordService, { strict: false });
     if (discordSvc && chat) {
       discordSvc.setRunner((userId, convoId, content, model) =>
-        chat.processMessage(userId, convoId, content, model),
+        chat.processMessage(userId, convoId, content, model, "discord"),
       );
     }
 
@@ -96,8 +96,18 @@ export class AppModule implements OnModuleInit {
     const slackSvc = this.moduleRef.get(SlackService, { strict: false });
     if (slackSvc && chat) {
       slackSvc.setRunner((userId, convoId, content, model) =>
-        chat.processMessage(userId, convoId, content, model),
+        chat.processMessage(userId, convoId, content, model, "slack"),
       );
+    }
+
+    // ChatService → integrations: push web-sent replies back out to the linked
+    // platform so the conversation stays in sync both ways.
+    if (chat) {
+      chat.setIntegrationRelay(async (integration, convoId, text) => {
+        if (integration === "telegram") await telegram?.sendToConversation(convoId, text);
+        else if (integration === "discord") await discordSvc?.sendToConversation(convoId, text);
+        else if (integration === "slack") await slackSvc?.sendToConversation(convoId, text);
+      });
     }
   }
 }

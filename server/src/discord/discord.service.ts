@@ -133,6 +133,28 @@ export class DiscordService implements OnModuleDestroy {
     this.settings.set("discord_chat_map", "{}");
   }
 
+  /** Send a message to the Discord channel/DM backing a conversation.
+   *  Relays web-UI replies back to Discord so both sides stay in sync. */
+  async sendToConversation(convoId: string, text: string): Promise<void> {
+    if (!this.client || !text.trim()) return;
+    const map = this.loadChatMap();
+    const chatId = Object.keys(map).find((k) => map[k] === convoId);
+    if (!chatId) return;
+    try {
+      if (chatId.startsWith("dm-")) {
+        const user = await this.client.users.fetch(chatId.slice(3));
+        for (const chunk of splitMessage(text)) await user.send(chunk);
+      } else {
+        const channel = await this.client.channels.fetch(chatId);
+        if (channel?.isTextBased()) {
+          for (const chunk of splitMessage(text)) await (channel as any).send(chunk);
+        }
+      }
+    } catch (e) {
+      this.logger.error(`Failed to relay to Discord chat ${chatId}: ${(e as Error).message}`);
+    }
+  }
+
   // ── Handlers ───────────────────────────────────────────────────────────────
 
   private registerHandlers(): void {
@@ -190,9 +212,8 @@ export class DiscordService implements OnModuleDestroy {
       const chatTitle = isServer
         ? `#${(message.channel as any).name ?? message.channelId}`
         : message.author.displayName ?? message.author.username;
-      const senderName = message.author.displayName ?? message.author.username;
-      // Prefix with sender name in servers so AI knows who is talking
-      const content = isServer ? `[${senderName}]: ${text}` : text;
+      // Store the raw text so it renders cleanly in the web UI (same as web chat).
+      const content = text;
 
       try {
         await (message.channel as any).sendTyping?.().catch(() => {});
