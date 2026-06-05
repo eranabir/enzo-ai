@@ -8,10 +8,22 @@
       "port": 5310
     },
     {
+      "name": "web",
+      "runtimeExecutable": "yarn",
+      "runtimeArgs": ["dev:web"],
+      "port": 5310
+    },
+    {
       "name": "landing",
       "runtimeExecutable": "npx",
       "runtimeArgs": ["serve", "docs", "-p", "4000", "--no-clipboard"],
       "port": 4000
+    },
+    {
+      "name": "site",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "site", "-p", "4100", "--no-clipboard"],
+      "port": 4100
     }
   ]
 }
