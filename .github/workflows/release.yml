@@ -238,42 +238,6 @@ jobs:
             ghcr.io/${{ github.repository_owner }}/enzo-ai:amd64 \
             ghcr.io/${{ github.repository_owner }}/enzo-ai:arm64
 
-  # ════════════════════════════════════════════════════════════════════════════
-  # PAGES — publish the landing page after the release assets are live.
-  #
-  # The download buttons link to /releases/latest/download/<stable-name>, which
-  # the publish job now guarantees exist. Runs after publish so the page never
-  # goes live pointing at assets that aren't uploaded yet.
-  #
-  # NOTE: requires repo Settings → Pages → Source = "GitHub Actions" (one-time).
-  # ════════════════════════════════════════════════════════════════════════════
-  pages:
-    needs: [publish]
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-      contents: read
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Stamp release version into the landing page
-        run: |
-          MINOR=$(echo "${GITHUB_REF_NAME#v}" | cut -d. -f1,2)
-          sed -i -E "s#v[0-9]+\.[0-9]+ now available#v${MINOR} now available#g" site/index.html
-          echo "Stamped landing page with v${MINOR}"
-
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload site/ as the Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: site
-
-      - name: Deploy to GitHub Pages
-        id: deploy
-        uses: actions/deploy-pages@v4
+# The landing page is published by .github/workflows/pages.yml (runs on master,
+# which the github-pages environment allows). A release commit bumps package.json
+# on master, which triggers that workflow to re-stamp the version and redeploy.

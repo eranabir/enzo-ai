@@ -9,6 +9,7 @@ on:
     branches: [master]
     paths:
       - 'site/**'
+      - 'package.json'          # release commits bump this → re-stamp + redeploy
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -30,6 +31,11 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - name: Stamp current version into the landing page badge
+        run: |
+          MINOR=$(node -p "require('./package.json').version.split('.').slice(0,2).join('.')")
+          sed -i -E "s#v[0-9]+\.[0-9]+ now available#v${MINOR} now available#g" site/index.html
+          echo "Stamped landing page badge with v${MINOR}"
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload site/ as the Pages artifact
