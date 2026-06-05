@@ -4,8 +4,12 @@ copyright: "© 2025 Enzo AI"
 electronVersion: "34.5.8"
 
 
+# NOTE: electron-builder's output also lands in dist/ (mac-arm64/, *.dmg, …).
+# Globbing dist/**/* would recursively package the build's own output back into
+# the asar (a nested Electron.app + the dmg → ~900 MB of bloat). The compiled
+# main process is only the top-level dist/*.js files, so match those explicitly.
 files:
-  - dist/**/*
+  - dist/*.js
   - src/setup.html
   - package.json
 
