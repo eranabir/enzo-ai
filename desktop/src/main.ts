@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, Menu, nativeImage, shell, Tray } from "electron";
 import { join } from "node:path";
 import { appendFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { ensureDefaultModel, ensureOllama, stopOllama } from "./ollama";
+import { ensureOllama, stopOllama } from "./ollama";
 import {
   SERVER_URL,
   setLogger,
@@ -139,11 +139,11 @@ async function start(): Promise<void> {
     setStatus("ready");
     log(`[enzo-ai] ready at ${SERVER_URL}`);
 
-    // 3. Open browser automatically after server is ready
+    // 3. Open browser automatically after server is ready. The first model is
+    //    chosen and downloaded by the user in the web setup wizard (which can
+    //    analyze the machine and recommend a fitting model), so we no longer
+    //    auto-pull a default here.
     openBrowser();
-
-    // 4. Pull the default model in the background if nothing is installed
-    ensureDefaultModel().catch((e) => log("[enzo-ai] model pull failed:", e.message));
   } catch (err) {
     log("[enzo-ai] startup FAILED:", (err as Error).stack || String(err));
     setStatus("error");
@@ -194,9 +194,11 @@ function openSetupWindow(): Promise<void> {
       },
     });
 
-    const setupHtml = app.isPackaged
-      ? join(process.resourcesPath, "setup.html")
-      : join(__dirname, "setup.html");
+    // setup.html ships inside the asar (listed under `files:` in
+    // electron-builder.yml), so resolve it relative to __dirname (dist/) — the
+    // same way the preload script is loaded. process.resourcesPath would point
+    // outside the asar, where the file doesn't exist.
+    const setupHtml = join(__dirname, "..", "src", "setup.html");
     win.loadFile(setupHtml);
 
     ipcMain.handleOnce("setup:install-cli", () => installCli());

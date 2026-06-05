@@ -91,25 +91,6 @@ export async function ensureOllama(): Promise<void> {
   throw new Error("Ollama started but did not become ready in time");
 }
 
-/** Pull a default model on first run if nothing is installed. */
-export async function ensureDefaultModel(model = "llama3.2:3b"): Promise<void> {
-  try {
-    const res = await fetch(`${OLLAMA_URL}/api/tags`);
-    const data = (await res.json()) as { models?: { name: string }[] };
-    if ((data.models ?? []).length > 0) return; // already has models
-    console.log(`[ollama] pulling default model ${model}…`);
-    await fetch(`${OLLAMA_URL}/api/pull`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ model, stream: false }),
-      signal: AbortSignal.timeout(10 * 60 * 1000), // 10 min timeout
-    });
-    console.log(`[ollama] ${model} ready`);
-  } catch (err) {
-    console.warn(`[ollama] could not pull default model: ${err}`);
-  }
-}
-
 export function stopOllama(): void {
   if (ollamaProcess && !ollamaProcess.killed) {
     console.log("[ollama] stopping…");
