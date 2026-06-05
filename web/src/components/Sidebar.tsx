@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from "react";
-import { Settings, Shield, LogOut, ChevronUp, ChevronLeft, ChevronRight, Users, MoreHorizontal, Pencil, Trash2, MessagesSquare } from "lucide-react";
+import { Settings, Shield, LogOut, ChevronUp, ChevronLeft, ChevronRight, Users, MoreHorizontal, Pencil, Trash2, MessagesSquare, SquarePen, Bot, Server } from "lucide-react";
 import { SiTelegram, SiDiscord } from "react-icons/si";
 import { SlackIcon } from "./ui/SlackIcon";
 import type { Conversation, User } from "../types";
@@ -75,9 +75,9 @@ function NewButton({ collapsed, onNew, onAgentsOpen, onMcpOpen }: NewBtnProps) {
 
   const menuItems = (
     <>
-      <DropdownMenuItem onClick={onNew}>New chat</DropdownMenuItem>
-      <DropdownMenuItem onClick={onAgentsOpen}>Agents</DropdownMenuItem>
-      <DropdownMenuItem onClick={onMcpOpen}>MCP Servers</DropdownMenuItem>
+      <DropdownMenuItem onClick={onNew}><SquarePen className="h-4 w-4 text-muted" /> New chat</DropdownMenuItem>
+      <DropdownMenuItem onClick={onAgentsOpen}><Bot className="h-4 w-4 text-muted" /> Agents</DropdownMenuItem>
+      <DropdownMenuItem onClick={onMcpOpen}><Server className="h-4 w-4 text-muted" /> MCP Servers</DropdownMenuItem>
     </>
   );
 
