@@ -183,8 +183,11 @@ async function installCli(): Promise<{ ok: boolean; path?: string; error?: strin
 function openSetupWindow(): Promise<void> {
   return new Promise((resolve) => {
     const win = new BrowserWindow({
+      // useContentSize so these are the web-content dimensions (excluding the
+      // title bar), and enough height that the CLI option + button never clip.
+      useContentSize: true,
       width: 500,
-      height: 520,
+      height: 620,
       resizable: false,
       title: "Enzo AI Setup",
       webPreferences: {
