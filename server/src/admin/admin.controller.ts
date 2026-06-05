@@ -109,8 +109,9 @@ export class AdminController {
     res.flushHeaders?.();
 
     try {
-      for await (const status of this.llm.ollama.pullModel(model)) {
-        res.write(`data: ${JSON.stringify({ status })}\n\n`);
+      for await (const ev of this.llm.ollama.pullModel(model)) {
+        // ev = { status, completed?, total? } — forwarded so the UI can show a bar
+        res.write(`data: ${JSON.stringify(ev)}\n\n`);
       }
       res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
     } catch (err) {

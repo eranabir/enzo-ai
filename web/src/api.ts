@@ -3,6 +3,7 @@ import type {
   ConversationDetail,
   ModelInfo,
   ProfileSummary,
+  SystemAnalysis,
   User,
 } from "./types";
 
@@ -106,7 +107,10 @@ export const api = {
   models: () =>
     fetch("/api/models", { headers: headers() }).then(parse<{ models: ModelInfo[]; default: string }>),
 
-  status: () => fetch("/api/models/status").then(parse<{ ollama: boolean }>),
+  status: () => fetch("/api/models/status").then(parse<{ ollama: boolean; models?: number }>),
+
+  // ---- system analysis + model recommendation (auth required) ----
+  system: () => fetch("/api/system", { headers: headers() }).then(parse<SystemAnalysis>),
 
   // ── Google Calendar ───────────────────────────────────────────────────────
   calendar: {
@@ -291,14 +295,19 @@ export interface ChatHandlers {
   onDone?: () => void;
 }
 
-/** Stream a model pull with progress events (admin only). */
+/**
+ * Stream a model pull with progress events. Defaults to the admin endpoint
+ * (used by the admin panel); pass "/api/models/pull" for any authenticated
+ * user (e.g. the first-run setup wizard).
+ */
 export async function streamPullModel(
   model: string,
-  onStatus: (s: string) => void,
+  onStatus: (s: string, progress?: { completed: number; total: number }) => void,
   onDone: () => void,
   onError: (e: string) => void,
+  endpoint: "/api/admin/models/pull" | "/api/models/pull" = "/api/admin/models/pull",
 ): Promise<void> {
-  const res = await fetch("/api/admin/models/pull", {
+  const res = await fetch(endpoint, {
     method: "POST",
     headers: headers(true),
     body: JSON.stringify({ model }),
@@ -317,7 +326,7 @@ export async function streamPullModel(
       buf = buf.slice(sep + 2);
       if (!line) continue;
       const p = JSON.parse(line.slice(5).trim());
-      if (p.status) onStatus(p.status);
+      if (p.status) onStatus(p.status, typeof p.total === "number" && p.total > 0 ? { completed: p.completed ?? 0, total: p.total } : undefined);
       if (p.done) onDone();
       if (p.error) onError(p.error);
     }

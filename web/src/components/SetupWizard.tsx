@@ -1,38 +1,88 @@
 import { useEffect, useState } from "react";
-import { api } from "../api";
-import type { User } from "../types";
+import { api, streamPullModel } from "../api";
+import type { SystemAnalysis, User } from "../types";
 
 interface Props {
   user: User;
   onDone: () => void;
 }
 
-type Mode = "local" | "cloud" | "both" | null;
-type Step = 1 | 2 | 3 | 4;
+type Mode = "local" | "cloud" | "both";
+type Step = 1 | 2 | 3;
 
 export function SetupWizard({ user, onDone }: Props) {
   const [step, setStep] = useState<Step>(1);
-  const [mode, setMode] = useState<Mode>(null);
+  // The "Choose your AI" step was removed — we always set up both local models
+  // and (optional) cloud keys on the model-configuration step. Asserted to the
+  // wider Mode union so the existing mode checks below still type-check.
+  const mode = "both" as Mode;
   const [ollamaOk, setOllamaOk] = useState<boolean | null>(null);
   const [models, setModels] = useState<string[]>([]);
   const [checking, setChecking] = useState(false);
   const [keyInputs, setKeyInputs] = useState({ openai: "", anthropic: "", google: "" });
   const [keySaved, setKeySaved] = useState<string[]>([]);
+  const [showKeys, setShowKeys] = useState(false);
+
+  // Model selection (local / both): either take the default model, or analyze
+  // the machine first and pick from recommendations.
+  const [modelChoice, setModelChoice] = useState<"default" | "analyze" | null>(null);
+  const [defaultModel, setDefaultModel] = useState<string>("");
+  const [analysis, setAnalysis] = useState<SystemAnalysis | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<string>("");
+  const [pulling, setPulling] = useState(false);
+  const [pullStatus, setPullStatus] = useState("");
+  const [pullProgress, setPullProgress] = useState<{ completed: number; total: number } | null>(null);
 
   useEffect(() => {
-    if (step === 3 && (mode === "local" || mode === "both")) {
+    if (step === 2 && (mode === "local" || mode === "both")) {
       setChecking(true);
       api.status()
         .then((s) => {
           setOllamaOk(s.ollama);
           if (s.ollama) {
-            api.models().then(({ models: m }) => setModels(m.map(x => x.id))).catch(() => {});
+            api.models()
+              .then(({ models: m, default: d }) => { setModels(m.map(x => x.id)); setDefaultModel(d); })
+              .catch(() => {});
           }
         })
         .catch(() => setOllamaOk(false))
         .finally(() => setChecking(false));
     }
   }, [step, mode]);
+
+  /** Run hardware analysis (lazily, only when the user picks "Analyze system"). */
+  function runAnalyze() {
+    if (analysis || analyzing) return;
+    setAnalyzing(true);
+    api.system()
+      .then((a) => {
+        setAnalysis(a);
+        setSelectedModel((cur) => cur || a.recommendation.modelId);
+      })
+      .catch(() => {})
+      .finally(() => setAnalyzing(false));
+  }
+
+  function downloadModel() {
+    const model = selectedModel.trim();
+    if (!model || pulling) return;
+    setPulling(true);
+    setPullStatus("Starting…");
+    setPullProgress(null);
+    streamPullModel(
+      model,
+      (s, progress) => { setPullStatus(s); setPullProgress(progress ?? null); },
+      () => {
+        setPulling(false);
+        setPullStatus("");
+        setPullProgress(null);
+        setModels((m) => (m.includes(model) ? m : [...m, model]));
+      },
+      (e) => { setPulling(false); setPullProgress(null); setPullStatus(`⚠ ${e}`); },
+      "/api/models/pull",
+    );
+  }
 
   async function saveKey(provider: string) {
     const key = (keyInputs as Record<string,string>)[provider]?.trim();
@@ -48,11 +98,38 @@ export function SetupWizard({ user, onDone }: Props) {
     onDone();
   }
 
+  const fmtGb = (b: number) => `${(b / 1e9).toFixed(1)} GB`;
+  const pullPct =
+    pullProgress && pullProgress.total > 0
+      ? Math.min(100, Math.round((pullProgress.completed / pullProgress.total) * 100))
+      : null;
+
+  // Progress UI shown under the Download button while a pull is in flight.
+  // Determinate bar when byte totals are known, otherwise an indeterminate pulse.
+  const pullProgressUI = pulling ? (
+    <div className="mt-3">
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-bg">
+        <div
+          className={`h-full rounded-full bg-accent transition-all duration-300 ${pullPct == null ? "animate-pulse w-full" : ""}`}
+          style={pullPct == null ? undefined : { width: `${pullPct}%` }}
+        />
+      </div>
+      <div className="mt-1.5 flex items-center justify-between gap-2 text-[10px] text-muted">
+        <span className="truncate">{pullStatus || "Starting…"}</span>
+        {pullPct != null && (
+          <span className="flex-shrink-0 tabular-nums">
+            {pullProgress ? `${fmtGb(pullProgress.completed)} / ${fmtGb(pullProgress.total)} · ` : ""}{pullPct}%
+          </span>
+        )}
+      </div>
+    </div>
+  ) : null;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/95 backdrop-blur-sm p-4">
       {/* Progress dots */}
       <div className="absolute top-8 left-1/2 -translate-x-1/2 flex gap-2">
-        {[1,2,3,4].map(s => (
+        {[1,2,3].map(s => (
           <div key={s} className={`h-1.5 rounded-full transition-all duration-300 ${s === step ? "w-8 bg-accent" : s < step ? "w-3 bg-accent/50" : "w-3 bg-border"}`} />
         ))}
       </div>
@@ -87,72 +164,197 @@ export function SetupWizard({ user, onDone }: Props) {
           </div>
         )}
 
-        {/* Step 2 — Choose mode */}
+        {/* Step 2 — Model Configuration */}
         {step === 2 && (
           <div>
-            <h2 className="mb-1 text-xl font-bold text-center">Choose your AI</h2>
-            <p className="text-center text-sm text-muted mb-6">How do you want to power your conversations?</p>
-            <div className="flex flex-col gap-3 mb-6">
-              {[
-                { id: "local" as Mode, icon: "🖥", title: "Local AI", sub: "Runs on your machine — free, private, offline-ready", tags: ["Free", "No internet", "100% private"] },
-                { id: "cloud" as Mode, icon: "☁", title: "Cloud AI", sub: "ChatGPT, Claude, Gemini — your own API keys", tags: ["GPT-4o", "Claude", "Gemini"] },
-                { id: "both" as Mode, icon: "⚡", title: "Both", sub: "Start with local, switch to cloud when you need more power", tags: ["Best of both"] },
-              ].map(opt => (
-                <button
-                  key={opt.id}
-                  onClick={() => setMode(opt.id)}
-                  className={`flex items-start gap-4 rounded-xl border p-4 text-left transition-all ${mode === opt.id ? "border-accent bg-accent/10" : "border-border bg-surface-2 hover:border-accent/40"}`}
-                >
-                  <span className="text-2xl">{opt.icon}</span>
-                  <div className="flex-1">
-                    <div className="font-semibold text-fg">{opt.title}</div>
-                    <div className="text-xs text-muted mt-0.5">{opt.sub}</div>
-                    <div className="flex gap-1.5 mt-2">
-                      {opt.tags.map(t => <span key={t} className="rounded-full border border-border px-2 py-0.5 text-[10px] font-medium text-muted">{t}</span>)}
-                    </div>
-                  </div>
-                  {mode === opt.id && <span className="text-accent-2 font-bold text-lg">✓</span>}
-                </button>
-              ))}
-            </div>
-            <div className="flex gap-3">
-              <button onClick={() => setStep(1)} className="flex-1 rounded-xl border border-border py-2.5 text-sm text-muted hover:text-fg">← Back</button>
-              <button onClick={() => setStep(3)} disabled={!mode} className="flex-1 rounded-xl bg-accent py-2.5 text-sm font-semibold text-white hover:bg-accent-2 disabled:opacity-40">Continue →</button>
-            </div>
-          </div>
-        )}
-
-        {/* Step 3 — Model Configuration */}
-        {step === 3 && (
-          <div>
-            <h2 className="mb-1 text-xl font-bold text-center">Model Configuration</h2>
+            <h2 className="mb-6 text-xl font-bold text-center">Model Configuration</h2>
 
             {/* Local engine status */}
             {(mode === "local" || mode === "both") && (
               <div className="mb-4 rounded-xl border border-border bg-surface-2 p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-semibold">Local engine (Ollama)</span>
+                <div className="flex items-center justify-center gap-2">
+                  <span className="text-sm font-semibold leading-none">Local engine (Ollama)</span>
                   {checking ? (
-                    <span className="text-xs text-muted animate-pulse">Checking…</span>
+                    <span className="inline-flex items-center gap-1.5 text-xs text-muted animate-pulse leading-none"><span className="inline-block h-1.5 w-1.5 rounded-full bg-muted" />Checking…</span>
                   ) : ollamaOk === true ? (
-                    <span className="text-xs text-ok font-semibold">● Running</span>
+                    <span className="inline-flex items-center gap-1.5 text-xs text-ok font-semibold leading-none"><span className="inline-block h-1.5 w-1.5 rounded-full bg-ok" />Running</span>
                   ) : ollamaOk === false ? (
-                    <span className="text-xs text-danger font-semibold">● Offline</span>
+                    <span className="inline-flex items-center gap-1.5 text-xs text-danger font-semibold leading-none"><span className="inline-block h-1.5 w-1.5 rounded-full bg-danger" />Offline</span>
                   ) : null}
                 </div>
                 {ollamaOk === true && models.length > 0 && (
-                  <div className="text-xs text-muted">Models ready: {models.slice(0,3).join(", ")}</div>
+                  <div className="mt-2 text-center text-xs text-muted">Models ready: {models.slice(0,3).join(", ")}</div>
                 )}
                 {ollamaOk === false && (
-                  <p className="text-xs text-muted">Ollama isn't detected. <a href="https://ollama.com" target="_blank" rel="noopener noreferrer" className="text-accent-2 underline">Install Ollama</a> to use local models. You can continue without it and use cloud models instead.</p>
+                  <p className="mt-2 text-center text-xs text-muted">Ollama isn't detected. <a href="https://ollama.com" target="_blank" rel="noopener noreferrer" className="text-accent-2 underline">Install Ollama</a> to use local models. You can continue without it and use cloud models instead.</p>
                 )}
               </div>
             )}
 
-            {/* Cloud keys */}
+            {/* Model selection — pick the default model, or analyze the system first */}
+            {(mode === "local" || mode === "both") && ollamaOk && (
+              <div className="mb-4 rounded-xl border border-border bg-surface-2 p-4">
+
+                {/* Step A — two ways to choose a model */}
+                {modelChoice === null && (
+                  <>
+                    <span className="mb-3 block text-sm font-semibold">How should we pick your first model?</span>
+                    <div className="flex flex-col gap-3">
+                      <button
+                        onClick={() => { setModelChoice("default"); setSelectedModel(defaultModel); }}
+                        className="flex items-center gap-3 rounded-lg border border-border bg-bg p-4 text-left transition-all hover:border-accent/40"
+                      >
+                        <span className="text-xl">🚀</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-semibold text-fg">Use the default model</div>
+                          <div className="mt-0.5 text-[11px] text-muted">A well-rounded model that runs on most machines — the fastest way to get started.</div>
+                          {defaultModel && <div className="mt-1 font-mono text-[10px] text-muted/70">{defaultModel}</div>}
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => { setModelChoice("analyze"); runAnalyze(); }}
+                        className="flex items-center gap-3 rounded-lg border border-border bg-bg p-4 text-left transition-all hover:border-accent/40"
+                      >
+                        <span className="text-xl">🔍</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-semibold text-fg">Analyze my system</div>
+                          <div className="mt-0.5 text-[11px] text-muted">Detect your CPU, RAM and GPU, then recommend the best-fitting model.</div>
+                        </div>
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {/* Step B (default) — confirm + download the default model */}
+                {modelChoice === "default" && (
+                  <>
+                    <div className="mb-3 flex items-center justify-between">
+                      <span className="text-sm font-semibold">Default model</span>
+                      <button onClick={() => setModelChoice(null)} disabled={pulling} className="text-xs text-muted hover:text-fg disabled:opacity-40">← Change</button>
+                    </div>
+                    <div className="mb-3 rounded-lg border border-accent bg-accent/10 p-3">
+                      <div className="text-sm font-semibold text-fg">{defaultModel || "…"}</div>
+                      <div className="mt-0.5 text-[11px] text-muted">Balanced quality and speed — a safe default for most machines.</div>
+                    </div>
+                    {models.includes(selectedModel) ? (
+                      <p className="text-xs font-semibold text-ok">✓ {selectedModel} is ready to use</p>
+                    ) : (
+                      <>
+                        <button
+                          onClick={downloadModel}
+                          disabled={pulling || !selectedModel}
+                          className="w-full rounded-lg bg-accent py-2.5 text-sm font-semibold text-white hover:bg-accent-2 disabled:opacity-40"
+                        >
+                          {pulling ? "Downloading…" : `Download ${selectedModel}`}
+                        </button>
+                        {pullProgressUI}
+                        {!pulling && <p className="mt-2 text-[11px] text-muted">This downloads the model so it's ready to use — required to continue.</p>}
+                      </>
+                    )}
+                  </>
+                )}
+
+                {/* Step B (analyze) — show the analysis, then recommended models */}
+                {modelChoice === "analyze" && (
+                  <>
+                    <div className="mb-3 flex items-center justify-between">
+                      <span className="text-sm font-semibold">Recommended for your system</span>
+                      <button onClick={() => setModelChoice(null)} disabled={pulling} className="text-xs text-muted hover:text-fg disabled:opacity-40">← Change</button>
+                    </div>
+
+                    {analyzing && (
+                      <div className="flex items-center gap-2 py-6 text-sm text-muted">
+                        <span className="animate-pulse">🔍 Analyzing your system…</span>
+                      </div>
+                    )}
+
+                    {analysis && (
+                      <>
+                        {/* Detected hardware */}
+                        <div className="grid grid-cols-4 gap-2 mb-3">
+                          {[
+                            { label: "CPU", value: `${analysis.info.cpuCount}c` },
+                            { label: "RAM", value: `${analysis.info.ramGb}GB` },
+                            { label: "GPU", value: analysis.info.gpuName?.split(" ").slice(-2).join(" ") ?? "—" },
+                            { label: "VRAM", value: analysis.info.vramGb != null ? `${analysis.info.vramGb}GB` : "—" },
+                          ].map((c) => (
+                            <div key={c.label} className="rounded-lg border border-border bg-bg p-2 text-center">
+                              <div className="text-[9px] uppercase tracking-wide text-muted">{c.label}</div>
+                              <div className="truncate text-xs font-semibold text-fg">{c.value}</div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Recommended + alternative models */}
+                        <div className="flex flex-col gap-2 mb-3">
+                          {[
+                            { modelId: analysis.recommendation.modelId, label: analysis.recommendation.label, note: analysis.recommendation.reason, recommended: true },
+                            ...analysis.recommendation.alternatives.map((a) => ({ ...a, recommended: false })),
+                          ].map((opt) => {
+                            const installed = models.includes(opt.modelId);
+                            const selected = selectedModel === opt.modelId;
+                            return (
+                              <button
+                                key={opt.modelId}
+                                onClick={() => setSelectedModel(opt.modelId)}
+                                disabled={pulling}
+                                className={`flex items-start gap-3 rounded-lg border p-3 text-left transition-all disabled:opacity-60 ${selected ? "border-accent bg-accent/10" : "border-border bg-bg hover:border-accent/40"}`}
+                              >
+                                <span className={`mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border ${selected ? "border-accent bg-accent" : "border-border"}`}>
+                                  {selected && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
+                                </span>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-sm font-semibold text-fg">{opt.label}</span>
+                                    {opt.recommended && <span className="rounded-full bg-accent/20 px-1.5 py-0.5 text-[9px] font-bold uppercase text-accent-2">Recommended</span>}
+                                    {installed && <span className="text-[10px] font-semibold text-ok">Installed ✓</span>}
+                                  </div>
+                                  <div className="mt-0.5 text-[11px] text-muted">{opt.note}</div>
+                                  <div className="mt-0.5 font-mono text-[10px] text-muted/70">{opt.modelId}</div>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {/* Download the selected model */}
+                        {models.includes(selectedModel) ? (
+                          <p className="text-xs font-semibold text-ok">✓ {selectedModel} is ready to use</p>
+                        ) : (
+                          <>
+                            <button
+                              onClick={downloadModel}
+                              disabled={pulling || !selectedModel}
+                              className="w-full rounded-lg bg-accent py-2.5 text-sm font-semibold text-white hover:bg-accent-2 disabled:opacity-40"
+                            >
+                              {pulling ? "Downloading…" : `Download ${selectedModel}`}
+                            </button>
+                            {pullProgressUI}
+                            {!pulling && <p className="mt-2 text-[11px] text-muted">This downloads the model so it's ready to use — required to continue.</p>}
+                          </>
+                        )}
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Cloud keys — collapsed by default (all optional) */}
             {(mode === "cloud" || mode === "both") && (
               <div className="mb-4 rounded-xl border border-border bg-surface-2 p-4">
-                <p className="text-sm font-semibold mb-3">API Keys <span className="font-normal text-muted">(all optional — add now or later in Settings)</span></p>
+                <button
+                  type="button"
+                  onClick={() => setShowKeys(v => !v)}
+                  className="flex w-full items-center justify-between text-left"
+                >
+                  <span className="text-sm font-semibold">
+                    API Keys <span className="font-normal text-muted">(all optional — add now or later in Settings){keySaved.length > 0 ? ` · ${keySaved.length} saved` : ""}</span>
+                  </span>
+                  <span className={`text-xs text-muted transition-transform ${showKeys ? "rotate-180" : ""}`}>▼</span>
+                </button>
+                {showKeys && (
+                <div className="mt-3">
                 {([
                   { id: "openai", label: "OpenAI", placeholder: "sk-...", color: "text-green-400" },
                   { id: "anthropic", label: "Anthropic", placeholder: "sk-ant-...", color: "text-amber-400" },
@@ -179,18 +381,38 @@ export function SetupWizard({ user, onDone }: Props) {
                     </div>
                   </div>
                 ))}
+                </div>
+                )}
               </div>
             )}
 
-            <div className="flex gap-3">
-              <button onClick={() => setStep(2)} className="flex-1 rounded-xl border border-border py-2.5 text-sm text-muted hover:text-fg">← Back</button>
-              <button onClick={() => setStep(4)} className="flex-1 rounded-xl bg-accent py-2.5 text-sm font-semibold text-white hover:bg-accent-2">Continue →</button>
-            </div>
+            {/* A working local model is required before finishing (unless the
+                local engine is unavailable, in which case cloud keys cover it). */}
+            {(() => {
+              const needsModel = (mode === "local" || mode === "both") && ollamaOk === true && models.length === 0;
+              return (
+                <div>
+                  <div className="flex gap-3">
+                    <button onClick={() => setStep(1)} className="flex-1 rounded-xl border border-border py-2.5 text-sm text-muted hover:text-fg">← Back</button>
+                    <button
+                      onClick={() => setStep(3)}
+                      disabled={needsModel}
+                      className="flex-1 rounded-xl bg-accent py-2.5 text-sm font-semibold text-white hover:bg-accent-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      Continue →
+                    </button>
+                  </div>
+                  {needsModel && (
+                    <p className="mt-2 text-center text-[11px] text-muted">Download a model above to continue.</p>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         )}
 
-        {/* Step 4 — All set */}
-        {step === 4 && (
+        {/* Step 3 — All set */}
+        {step === 3 && (
           <div className="text-center">
             <div className="mb-6 inline-flex h-20 w-20 items-center justify-center rounded-2xl border border-ok/30 bg-ok/10 text-4xl animate-pulse">
               ✓
@@ -200,6 +422,7 @@ export function SetupWizard({ user, onDone }: Props) {
             <div className="rounded-xl border border-border bg-surface-2 p-4 mb-6 text-left text-sm space-y-2">
               <div className="flex items-center gap-2 text-muted"><span className="text-ok">✓</span> Profile created</div>
               {(mode === "local" || mode === "both") && ollamaOk && <div className="flex items-center gap-2 text-muted"><span className="text-ok">✓</span> Local engine connected</div>}
+              {(mode === "local" || mode === "both") && models.length > 0 && <div className="flex items-center gap-2 text-muted"><span className="text-ok">✓</span> Local model ready</div>}
               {keySaved.length > 0 && <div className="flex items-center gap-2 text-muted"><span className="text-ok">✓</span> {keySaved.length} cloud provider{keySaved.length > 1 ? "s" : ""} configured</div>}
               <div className="flex items-center gap-2 text-muted"><span className="text-ok">✓</span> Memory system active</div>
             </div>

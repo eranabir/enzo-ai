@@ -23,10 +23,19 @@ export class ModelsController {
     return { models: await this.llm.listAllModels(userId), default: config.defaultModel };
   }
 
-  /** Is the local engine (Ollama) reachable? Drives the UI status indicator. */
+  /**
+   * Public status for the pre-login UI: is the local engine reachable, and how
+   * many local models are installed. The full model list is auth-gated, but an
+   * unauthenticated count lets the welcome screen show the truth (0 on a fresh
+   * install) instead of guessing.
+   */
   @Get("status")
   async status() {
-    return { ollama: await this.llm.ollama.isAvailable() };
+    const ollama = await this.llm.ollama.isAvailable();
+    const models = ollama
+      ? (await this.llm.ollama.listModels().catch(() => [])).length
+      : 0;
+    return { ollama, models };
   }
 
   /**
@@ -47,8 +56,9 @@ export class ModelsController {
     res.flushHeaders?.();
 
     try {
-      for await (const status of this.llm.ollama.pullModel(model)) {
-        res.write(`data: ${JSON.stringify({ status })}\n\n`);
+      for await (const ev of this.llm.ollama.pullModel(model)) {
+        // ev = { status, completed?, total? } — forwarded so the UI can show a bar
+        res.write(`data: ${JSON.stringify(ev)}\n\n`);
       }
       res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
     } catch (err) {

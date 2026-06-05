@@ -94,8 +94,7 @@ export function AuthScreen({
           api.status(),
           api.profiles(),
         ]);
-        // Models count from /api/models is protected; estimate from Ollama being up
-        setStatus({ ollama: ollamaRes.ollama, models: ollamaRes.ollama ? 1 : 0, users: profilesRes.length });
+        setStatus({ ollama: ollamaRes.ollama, models: ollamaRes.models ?? 0, users: profilesRes.length });
         setProfiles(profilesRes);
         if (!loaded) {
           if (profilesRes.length === 0) setMode("register");

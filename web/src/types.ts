@@ -79,6 +79,32 @@ export interface ModelInfo {
   supportsVision?: boolean;
 }
 
+/** Hardware info + recommended model returned by GET /api/system. */
+export interface SystemInfo {
+  os: string;
+  arch: string;
+  cpuCount: number;
+  cpuModel: string;
+  ramGb: number;
+  vramGb: number | null;
+  gpuName: string | null;
+  detectionMethod: string;
+}
+
+export interface ModelRecommendation {
+  modelId: string;
+  label: string;
+  reason: string;
+  vramRequired: number | null;
+  alternatives: { modelId: string; label: string; note: string }[];
+  alreadyInstalled: boolean;
+}
+
+export interface SystemAnalysis {
+  info: SystemInfo;
+  recommendation: ModelRecommendation;
+}
+
 export type UserRole = "admin" | "user";
 
 export interface User {

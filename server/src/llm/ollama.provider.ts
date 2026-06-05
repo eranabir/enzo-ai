@@ -92,7 +92,9 @@ export class OllamaProvider implements ChatProvider {
   }
 
   /** Pull a model, yielding human-readable progress lines (NDJSON stream). */
-  async *pullModel(model: string): AsyncIterable<string> {
+  async *pullModel(
+    model: string,
+  ): AsyncIterable<{ status: string; completed?: number; total?: number }> {
     const res = await fetch(`${this.baseUrl}/api/pull`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -102,7 +104,13 @@ export class OllamaProvider implements ChatProvider {
       throw new Error(`Ollama /api/pull failed: ${res.status}`);
     }
     for await (const obj of parseNdjson(res.body)) {
-      if (typeof obj.status === "string") yield obj.status;
+      if (typeof obj.status === "string") {
+        yield {
+          status: obj.status,
+          completed: typeof obj.completed === "number" ? obj.completed : undefined,
+          total: typeof obj.total === "number" ? obj.total : undefined,
+        };
+      }
     }
   }
 
