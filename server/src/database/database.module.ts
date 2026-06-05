@@ -149,17 +149,19 @@ export type DatabaseConnection = Database.Database;
           db.exec(`ALTER TABLE agents ADD COLUMN telegram_chat_ids TEXT`);
         }
 
+        // Add integration column to conversations (links to Telegram/Discord/Slack chat).
+        // Must run BEFORE the emoji-cleanup UPDATE below, which references this column —
+        // otherwise a fresh DB (no `integration` column yet) throws "no such column".
+        const intCols = db.prepare(`PRAGMA table_info(conversations)`).all() as { name: string }[];
+        if (!intCols.some((c) => c.name === "integration")) {
+          db.exec(`ALTER TABLE conversations ADD COLUMN integration TEXT`);
+        }
+
         // Clean up old emoji prefixes from integration conversation titles (💬 / 🎮)
         db.prepare(
           `UPDATE conversations SET title = TRIM(REPLACE(REPLACE(title, '💬 ', ''), '🎮 ', ''))
            WHERE integration IS NOT NULL AND (title LIKE '💬 %' OR title LIKE '🎮 %')`
         ).run();
-
-        // Add integration column to conversations (links to Telegram/Discord/Slack chat)
-        const intCols = db.prepare(`PRAGMA table_info(conversations)`).all() as { name: string }[];
-        if (!intCols.some((c) => c.name === "integration")) {
-          db.exec(`ALTER TABLE conversations ADD COLUMN integration TEXT`);
-        }
 
         // Add image_mime to messages for vision / image-upload support
         const msgCols = db.prepare(`PRAGMA table_info(messages)`).all() as { name: string }[];
