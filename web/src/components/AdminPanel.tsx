@@ -311,20 +311,53 @@ function ModelsTab() {
                 </div>
               ))}
             </div>
-            <div className="flex items-center justify-between">
-              <div>
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
                 <span className="text-[10px] text-accent-2 font-semibold">Recommended: </span>
                 <span className="text-sm font-bold text-fg">{analysis.recommendation.label}</span>
+                <span className="ml-1.5 font-mono text-[10px] text-muted/70">{analysis.recommendation.modelId}</span>
                 <p className="text-[11px] text-muted mt-0.5">{analysis.recommendation.reason}</p>
               </div>
-              {!analysis.recommendation.alreadyInstalled && (
+              {analysis.recommendation.alreadyInstalled ? (
+                <span className="flex-shrink-0 text-[10px] font-semibold text-ok">Installed ✓</span>
+              ) : (
                 <button onClick={() => setPullName(analysis.recommendation.modelId)}
                   className="flex-shrink-0 rounded-lg bg-accent px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-accent-2">
                   Pull
                 </button>
               )}
             </div>
-            <button onClick={() => setAnalysis(null)} className="mt-2 text-[11px] text-muted hover:text-fg">Re-analyze</button>
+
+            {/* Alternatives for other hardware tiers */}
+            {analysis.recommendation.alternatives.length > 0 && (
+              <div className="mt-3 border-t border-border/40 pt-2.5">
+                <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">Other options</div>
+                <div className="flex flex-col gap-2">
+                  {analysis.recommendation.alternatives.map((alt) => {
+                    const installed = models.some((m) => m.id === alt.modelId);
+                    return (
+                      <div key={alt.modelId} className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <span className="text-xs font-semibold text-fg">{alt.label}</span>
+                          <span className="ml-1.5 font-mono text-[10px] text-muted/70">{alt.modelId}</span>
+                          <p className="truncate text-[10px] text-muted">{alt.note}</p>
+                        </div>
+                        {installed ? (
+                          <span className="flex-shrink-0 text-[10px] font-semibold text-ok">Installed ✓</span>
+                        ) : (
+                          <button onClick={() => setPullName(alt.modelId)}
+                            className="flex-shrink-0 rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold text-fg hover:border-accent/40">
+                            Pull
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <button onClick={() => setAnalysis(null)} className="mt-3 text-[11px] text-muted hover:text-fg">Re-analyze</button>
           </div>
         )}
       </div>
