@@ -169,6 +169,45 @@ function ConvoMenu({
   );
 }
 
+/**
+ * A thin grab strip on the sidebar's right edge. Drag it left past a threshold
+ * to collapse the sidebar, or (from the collapsed rail) drag right to expand —
+ * the same result as the collapse/expand button.
+ */
+function EdgeDragHandle({ onCollapse, onExpand }: { onCollapse?: () => void; onExpand?: () => void }) {
+  const startX = useRef<number | null>(null);
+  const fired = useRef(false);
+  const THRESHOLD = 56;
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize sidebar"
+      title={onCollapse ? "Drag to collapse" : "Drag to expand"}
+      onPointerDown={(e) => {
+        startX.current = e.clientX;
+        fired.current = false;
+        try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* ignore */ }
+        e.preventDefault();
+      }}
+      onPointerMove={(e) => {
+        if (startX.current === null || fired.current) return;
+        const dx = e.clientX - startX.current;
+        if (onCollapse && dx <= -THRESHOLD) { fired.current = true; onCollapse(); }
+        else if (onExpand && dx >= THRESHOLD) { fired.current = true; onExpand(); }
+      }}
+      onPointerUp={(e) => {
+        startX.current = null;
+        try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+      }}
+      className="group absolute right-0 top-0 z-20 flex h-full w-2 -mr-1 cursor-col-resize touch-none select-none items-center justify-center"
+    >
+      {/* visible line on hover/drag */}
+      <span className="h-full w-px bg-transparent transition-colors group-hover:bg-accent/50 group-active:bg-accent" />
+    </div>
+  );
+}
+
 export function Sidebar({
   conversations,
   activeId,
@@ -230,23 +269,28 @@ export function Sidebar({
     () => localStorage.getItem("sidebar-collapsed") === "1"
   );
 
-  function toggleCollapse() {
-    const next = !collapsed;
+  function setSidebarCollapsed(next: boolean) {
     setCollapsed(next);
     localStorage.setItem("sidebar-collapsed", next ? "1" : "0");
+  }
+
+  function toggleCollapse() {
+    setSidebarCollapsed(!collapsed);
   }
 
   // ── Collapsed icon rail ─────────────────────────────────────────────────────
   if (collapsed) {
     return (
-      <aside className="flex w-14 flex-col items-center gap-3 border-r border-border bg-surface py-3 transition-all duration-200">
+      <aside className="relative flex w-14 flex-col items-center gap-2.5 border-r border-border bg-surface pb-3 pt-2.5 transition-all duration-200">
+        <EdgeDragHandle onExpand={() => setSidebarCollapsed(false)} />
         {/* Logo */}
         <button
           onClick={toggleCollapse}
           title="Expand sidebar"
-          className="flex h-8 w-8 items-center justify-center rounded-lg text-accent-2 transition-colors hover:bg-surface-2"
+          className="flex h-9 w-9 items-center justify-center rounded-xl text-accent-2 transition-colors hover:bg-surface-2"
         >
-          <span className="text-xl">⬡</span>
+          {/* ⬡ glyph ink sits ~0.1em low in its line box; nudge up to optically center it in the button. */}
+          <span className="inline-block text-4xl leading-none -translate-y-[4px]">⬡</span>
         </button>
 
         <div className="h-px w-8 bg-border" />
@@ -360,10 +404,11 @@ export function Sidebar({
   // ── Full sidebar ─────────────────────────────────────────────────────────────
 
   return (
-    <aside className="flex w-[264px] flex-shrink-0 flex-col gap-3 bg-surface border-r border-border p-3 transition-all duration-200">
+    <aside className="relative flex w-[264px] flex-shrink-0 flex-col gap-3 bg-surface border-r border-border p-3 transition-all duration-200">
+      <EdgeDragHandle onCollapse={() => setSidebarCollapsed(true)} />
       <div className="flex items-center justify-between px-1.5 py-1">
         <div className="flex items-center gap-2 text-lg font-bold tracking-wide">
-          <span className="text-accent-2">⬡</span> EnzoAI
+          <span className="inline-block text-2xl leading-none -translate-y-[1px] text-accent-2">⬡</span> EnzoAI
         </div>
         <button
           onClick={toggleCollapse}
