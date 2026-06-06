@@ -34,6 +34,10 @@ export interface ToolDefinition {
   name: ToolName;
   description: string;
   enabled: boolean;
+  /** Account this tool needs connected (e.g. "google"); undefined = system tool. */
+  requiresConnection?: string;
+  /** Whether the required account is currently connected. */
+  connected?: boolean;
 }
 
 export interface McpServer {

@@ -43,12 +43,13 @@ export class ChatService {
   // integration-linked conversation. Avoids a circular module dependency.
   private relayToIntegration?: (
     integration: string,
+    userId: string,
     convoId: string,
     text: string,
   ) => Promise<void>;
 
   setIntegrationRelay(
-    fn: (integration: string, convoId: string, text: string) => Promise<void>,
+    fn: (integration: string, userId: string, convoId: string, text: string) => Promise<void>,
   ): void {
     this.relayToIntegration = fn;
   }
@@ -64,6 +65,7 @@ export class ChatService {
     convoId: string,
     memoryEnabled: boolean,
     agentInstructions?: string,
+    availableTools?: { name: string; description: string }[],
   ): string {
     // Agent instructions take priority — they define the persona
     const lines = agentInstructions
@@ -81,6 +83,15 @@ export class ChatService {
         lines.push(`About them: ${user.about}`);
       if (user.assistant_style)
         lines.push(`They prefer responses like this: ${user.assistant_style}`);
+    }
+
+    // ── Describe available tools ───────────────────────────────────────────
+    if (availableTools && availableTools.length > 0) {
+      lines.push("\n\nYou have access to these tools. Call a tool only when it genuinely helps with the request — otherwise just answer normally:");
+      for (const t of availableTools) lines.push(`- ${t.name}: ${t.description}`);
+      lines.push("If the user asks what tools, capabilities, or things you can do, do NOT call any tool — simply describe the tools listed above by their names. Only invoke a tool when you actually need its result to fulfil a request. Never claim to have tools that are not in this list.");
+    } else {
+      lines.push("\n\nYou have no tools enabled for this chat. If asked what tools you have, say so plainly and do not invent any.");
     }
 
     if (!user || !memoryEnabled) return lines.join(" ");
@@ -151,7 +162,11 @@ export class ChatService {
     const agent = (convo as any).agent_id
       ? this.agentsService.get((convo as any).agent_id, userId) ?? null
       : null;
-    const agentTools = agent ? (JSON.parse(agent.tools) as ToolName[]) : [];
+    // With an agent attached, use exactly its configured tool list. For a plain
+    // chat (no agent), expose all admin-enabled, connection-ready tools.
+    const agentTools = agent
+      ? (JSON.parse(agent.tools) as ToolName[])
+      : this.toolsService.getChatToolNames(userId);
 
     const model = requestedModel || agent?.model || convo.model || this.settings.getDefaultModel();
     this.convos.setModel(convo.id, model);
@@ -177,8 +192,18 @@ export class ChatService {
       }),
     );
 
+    // Resolve the tools available this turn so we can both describe them in the
+    // system prompt (so the model can answer "what can you do?") and offer them
+    // for function-calling below.
+    const builtinDefs = this.toolsService.getDefinitions(agentTools);
+    const mcpTools = await this.mcpService.getToolsForUser(userId).catch(() => []);
+    const availableTools = [...builtinDefs, ...mcpTools].map((d) => ({
+      name: d.function.name,
+      description: d.function.description,
+    }));
+
     const systemPrompt = this.buildSystemPrompt(
-      user, convo.id, memoryEnabled, agent?.instructions,
+      user, convo.id, memoryEnabled, agent?.instructions, availableTools,
     );
     const messages: ChatMessage[] = [{ role: "system", content: systemPrompt }, ...history];
 
@@ -194,12 +219,9 @@ export class ChatService {
       }
 
       // ── Tool-use loop ─────────────────────────────────────────────────────
-      // Merge built-in tools + user's MCP server tools
-      const mcpTools = await this.mcpService.getToolsForUser(userId).catch(() => []);
       const hasMcpTools = mcpTools.length > 0;
 
       if ((agentTools.length > 0 || hasMcpTools) && provider.id === "ollama") {
-        const builtinDefs = this.toolsService.getDefinitions(agentTools);
         // Strip _mcp metadata before sending to LLM (it only needs type/function)
         const mcpDefs = mcpTools.map(({ type, function: fn }) => ({ type, function: fn }));
         const toolDefs = [...builtinDefs, ...mcpDefs];
@@ -259,7 +281,7 @@ export class ChatService {
       // push the assistant reply out to the platform so both sides stay in sync.
       const integration = (convo as any).integration as string | null;
       if (integration && integration !== origin && this.relayToIntegration) {
-        this.relayToIntegration(integration, convo.id, assistant).catch((e) =>
+        this.relayToIntegration(integration, userId, convo.id, assistant).catch((e) =>
           this.logger.error(`Failed to relay reply to ${integration}: ${e.message}`),
         );
       }

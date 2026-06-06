@@ -3,7 +3,8 @@ import { SettingsService } from "../settings/settings.service";
 import { ApiKeysService } from "../api-keys/api-keys.service";
 
 const SCOPES = [
-  "https://www.googleapis.com/auth/calendar.readonly",
+  // calendar.events grants read + create/update/delete of events (superset of readonly)
+  "https://www.googleapis.com/auth/calendar.events",
   "https://www.googleapis.com/auth/userinfo.email",
   "https://www.googleapis.com/auth/userinfo.profile",
 ].join(" ");
@@ -151,7 +152,64 @@ export class CalendarService {
     if (!res.ok) throw new Error(`Calendar API error: ${res.status}`);
     const data = await res.json() as { items?: any[] };
 
-    return (data.items ?? []).map((item: any): CalendarEvent => ({
+    return (data.items ?? []).map((item: any) => this.mapEvent(item));
+  }
+
+  /** Create an event on the user's primary calendar. */
+  async createEvent(
+    userId: string,
+    input: { summary: string; start: string; end: string; description?: string; location?: string },
+  ): Promise<CalendarEvent> {
+    const accessToken = await this.getValidAccessToken(userId);
+    const body: Record<string, unknown> = {
+      summary: input.summary,
+      start:   this.toEventTime(input.start),
+      end:     this.toEventTime(input.end),
+    };
+    if (input.description) body.description = input.description;
+    if (input.location)    body.location = input.location;
+
+    const res = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/primary/events`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}`, "content-type": "application/json" },
+        body: JSON.stringify(body),
+      },
+    );
+    if (!res.ok) throw new Error(`Calendar create failed: ${res.status} ${await res.text()}`);
+    return this.mapEvent(await res.json());
+  }
+
+  /** Update fields of an existing event (only provided fields change). */
+  async updateEvent(
+    userId: string,
+    eventId: string,
+    input: { summary?: string; start?: string; end?: string; description?: string; location?: string },
+  ): Promise<CalendarEvent> {
+    const accessToken = await this.getValidAccessToken(userId);
+    const body: Record<string, unknown> = {};
+    if (input.summary     !== undefined) body.summary = input.summary;
+    if (input.start       !== undefined) body.start = this.toEventTime(input.start);
+    if (input.end         !== undefined) body.end = this.toEventTime(input.end);
+    if (input.description !== undefined) body.description = input.description;
+    if (input.location    !== undefined) body.location = input.location;
+
+    const res = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}`,
+      {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${accessToken}`, "content-type": "application/json" },
+        body: JSON.stringify(body),
+      },
+    );
+    if (!res.ok) throw new Error(`Calendar update failed: ${res.status} ${await res.text()}`);
+    return this.mapEvent(await res.json());
+  }
+
+  /** Map a raw Google event into our CalendarEvent shape. */
+  private mapEvent(item: any): CalendarEvent {
+    return {
       id:          item.id,
       title:       item.summary ?? "(No title)",
       start:       item.start?.dateTime ?? item.start?.date ?? "",
@@ -159,7 +217,15 @@ export class CalendarService {
       description: item.description,
       location:    item.location,
       allDay:      !!item.start?.date && !item.start?.dateTime,
-    }));
+    };
+  }
+
+  /** Build a Google event start/end object from an ISO string or date-only string. */
+  private toEventTime(value: string): { date?: string; dateTime?: string; timeZone?: string } {
+    const v = value.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return { date: v }; // all-day
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    return { dateTime: new Date(v).toISOString(), timeZone: tz };
   }
 
   // ── Token refresh ─────────────────────────────────────────────────────────

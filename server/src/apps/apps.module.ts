@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { CalendarModule } from "../calendar/calendar.module";
+import { GmailModule } from "../gmail/gmail.module";
 import { AppsController } from "./apps.controller";
 
 /**
@@ -8,7 +9,7 @@ import { AppsController } from "./apps.controller";
  * dispatch switch in AppsController.
  */
 @Module({
-  imports: [CalendarModule],
+  imports: [CalendarModule, GmailModule],
   controllers: [AppsController],
 })
 export class AppsModule {}

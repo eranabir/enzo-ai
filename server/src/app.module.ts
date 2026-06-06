@@ -24,6 +24,7 @@ import { DiscordService } from "./discord/discord.service";
 import { SlackModule } from "./slack/slack.module";
 import { SlackService } from "./slack/slack.service";
 import { CalendarModule } from "./calendar/calendar.module";
+import { GmailModule } from "./gmail/gmail.module";
 import { AppsModule } from "./apps/apps.module";
 import { McpModule } from "./mcp/mcp.module";
 
@@ -46,6 +47,7 @@ import { McpModule } from "./mcp/mcp.module";
     DiscordModule,
     SlackModule,
     CalendarModule,
+    GmailModule,
     AppsModule,
     McpModule,
   ],
@@ -70,7 +72,7 @@ export class AppModule implements OnModuleInit {
           const agentsSvc = this.moduleRef.get(AgentsService, { strict: false });
           const agent = agentsSvc?.list(userId).find((a) => a.id === agentId);
           if (agent?.telegram_chat_ids) {
-            await telegramSvc.notifyAgentResult(agent.telegram_chat_ids, result);
+            await telegramSvc.notifyAgentResult(userId, agent.telegram_chat_ids, result);
           }
         }
       });
@@ -103,10 +105,10 @@ export class AppModule implements OnModuleInit {
     // ChatService → integrations: push web-sent replies back out to the linked
     // platform so the conversation stays in sync both ways.
     if (chat) {
-      chat.setIntegrationRelay(async (integration, convoId, text) => {
-        if (integration === "telegram") await telegram?.sendToConversation(convoId, text);
-        else if (integration === "discord") await discordSvc?.sendToConversation(convoId, text);
-        else if (integration === "slack") await slackSvc?.sendToConversation(convoId, text);
+      chat.setIntegrationRelay(async (integration, userId, convoId, text) => {
+        if (integration === "telegram") await telegram?.sendToConversation(userId, convoId, text);
+        else if (integration === "discord") await discordSvc?.sendToConversation(userId, convoId, text);
+        else if (integration === "slack") await slackSvc?.sendToConversation(userId, convoId, text);
       });
     }
   }

@@ -13,6 +13,7 @@ import type { Request } from "express";
 import { AuthGuard } from "../auth/auth.guard";
 import { UserId } from "../auth/current-user.decorator";
 import { CalendarService } from "./calendar.service";
+import { SettingsService } from "../settings/settings.service";
 
 function getRedirectBase(req: Request): string {
   // In prod: same origin. In dev: server port.
@@ -24,12 +25,16 @@ function getRedirectBase(req: Request): string {
 @Controller("google-calendar")
 @UseGuards(AuthGuard)
 export class CalendarController {
-  constructor(private readonly calendar: CalendarService) {}
+  constructor(
+    private readonly calendar: CalendarService,
+    private readonly settings: SettingsService,
+  ) {}
 
   /** Current connection status + whether user has set their own credentials. */
   @Get("status")
   status(@UserId() userId: string) {
     return {
+      available: this.settings.isConnectionEnabled("google"),
       hasCredentials: this.calendar.hasCredentials(userId),
       ...this.calendar.getTokenInfo(userId),
     };

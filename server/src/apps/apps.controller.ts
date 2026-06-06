@@ -1,6 +1,7 @@
 import { Controller, Get, Param, Query, Req, Res } from "@nestjs/common";
 import type { Request, Response } from "express";
 import { CalendarService } from "../calendar/calendar.service";
+import { GmailService } from "../gmail/gmail.service";
 
 function getRedirectBase(req: Request): string {
   const proto = req.headers["x-forwarded-proto"] ?? req.protocol ?? "http";
@@ -19,7 +20,10 @@ function getRedirectBase(req: Request): string {
  */
 @Controller("apps")
 export class AppsController {
-  constructor(private readonly calendar: CalendarService) {}
+  constructor(
+    private readonly calendar: CalendarService,
+    private readonly gmail: GmailService,
+  ) {}
 
   @Get(":appId/callback")
   async callback(
@@ -45,6 +49,10 @@ export class AppsController {
           const tokens = await this.calendar.handleCallback(code, userId, base);
           return res.send(closePopupHtml(appName, null, tokens.email));
         }
+        case "google-gmail": {
+          const tokens = await this.gmail.handleCallback(code, userId, base);
+          return res.send(closePopupHtml(appName, null, tokens.email));
+        }
         default:
           return res.send(closePopupHtml(appName, `Unknown app "${appId}"`));
       }
@@ -56,6 +64,7 @@ export class AppsController {
 
 const APP_LABELS: Record<string, string> = {
   "google-calendar": "Google Calendar",
+  "google-gmail": "Gmail",
 };
 
 /** HTML page that posts a message to the opener and closes itself. */

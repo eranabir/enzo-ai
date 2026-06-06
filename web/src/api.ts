@@ -116,7 +116,7 @@ export const api = {
   calendar: {
     status: () =>
       fetch("/api/google-calendar/status", { headers: headers() })
-        .then(parse<{ hasCredentials: boolean; connected: boolean; email?: string; name?: string }>),
+        .then(parse<{ available?: boolean; hasCredentials: boolean; connected: boolean; email?: string; name?: string }>),
     saveCredentials: (body: { clientId: string; clientSecret: string }) =>
       fetch("/api/google-calendar/credentials", {
         method: "PUT", headers: headers(true), body: JSON.stringify(body),
@@ -126,6 +126,23 @@ export const api = {
         .then(parse<{ url: string }>),
     disconnect: () =>
       fetch("/api/google-calendar", { method: "DELETE", headers: headers() })
+        .then(parse<{ ok: boolean }>),
+  },
+
+  // ── Gmail ─────────────────────────────────────────────────────────────────
+  gmail: {
+    status: () =>
+      fetch("/api/gmail/status", { headers: headers() })
+        .then(parse<{ available?: boolean; hasCredentials: boolean; connected: boolean; email?: string; name?: string }>),
+    saveCredentials: (body: { clientId: string; clientSecret: string }) =>
+      fetch("/api/gmail/credentials", {
+        method: "PUT", headers: headers(true), body: JSON.stringify(body),
+      }).then(parse<{ ok: boolean }>),
+    authUrl: () =>
+      fetch("/api/gmail/auth/url", { headers: headers() })
+        .then(parse<{ url: string }>),
+    disconnect: () =>
+      fetch("/api/gmail", { method: "DELETE", headers: headers() })
         .then(parse<{ ok: boolean }>),
   },
 
@@ -241,49 +258,53 @@ export const api = {
         body: JSON.stringify({ enabled }),
       }).then(parse<import("./types").ToolDefinition[]>),
 
-    getDiscord: () =>
-      fetch("/api/admin/discord", { headers: headers() })
-        .then(parse<{ enabled: boolean; token: string | null; allowedIds: string; model: string }>),
+    listConnections: () =>
+      fetch("/api/admin/connections", { headers: headers() })
+        .then(parse<{ id: string; name: string; enabled: boolean }[]>),
 
-    saveDiscord: (body: { token?: string; allowedIds?: string; model?: string; reconnect?: boolean }) =>
-      fetch("/api/admin/discord", {
-        method: "PUT",
+    setConnectionEnabled: (id: string, enabled: boolean) =>
+      fetch(`/api/admin/connections/${id}`, {
+        method: "PATCH",
         headers: headers(true),
-        body: JSON.stringify(body),
-      }).then(parse<{ ok: boolean; running: boolean; tag?: string }>),
+        body: JSON.stringify({ enabled }),
+      }).then(parse<{ id: string; name: string; enabled: boolean }[]>),
 
-    stopDiscord: () =>
-      fetch("/api/admin/discord", { method: "DELETE", headers: headers() })
+  },
+
+  // ---- Per-user integrations ----
+  telegram: {
+    status: () =>
+      fetch("/api/integrations/telegram", { headers: headers() })
+        .then(parse<{ available: boolean; enabled: boolean; username: string | null; token: string | null; allowedIds: string; model: string }>),
+    save: (body: { token?: string; allowedIds?: string; model?: string }) =>
+      fetch("/api/integrations/telegram", { method: "PUT", headers: headers(true), body: JSON.stringify(body) })
+        .then(parse<{ ok: boolean; running: boolean; username?: string }>),
+    disconnect: () =>
+      fetch("/api/integrations/telegram", { method: "DELETE", headers: headers() })
         .then(parse<{ ok: boolean; running: boolean }>),
+  },
 
-    getSlack: () =>
-      fetch("/api/admin/slack", { headers: headers() })
-        .then(parse<{ enabled: boolean; botToken: string | null; appToken: string | null; allowedIds: string; model: string }>),
-
-    saveSlack: (body: { botToken?: string; appToken?: string; allowedIds?: string; model?: string; reconnect?: boolean }) =>
-      fetch("/api/admin/slack", {
-        method: "PUT",
-        headers: headers(true),
-        body: JSON.stringify(body),
-      }).then(parse<{ ok: boolean; running: boolean; botName?: string }>),
-
-    stopSlack: () =>
-      fetch("/api/admin/slack", { method: "DELETE", headers: headers() })
+  discord: {
+    status: () =>
+      fetch("/api/integrations/discord", { headers: headers() })
+        .then(parse<{ available: boolean; enabled: boolean; tag: string | null; token: string | null; allowedIds: string; model: string }>),
+    save: (body: { token?: string; allowedIds?: string; model?: string }) =>
+      fetch("/api/integrations/discord", { method: "PUT", headers: headers(true), body: JSON.stringify(body) })
+        .then(parse<{ ok: boolean; running: boolean; tag?: string }>),
+    disconnect: () =>
+      fetch("/api/integrations/discord", { method: "DELETE", headers: headers() })
         .then(parse<{ ok: boolean; running: boolean }>),
+  },
 
-    getTelegram: () =>
-      fetch("/api/admin/telegram", { headers: headers() })
-        .then(parse<{ enabled: boolean; token: string | null; allowedIds: string; model: string }>),
-
-    saveTelegram: (body: { token?: string; allowedIds?: string; model?: string }) =>
-      fetch("/api/admin/telegram", {
-        method: "PUT",
-        headers: headers(true),
-        body: JSON.stringify(body),
-      }).then(parse<{ ok: boolean; running: boolean; username?: string }>),
-
-    stopTelegram: () =>
-      fetch("/api/admin/telegram", { method: "DELETE", headers: headers() })
+  slack: {
+    status: () =>
+      fetch("/api/integrations/slack", { headers: headers() })
+        .then(parse<{ available: boolean; enabled: boolean; botName: string | null; botToken: string | null; appToken: string | null; allowedIds: string; model: string }>),
+    save: (body: { botToken?: string; appToken?: string; allowedIds?: string; model?: string }) =>
+      fetch("/api/integrations/slack", { method: "PUT", headers: headers(true), body: JSON.stringify(body) })
+        .then(parse<{ ok: boolean; running: boolean; botName?: string }>),
+    disconnect: () =>
+      fetch("/api/integrations/slack", { method: "DELETE", headers: headers() })
         .then(parse<{ ok: boolean; running: boolean }>),
   },
 };

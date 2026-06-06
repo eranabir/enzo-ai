@@ -1,6 +1,7 @@
 import { Injectable, Logger, ForbiddenException } from "@nestjs/common";
 import { SettingsService } from "../settings/settings.service";
 import { CalendarService } from "../calendar/calendar.service";
+import { GmailService } from "../gmail/gmail.service";
 import { promises as fs } from "fs";
 import * as path from "path";
 import { execFile } from "child_process";
@@ -15,7 +16,20 @@ const SAFE_GIT_SUBCOMMANDS = new Set([
   "ls-tree", "rev-parse", "rev-list", "config", "stash",
 ]);
 
-export type ToolName = "get_datetime" | "calculator" | "web_search" | "read_url" | "read_file" | "list_directory" | "git" | "get_calendar_events";
+export type ToolName = "get_datetime" | "calculator" | "web_search" | "read_url" | "read_file" | "list_directory" | "git" | "get_calendar_events" | "create_calendar_event" | "update_calendar_event" | "search_emails" | "read_email";
+
+/**
+ * Tools that need a connected account before they can run. Maps the tool to a
+ * connection/provider id (e.g. "google"). Tools not listed here are "system
+ * tools" that always work. Connecting the account enables all of its tools.
+ */
+export const TOOL_CONNECTIONS: Partial<Record<ToolName, string>> = {
+  get_calendar_events:   "google",
+  create_calendar_event: "google",
+  update_calendar_event: "google",
+  search_emails:         "gmail",
+  read_email:            "gmail",
+};
 
 export interface ToolDefinition {
   type: "function";
@@ -109,12 +123,49 @@ export const ALL_TOOL_DEFINITIONS: ToolDefinition[] = [
     type: "function",
     function: {
       name: "get_calendar_events",
-      description: "Get upcoming events from the user's Google Calendar.",
+      description: "Get upcoming events from the user's Google Calendar. Each event includes an id you can pass to update_calendar_event.",
       parameters: {
         type: "object",
         properties: {
           days: { type: "number", description: "How many days ahead to look (default 7, max 30)" },
         },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_calendar_event",
+      description: "Create a new event on the user's primary Google Calendar. Use ISO 8601 datetimes (e.g. 2026-06-10T15:00:00) for timed events, or a date-only string (e.g. 2026-06-10) for all-day events. Times are interpreted in the user's local timezone.",
+      parameters: {
+        type: "object",
+        properties: {
+          summary:     { type: "string", description: "Event title" },
+          start:       { type: "string", description: "Start time. ISO datetime '2026-06-10T15:00:00' or date '2026-06-10' for all-day." },
+          end:         { type: "string", description: "End time. ISO datetime or date. For all-day, the day after the last day." },
+          description: { type: "string", description: "Optional event description / notes" },
+          location:    { type: "string", description: "Optional location" },
+        },
+        required: ["summary", "start", "end"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_calendar_event",
+      description: "Update an existing Google Calendar event. Provide the event_id (from get_calendar_events) and only the fields you want to change.",
+      parameters: {
+        type: "object",
+        properties: {
+          event_id:    { type: "string", description: "The id of the event to update (from get_calendar_events)" },
+          summary:     { type: "string", description: "New title" },
+          start:       { type: "string", description: "New start time. ISO datetime or date for all-day." },
+          end:         { type: "string", description: "New end time. ISO datetime or date for all-day." },
+          description: { type: "string", description: "New description" },
+          location:    { type: "string", description: "New location" },
+        },
+        required: ["event_id"],
       },
     },
   },
@@ -133,6 +184,34 @@ export const ALL_TOOL_DEFINITIONS: ToolDefinition[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "search_emails",
+      description: "Search or list the user's Gmail messages. Returns sender, subject, date, a short snippet, and an id for each. Leave query empty to get the most recent inbox messages. Supports Gmail search syntax (e.g. 'from:boss@x.com', 'is:unread', 'subject:invoice', 'newer_than:7d').",
+      parameters: {
+        type: "object",
+        properties: {
+          query:       { type: "string", description: "Gmail search query. Empty = most recent inbox messages." },
+          max_results: { type: "number", description: "How many messages to return (default 10, max 20)" },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "read_email",
+      description: "Read the full content (sender, recipients, subject, date, body) of a single Gmail message by its id (obtained from search_emails).",
+      parameters: {
+        type: "object",
+        properties: {
+          email_id: { type: "string", description: "The id of the message to read (from search_emails)" },
+        },
+        required: ["email_id"],
+      },
+    },
+  },
 ];
 
 @Injectable()
@@ -142,16 +221,48 @@ export class ToolsService {
   constructor(
     private readonly settings: SettingsService,
     private readonly calendar: CalendarService,
+    private readonly gmail: GmailService,
   ) {}
 
   /** All tools with live enabled/disabled status. */
-  getAllWithStatus(): Array<{ name: ToolName; description: string; enabled: boolean }> {
+  getAllWithStatus(userId?: string): Array<{ name: ToolName; description: string; enabled: boolean; requiresConnection?: string; connected: boolean }> {
     const disabled = this.settings.getDisabledTools();
-    return ALL_TOOL_DEFINITIONS.map((t) => ({
-      name: t.function.name,
-      description: t.function.description,
-      enabled: !disabled.includes(t.function.name),
-    }));
+    return ALL_TOOL_DEFINITIONS.map((t) => {
+      const requiresConnection = TOOL_CONNECTIONS[t.function.name];
+      return {
+        name: t.function.name,
+        description: t.function.description,
+        enabled: !disabled.includes(t.function.name),
+        requiresConnection,
+        connected: requiresConnection ? this.isConnectionReady(requiresConnection, userId) : true,
+      };
+    });
+  }
+
+  /** Is the account a tool depends on connected for this user (and not disabled by the admin)? */
+  isConnectionReady(provider: string, userId?: string): boolean {
+    if (!userId) return false;
+    if (!this.settings.isConnectionEnabled(provider)) return false; // admin disabled this connection
+    if (provider === "google") return this.calendar.getTokenInfo(userId).connected;
+    if (provider === "gmail") return this.gmail.getTokenInfo(userId).connected;
+    return false;
+  }
+
+  /**
+   * Tool names offered to a plain chat (no agent attached): every admin-enabled
+   * tool, minus any whose required connection isn't ready for this user (so the
+   * model isn't handed tools it can't actually use).
+   */
+  getChatToolNames(userId?: string): ToolName[] {
+    const disabled = this.settings.getDisabledTools();
+    return ALL_TOOL_DEFINITIONS
+      .map((t) => t.function.name)
+      .filter((name) => {
+        if (disabled.includes(name)) return false;
+        const conn = TOOL_CONNECTIONS[name];
+        if (conn && !this.isConnectionReady(conn, userId)) return false;
+        return true;
+      });
   }
 
   /** Filter tool definitions to only the enabled ones (for passing to the LLM). */
@@ -166,6 +277,10 @@ export class ToolsService {
   async execute(name: string, args: Record<string, unknown>, userId?: string): Promise<string> {
     if (!this.settings.isToolEnabled(name)) {
       return `Tool "${name}" is currently disabled by the administrator.`;
+    }
+    const requiresConnection = TOOL_CONNECTIONS[name as ToolName];
+    if (requiresConnection && !this.isConnectionReady(requiresConnection, userId)) {
+      return `The "${name}" tool needs the ${requiresConnection} account connected. Ask the user to connect it in Settings → Connections, then try again.`;
     }
     this.logger.debug(`Executing tool: ${name}(${JSON.stringify(args)})`);
     try {
@@ -184,6 +299,14 @@ export class ToolsService {
           return await this.listDirectory(String(args.path ?? ""));
         case "get_calendar_events":
           return await this.getCalendarEvents(userId, Number(args.days ?? 7));
+        case "create_calendar_event":
+          return await this.createCalendarEvent(userId, args);
+        case "update_calendar_event":
+          return await this.updateCalendarEvent(userId, args);
+        case "search_emails":
+          return await this.searchEmails(userId, args);
+        case "read_email":
+          return await this.readEmail(userId, args);
         case "git":
           return await this.runGit(String(args.command ?? ""), args.repo ? String(args.repo) : undefined);
         default:
@@ -293,9 +416,63 @@ export class ToolsService {
       const when = e.allDay
         ? e.start.split("T")[0]
         : new Date(e.start).toLocaleString();
-      return `• ${e.title} — ${when}${e.location ? ` @ ${e.location}` : ""}`;
+      return `• ${e.title} — ${when}${e.location ? ` @ ${e.location}` : ""} (id: ${e.id})`;
     });
     return `Upcoming events (next ${d} days):\n${lines.join("\n")}`;
+  }
+
+  private async createCalendarEvent(userId: string | undefined, args: Record<string, unknown>): Promise<string> {
+    if (!userId) return "Calendar not available (no user context).";
+    const summary = String(args.summary ?? "").trim();
+    const start = String(args.start ?? "").trim();
+    const end = String(args.end ?? "").trim();
+    if (!summary) return "Cannot create event: a title (summary) is required.";
+    if (!start || !end) return "Cannot create event: both start and end are required.";
+    const event = await this.calendar.createEvent(userId, {
+      summary, start, end,
+      description: args.description ? String(args.description) : undefined,
+      location:    args.location ? String(args.location) : undefined,
+    });
+    const when = event.allDay ? event.start.split("T")[0] : new Date(event.start).toLocaleString();
+    return `Created event "${event.title}" — ${when}${event.location ? ` @ ${event.location}` : ""} (id: ${event.id})`;
+  }
+
+  private async updateCalendarEvent(userId: string | undefined, args: Record<string, unknown>): Promise<string> {
+    if (!userId) return "Calendar not available (no user context).";
+    const eventId = String(args.event_id ?? "").trim();
+    if (!eventId) return "Cannot update event: event_id is required (get it from get_calendar_events).";
+    const patch: { summary?: string; start?: string; end?: string; description?: string; location?: string } = {};
+    if (args.summary     !== undefined) patch.summary = String(args.summary);
+    if (args.start       !== undefined) patch.start = String(args.start);
+    if (args.end         !== undefined) patch.end = String(args.end);
+    if (args.description !== undefined) patch.description = String(args.description);
+    if (args.location    !== undefined) patch.location = String(args.location);
+    if (Object.keys(patch).length === 0) return "Nothing to update: provide at least one field to change.";
+    const event = await this.calendar.updateEvent(userId, eventId, patch);
+    const when = event.allDay ? event.start.split("T")[0] : new Date(event.start).toLocaleString();
+    return `Updated event "${event.title}" — ${when}${event.location ? ` @ ${event.location}` : ""} (id: ${event.id})`;
+  }
+
+  private async searchEmails(userId: string | undefined, args: Record<string, unknown>): Promise<string> {
+    if (!userId) return "Gmail not available (no user context).";
+    const query = args.query ? String(args.query) : "";
+    const max = Number(args.max_results ?? 10);
+    const emails = await this.gmail.searchEmails(userId, query, max);
+    if (!emails.length) return query ? `No emails found for "${query}".` : "No emails found.";
+    const lines = emails.map((e) =>
+      `• ${e.subject}\n  from: ${e.from} — ${e.date}\n  ${e.snippet}\n  (id: ${e.id})`,
+    );
+    return `${emails.length} email(s)${query ? ` matching "${query}"` : ""}:\n${lines.join("\n\n")}`;
+  }
+
+  private async readEmail(userId: string | undefined, args: Record<string, unknown>): Promise<string> {
+    if (!userId) return "Gmail not available (no user context).";
+    const id = String(args.email_id ?? "").trim();
+    if (!id) return "Cannot read email: email_id is required (get it from search_emails).";
+    const e = await this.gmail.getEmail(userId, id);
+    const MAX = 6000;
+    const body = e.body.length > MAX ? e.body.slice(0, MAX) + "\n…[truncated]" : e.body;
+    return `From: ${e.from}\nTo: ${e.to}\nDate: ${e.date}\nSubject: ${e.subject}\n\n${body}`;
   }
 
   private async runGit(command: string, repo?: string): Promise<string> {

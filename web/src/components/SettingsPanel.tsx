@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Settings, Zap, MessageSquare, Brain, Trash2, RotateCcw, User } from "lucide-react";
+import { Settings, Zap, MessageSquare, Brain, Trash2, RotateCcw, User, Plug } from "lucide-react";
 import { api, getToken } from "../api";
 import type { Memory, User as UserType } from "../types";
 import {
@@ -11,6 +11,9 @@ import {
 } from "./ui/Dialog";
 import { Label } from "./ui/Label";
 import { ConnectorCard, ConnectorSectionLabel } from "./ui/ConnectorCard";
+import { TelegramConfig, DiscordConfig, SlackConfig } from "./IntegrationsPanel";
+import { SiTelegram, SiDiscord } from "react-icons/si";
+import { SlackIcon } from "./ui/SlackIcon";
 import { APPS, appCallbackUrl } from "../apps";
 
 const inputCls =
@@ -39,12 +42,28 @@ export function SettingsPanel({ open, user, onClose, onUpdated }: Props) {
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"profile" | "memory" | "apps">("profile");
-  const [calStatus, setCalStatus] = useState<{ hasCredentials: boolean; connected: boolean; email?: string } | null>(null);
+  const [tab, setTab] = useState<"profile" | "memory" | "connections">("profile");
+  const [calStatus, setCalStatus] = useState<{ available?: boolean; hasCredentials: boolean; connected: boolean; email?: string } | null>(null);
   const [calClientId, setCalClientId]         = useState("");
   const [calClientSecret, setCalClientSecret] = useState("");
   const [calBusy, setCalBusy] = useState(false);
   const [calOpen, setCalOpen] = useState(false);
+  const [gmStatus, setGmStatus] = useState<{ available?: boolean; hasCredentials: boolean; connected: boolean; email?: string } | null>(null);
+  const [gmClientId, setGmClientId]         = useState("");
+  const [gmClientSecret, setGmClientSecret] = useState("");
+  const [gmBusy, setGmBusy] = useState(false);
+  const [gmOpen, setGmOpen] = useState(false);
+  const [gmAvail, setGmAvail] = useState(true);
+  const [tgOpen, setTgOpen] = useState(false);
+  const [tgConnected, setTgConnected] = useState(false);
+  const [tgAvail, setTgAvail] = useState(true);
+  const [dcOpen, setDcOpen] = useState(false);
+  const [dcConnected, setDcConnected] = useState(false);
+  const [dcAvail, setDcAvail] = useState(true);
+  const [slOpen, setSlOpen] = useState(false);
+  const [slConnected, setSlConnected] = useState(false);
+  const [slAvail, setSlAvail] = useState(true);
+  const [calAvail, setCalAvail] = useState(true);
   const [memories, setMemories] = useState<Memory[]>([]);
   const [memoriesBusy, setMemoriesBusy] = useState(false);
 
@@ -57,7 +76,12 @@ export function SettingsPanel({ open, user, onClose, onUpdated }: Props) {
       setError(null);
       setTab("profile");
       setCalOpen(false);
+      setGmOpen(false);
+      setTgOpen(false);
+      setDcOpen(false);
+      setSlOpen(false);
       setCalStatus(null);
+      setGmStatus(null);
     }
   }, [open, user]);
 
@@ -65,8 +89,12 @@ export function SettingsPanel({ open, user, onClose, onUpdated }: Props) {
     if (open && tab === "memory") {
       api.memories.list().then(setMemories).catch(() => {});
     }
-    if (open && tab === "apps") {
-      api.calendar.status().then(setCalStatus).catch(() => {});
+    if (open && tab === "connections") {
+      api.calendar.status().then((s) => { setCalStatus(s); setCalAvail(s.available !== false); }).catch(() => {});
+      api.gmail.status().then((s) => { setGmStatus(s); setGmAvail(s.available !== false); }).catch(() => {});
+      api.telegram.status().then((d) => { setTgConnected(d.enabled || !!d.token); setTgAvail(d.available); }).catch(() => {});
+      api.discord.status().then((d) => { setDcConnected(d.enabled || !!d.token); setDcAvail(d.available); }).catch(() => {});
+      api.slack.status().then((d) => { setSlConnected(d.enabled || !!(d.botToken && d.appToken)); setSlAvail(d.available); }).catch(() => {});
     }
   }, [open, tab]);
 
@@ -90,6 +118,28 @@ export function SettingsPanel({ open, user, onClose, onUpdated }: Props) {
   async function disconnectGoogle() {
     await api.calendar.disconnect();
     setCalStatus(s => s ? { ...s, connected: false, email: undefined } : null);
+  }
+
+  async function connectGmail() {
+    setGmBusy(true);
+    try {
+      const { url } = await api.gmail.authUrl();
+      const popup = window.open(url, "google-gmail-auth", "width=500,height=650,left=400,top=100");
+      const handler = (e: MessageEvent) => {
+        if (e.data?.ok) {
+          setGmStatus(s => s ? { ...s, connected: true, email: e.data.email } : null);
+        }
+        window.removeEventListener("message", handler);
+        popup?.close();
+      };
+      window.addEventListener("message", handler);
+    } catch (e) { alert((e as Error).message); }
+    finally { setGmBusy(false); }
+  }
+
+  async function disconnectGmail() {
+    await api.gmail.disconnect();
+    setGmStatus(s => s ? { ...s, connected: false, email: undefined } : null);
   }
 
 
@@ -144,7 +194,7 @@ export function SettingsPanel({ open, user, onClose, onUpdated }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <div className="flex items-center gap-2">
             <Settings className="h-4 w-4 text-accent-2" />
@@ -157,7 +207,7 @@ export function SettingsPanel({ open, user, onClose, onUpdated }: Props) {
 
         {/* Tab bar */}
         <div className="flex gap-1 border-b border-border px-6 pt-1">
-          {(["profile", "memory", "apps"] as const).map((t) => (
+          {(["profile", "memory", "connections"] as const).map((t) => (
             <button
               key={t}
               type="button"
@@ -168,7 +218,7 @@ export function SettingsPanel({ open, user, onClose, onUpdated }: Props) {
             >
               {t === "profile" && <User className="h-3.5 w-3.5" />}
               {t === "memory" && <Brain className="h-3.5 w-3.5" />}
-              {t === "apps" && <Zap className="h-3.5 w-3.5" />}
+              {t === "connections" && <Plug className="h-3.5 w-3.5" />}
               {t}
             </button>
           ))}
@@ -224,12 +274,39 @@ export function SettingsPanel({ open, user, onClose, onUpdated }: Props) {
           </div>
         )}
 
-        {/* Apps tab */}
-        {tab === "apps" && !calOpen && (
+        {/* Connections tab — grid */}
+        {tab === "connections" && !calOpen && !gmOpen && !tgOpen && !dcOpen && !slOpen && (
           <div className="p-5">
             <ConnectorSectionLabel>Available</ConnectorSectionLabel>
             <div className="grid grid-cols-2 gap-3">
-              <ConnectorCard
+              {tgAvail && <ConnectorCard
+                icon={<SiTelegram className="h-7 w-7 text-[#2AABEE]" />}
+                iconBg="#fff"
+                name="Telegram"
+                description="Chat with your AI from Telegram"
+                added={tgConnected}
+                addedLabel="Connected"
+                onClick={() => setTgOpen(true)}
+              />}
+              {dcAvail && <ConnectorCard
+                icon={<SiDiscord className="h-7 w-7 text-white" />}
+                iconBg="#5865F2"
+                name="Discord"
+                description="Bring your AI into Discord"
+                added={dcConnected}
+                addedLabel="Connected"
+                onClick={() => setDcOpen(true)}
+              />}
+              {slAvail && <ConnectorCard
+                icon={<SlackIcon className="h-7 w-7" />}
+                iconBg="#fff"
+                name="Slack"
+                description="Use your AI in Slack"
+                added={slConnected}
+                addedLabel="Connected"
+                onClick={() => setSlOpen(true)}
+              />}
+              {calAvail && <ConnectorCard
                 icon={
                   <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" width="28" height="28">
                     <rect width="48" height="48" rx="6" fill="#fff"/>
@@ -250,13 +327,105 @@ export function SettingsPanel({ open, user, onClose, onUpdated }: Props) {
                   setCalOpen(true);
                   if (!calStatus) api.calendar.status().then(setCalStatus).catch(() => {});
                 }}
-              />
+              />}
+              {gmAvail && <ConnectorCard
+                icon={
+                  <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" width="28" height="28">
+                    <rect width="48" height="48" rx="6" fill="#fff"/>
+                    <path fill="#4285f4" d="M6 14v22h7V20l11 8 11-8v16h7V14l-4-3-14 10L10 11z"/>
+                    <path fill="#34a853" d="M6 36h7V20l-7-5z"/>
+                    <path fill="#fbbc04" d="M35 36h7V15l-7 5z"/>
+                    <path fill="#ea4335" d="M13 14l11 8 11-8-4-3-7 5-7-5z"/>
+                  </svg>
+                }
+                iconBg="#fff"
+                name={APPS.gmail.name}
+                description={APPS.gmail.description}
+                added={gmStatus?.connected}
+                addedLabel="Connected"
+                onClick={() => {
+                  setGmOpen(true);
+                  if (!gmStatus) api.gmail.status().then(setGmStatus).catch(() => {});
+                }}
+              />}
             </div>
           </div>
         )}
 
-        {/* Apps tab — connection mode (replaces the grid, like MCP detail) */}
-        {tab === "apps" && calOpen && (
+        {/* Connections tab — Telegram detail */}
+        {tab === "connections" && tgOpen && (
+          <div className="flex flex-col">
+            <div className="flex items-center justify-between border-b border-border px-5 py-3">
+              <button
+                onClick={() => { setTgOpen(false); api.telegram.status().then((d) => setTgConnected(d.enabled || !!d.token)).catch(() => {}); }}
+                className="text-sm text-muted hover:text-fg"
+              >← Back</button>
+            </div>
+            <div className="flex flex-col gap-5 p-6">
+              <div className="flex items-center gap-4">
+                <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl border border-border bg-white">
+                  <SiTelegram className="h-9 w-9 text-[#2AABEE]" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold">Telegram</h2>
+                  <p className="text-sm text-muted">Chat with your AI from Telegram — your own bot, your conversations.</p>
+                </div>
+              </div>
+              <TelegramConfig />
+            </div>
+          </div>
+        )}
+
+        {/* Connections tab — Discord detail */}
+        {tab === "connections" && dcOpen && (
+          <div className="flex flex-col">
+            <div className="flex items-center justify-between border-b border-border px-5 py-3">
+              <button
+                onClick={() => { setDcOpen(false); api.discord.status().then((d) => setDcConnected(d.enabled || !!d.token)).catch(() => {}); }}
+                className="text-sm text-muted hover:text-fg"
+              >← Back</button>
+            </div>
+            <div className="flex flex-col gap-5 p-6">
+              <div className="flex items-center gap-4">
+                <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl border border-border" style={{ background: "#5865F2" }}>
+                  <SiDiscord className="h-9 w-9 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold">Discord</h2>
+                  <p className="text-sm text-muted">Bring your AI into your Discord server or DMs — your own bot.</p>
+                </div>
+              </div>
+              <DiscordConfig />
+            </div>
+          </div>
+        )}
+
+        {/* Connections tab — Slack detail */}
+        {tab === "connections" && slOpen && (
+          <div className="flex flex-col">
+            <div className="flex items-center justify-between border-b border-border px-5 py-3">
+              <button
+                onClick={() => { setSlOpen(false); api.slack.status().then((d) => setSlConnected(d.enabled || !!(d.botToken && d.appToken))).catch(() => {}); }}
+                className="text-sm text-muted hover:text-fg"
+              >← Back</button>
+            </div>
+            <div className="flex flex-col gap-5 p-6">
+              <div className="flex items-center gap-4">
+                <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl border border-border bg-white">
+                  <SlackIcon className="h-9 w-9" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold">Slack</h2>
+                  <p className="text-sm text-muted">Use your AI in your Slack workspace — your own app.</p>
+                </div>
+              </div>
+              <SlackConfig />
+            </div>
+          </div>
+        )}
+
+        {/* Connections tab — Google Calendar detail */}
+        {tab === "connections" && calOpen && (
           <div className="flex flex-col">
             {/* Back header */}
             <div className="flex items-center justify-between border-b border-border px-5 py-3">
@@ -271,7 +440,7 @@ export function SettingsPanel({ open, user, onClose, onUpdated }: Props) {
                 </div>
                 <div>
                   <h2 className="text-lg font-bold">Google Calendar</h2>
-                  <p className="text-sm text-muted">Read your schedule in agents</p>
+                  <p className="text-sm text-muted">Read, create & update events from chat</p>
                 </div>
               </div>
 
@@ -333,6 +502,87 @@ export function SettingsPanel({ open, user, onClose, onUpdated }: Props) {
                   className="w-full flex items-center justify-center gap-2 rounded-xl bg-accent py-2.5 text-sm font-semibold text-white hover:bg-accent-2 disabled:opacity-40">
                   <svg width="16" height="16" viewBox="0 0 24 24"><path fill="#fff" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" opacity=".9"/><path fill="#fff" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/></svg>
                   {calBusy ? "Opening Google…" : calStatus?.hasCredentials ? "Sign in with Google" : "Save credentials first"}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Connections tab — Gmail detail */}
+        {tab === "connections" && gmOpen && (
+          <div className="flex flex-col">
+            <div className="flex items-center justify-between border-b border-border px-5 py-3">
+              <button onClick={() => setGmOpen(false)} className="text-sm text-muted hover:text-fg">← Back</button>
+            </div>
+
+            <div className="p-6 flex flex-col gap-5">
+              <div className="flex items-center gap-4">
+                <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl border border-border bg-white overflow-hidden">
+                  <svg viewBox="0 0 48 48" width="40" height="40"><rect width="48" height="48" rx="8" fill="#fff"/><path fill="#4285f4" d="M6 14v22h7V20l11 8 11-8v16h7V14l-4-3-14 10L10 11z"/><path fill="#34a853" d="M6 36h7V20l-7-5z"/><path fill="#fbbc04" d="M35 36h7V15l-7 5z"/><path fill="#ea4335" d="M13 14l11 8 11-8-4-3-7 5-7-5z"/></svg>
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold">Gmail</h2>
+                  <p className="text-sm text-muted">Search & read your email from chat</p>
+                </div>
+              </div>
+
+              {gmStatus === null ? (
+                <p className="text-xs text-muted">Loading…</p>
+              ) : gmStatus.connected ? (
+                <>
+                  <div className="flex items-center gap-3 rounded-xl border border-ok/30 bg-ok/10 px-4 py-3">
+                    <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285f4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34a853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#fbbc05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#ea4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                    <div>
+                      <p className="text-xs font-semibold text-ok">Connected</p>
+                      <p className="text-[11px] text-muted">{gmStatus.email}</p>
+                    </div>
+                  </div>
+                  <button onClick={disconnectGmail} className="text-xs text-danger hover:underline text-left">Disconnect</button>
+                </>
+              ) : (
+                <>
+                  <div className="rounded-xl border border-border bg-surface-2 px-4 py-3 text-[11px] text-muted">
+                    Create an OAuth app at <span className="text-accent-2">console.cloud.google.com</span>, enable the Gmail API, then add redirect URI:{" "}
+                    <code className="bg-surface px-1 rounded text-[10px]">{appCallbackUrl(APPS.gmail.id)}</code>
+                  </div>
+                  <div className="flex flex-col gap-3">
+                    <p className="text-xs font-semibold text-muted">Required credentials</p>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs text-muted">Client ID</label>
+                      <input className={inputCls} type="password"
+                        placeholder={gmStatus?.hasCredentials ? "Client ID ••••••••" : "Enter Client ID"}
+                        value={gmClientId} onChange={e => setGmClientId(e.target.value)} />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs text-muted">Client Secret</label>
+                      <input className={inputCls} type="password"
+                        placeholder={gmStatus?.hasCredentials ? "Client Secret ••••••••" : "Enter Client Secret"}
+                        value={gmClientSecret} onChange={e => setGmClientSecret(e.target.value)} />
+                    </div>
+                    {(gmClientId.trim() || gmClientSecret.trim()) && (
+                      <button onClick={async () => {
+                        setGmBusy(true);
+                        try {
+                          await api.gmail.saveCredentials({ clientId: gmClientId, clientSecret: gmClientSecret });
+                          setGmStatus(s => s ? { ...s, hasCredentials: true } : null);
+                          setGmClientId(""); setGmClientSecret("");
+                        } finally { setGmBusy(false); }
+                      }} disabled={gmBusy || !gmClientId.trim() || !gmClientSecret.trim()}
+                        className="rounded-lg bg-surface-2 px-3 py-1.5 text-xs font-semibold text-fg border border-border hover:border-accent/60 disabled:opacity-40 self-start">
+                        Save credentials
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {gmStatus && !gmStatus.connected && (
+              <div className="border-t border-border px-5 py-4">
+                <button onClick={connectGmail} disabled={gmBusy || !gmStatus?.hasCredentials}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-accent py-2.5 text-sm font-semibold text-white hover:bg-accent-2 disabled:opacity-40">
+                  <svg width="16" height="16" viewBox="0 0 24 24"><path fill="#fff" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" opacity=".9"/><path fill="#fff" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/></svg>
+                  {gmBusy ? "Opening Google…" : gmStatus?.hasCredentials ? "Sign in with Google" : "Save credentials first"}
                 </button>
               </div>
             )}

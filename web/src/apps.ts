@@ -15,7 +15,12 @@ export const APPS = {
   googleCalendar: {
     id: "google-calendar",
     name: "Google Calendar",
-    description: "Read your schedule in agents",
+    description: "Read, create & update events from chat",
+  },
+  gmail: {
+    id: "google-gmail",
+    name: "Gmail",
+    description: "Search & read your email from chat",
   },
 } satisfies Record<string, AppDef>;
 
