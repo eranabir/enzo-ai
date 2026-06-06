@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from "react";
-import { Settings, Shield, LogOut, ChevronUp, ChevronLeft, ChevronRight, Users, MoreHorizontal, Pencil, Trash2, MessagesSquare, SquarePen, Bot, Server } from "lucide-react";
+import { Settings, Shield, LogOut, ChevronUp, PanelLeftClose, PanelLeftOpen, Users, MoreHorizontal, Pencil, Trash2, MessagesSquare, SquarePen, Bot, Server } from "lucide-react";
 import { SiTelegram, SiDiscord } from "react-icons/si";
 import { SlackIcon } from "./ui/SlackIcon";
 import type { Conversation, User } from "../types";
@@ -309,11 +309,11 @@ export function Sidebar({
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent side="right" align="start" className="w-64 max-h-[70vh] overflow-y-auto">
-            {/* Integration Chats */}
+            {/* Connections Chats */}
             {conversations.filter(c => c.integration).length > 0 && (
               <>
                 <div className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted/60">
-                  Integration Chats
+                  Connections Chats
                 </div>
                 {conversations.filter(c => c.integration).map(c => (
                   <DropdownMenuItem key={c.id} onClick={() => onSelect(c.id)}
@@ -358,7 +358,7 @@ export function Sidebar({
           title="Expand sidebar"
           className="flex h-8 w-8 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-fg"
         >
-          <ChevronRight className="h-4 w-4" />
+          <PanelLeftOpen className="h-5 w-5" />
         </button>
 
         {/* Avatar — opens profile dropdown */}
@@ -413,9 +413,9 @@ export function Sidebar({
         <button
           onClick={toggleCollapse}
           title="Collapse sidebar"
-          className="flex h-6 w-6 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-2 hover:text-fg"
+          className="flex h-7 w-7 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-2 hover:text-fg"
         >
-          <ChevronLeft className="h-4 w-4" />
+          <PanelLeftClose className="h-5 w-5" />
         </button>
       </div>
 
@@ -472,7 +472,7 @@ export function Sidebar({
               {integrations.length > 0 && (
                 <div className="mb-1">
                   <p className="px-2.5 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-widest text-muted/60">
-                    Integration Chats
+                    Connections Chats
                   </p>
                   <div className="flex flex-col gap-0.5">
                     {integrations.map(renderConvo)}

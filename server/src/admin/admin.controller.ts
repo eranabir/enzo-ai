@@ -29,6 +29,15 @@ import { DiscordService } from "../discord/discord.service";
 import { SlackService } from "../slack/slack.service";
 import { CalendarService } from "../calendar/calendar.service";
 
+/** Connection types the admin can globally enable/disable. */
+const CONNECTIONS = [
+  { id: "telegram", name: "Telegram" },
+  { id: "discord",  name: "Discord" },
+  { id: "slack",    name: "Slack" },
+  { id: "google",   name: "Google Calendar" },
+  { id: "gmail",    name: "Gmail" },
+];
+
 @Controller("admin")
 @UseGuards(AdminGuard)
 export class AdminController {
@@ -143,13 +152,13 @@ export class AdminController {
   // ---- Tool management ----
 
   @Get("tools")
-  listTools() {
-    return this.toolsSvc.getAllWithStatus();
+  listTools(@UserId() userId: string) {
+    return this.toolsSvc.getAllWithStatus(userId);
   }
 
   @Patch("tools/:name")
-  toggleTool(@Param("name") name: string, @Body() body: { enabled: boolean }) {
-    const all = this.toolsSvc.getAllWithStatus();
+  toggleTool(@UserId() userId: string, @Param("name") name: string, @Body() body: { enabled: boolean }) {
+    const all = this.toolsSvc.getAllWithStatus(userId);
     if (!all.find((t) => t.name === name)) throw new NotFoundException(`Tool "${name}" not found`);
     const disabled = this.settings.getDisabledTools();
     if (body.enabled) {
@@ -157,113 +166,45 @@ export class AdminController {
     } else {
       if (!disabled.includes(name)) this.settings.setDisabledTools([...disabled, name]);
     }
-    return this.toolsSvc.getAllWithStatus();
+    return this.toolsSvc.getAllWithStatus(userId);
   }
 
-  // ── Telegram integration ──────────────────────────────────────────────────
+  // Telegram is now a per-user integration — see TelegramController
+  // (GET/PUT/DELETE /api/integrations/telegram). Each user connects their own bot.
 
-  @Get("telegram")
-  getTelegram() {
-    return {
-      enabled:    this.telegram.isRunning(),
-      token:      this.settings.get("telegram_bot_token") ? "••••••••" : null,
-      allowedIds: this.settings.get("telegram_allowed_ids") ?? "",
-      model:      this.settings.get("telegram_model") ?? "",
-    };
+  // Telegram / Discord / Slack are now per-user integrations — see their
+  // controllers (/api/integrations/{telegram,discord,slack}). The admin controls
+  // global availability via the connections endpoints below.
+
+  // ── Connections (global enable/disable) ─────────────────────────────────────
+
+  @Get("connections")
+  getConnections() {
+    return CONNECTIONS.map((c) => ({ ...c, enabled: this.settings.isConnectionEnabled(c.id) }));
   }
 
-  @Put("telegram")
-  async saveTelegram(@Body() body: { token?: string; allowedIds?: string; model?: string }) {
-    if (body.allowedIds != null) this.settings.set("telegram_allowed_ids", String(body.allowedIds).trim());
-    if (body.model != null)      this.settings.set("telegram_model", String(body.model).trim());
-
-    // Always (re)start the bot when a token is provided
-    if (body.token?.trim()) {
-      this.settings.set("telegram_bot_token", body.token.trim());
-      const { username } = await this.telegram.start(true); // notify on explicit connect
-      return { ok: true, running: true, username };
+  @Patch("connections/:id")
+  async toggleConnection(@Param("id") id: string, @Body() body: { enabled: boolean }) {
+    if (!CONNECTIONS.find((c) => c.id === id)) throw new NotFoundException(`Unknown connection "${id}"`);
+    const disabled = this.settings.getDisabledConnections();
+    if (body.enabled) {
+      this.settings.setDisabledConnections(disabled.filter((x) => x !== id));
+    } else if (!disabled.includes(id)) {
+      this.settings.setDisabledConnections([...disabled, id]);
     }
 
-    return { ok: true, running: this.telegram.isRunning() };
-  }
-
-  @Delete("telegram")
-  stopTelegram() {
-    this.telegram.stop();
-    this.telegram.deleteConversation();
-    return { ok: true, running: false };
-  }
-
-  // ── Discord integration ───────────────────────────────────────────────────
-
-  @Get("discord")
-  getDiscord() {
-    return {
-      enabled:    this.discord.isRunning(),
-      token:      this.settings.get("discord_bot_token") ? "••••••••" : null,
-      allowedIds: this.settings.get("discord_allowed_ids") ?? "",
-      model:      this.settings.get("discord_model") ?? "",
-    };
-  }
-
-  @Put("discord")
-  async saveDiscord(@Body() body: { token?: string; allowedIds?: string; model?: string; reconnect?: boolean }) {
-    if (body.allowedIds != null) this.settings.set("discord_allowed_ids", String(body.allowedIds).trim());
-    if (body.model != null)      this.settings.set("discord_model", String(body.model).trim());
-    if (body.token?.trim())      this.settings.set("discord_bot_token", body.token.trim());
-
-    // Start/restart if a new token was provided OR an explicit reconnect was requested
-    if (body.token?.trim() || body.reconnect) {
-      const token = this.settings.get("discord_bot_token");
-      if (!token) throw new BadRequestException("No bot token configured");
-      const { tag } = await this.discord.start(true);
-      return { ok: true, running: true, tag };
+    // Apply immediately: disabling stops all running bots of that type;
+    // enabling restarts the users who had it on. (Google has no live process.)
+    if (body.enabled) {
+      if (id === "telegram") this.telegram.startAllEnabled();
+      else if (id === "discord") this.discord.startAllEnabled();
+      else if (id === "slack") this.slack.startAllEnabled();
+    } else {
+      if (id === "telegram") this.telegram.stopAllRunning();
+      else if (id === "discord") this.discord.stopAllRunning();
+      else if (id === "slack") await this.slack.stopAllRunning();
     }
-    return { ok: true, running: this.discord.isRunning() };
-  }
-
-  @Delete("discord")
-  stopDiscord() {
-    this.discord.stop();
-    this.discord.deleteConversation();
-    return { ok: true, running: false };
-  }
-
-  // ── Slack integration ─────────────────────────────────────────────────────
-
-  @Get("slack")
-  getSlack() {
-    return {
-      enabled:    this.slack.isRunning(),
-      botToken:   this.settings.get("slack_bot_token")  ? "••••••••" : null,
-      appToken:   this.settings.get("slack_app_token")  ? "••••••••" : null,
-      allowedIds: this.settings.get("slack_allowed_ids") ?? "",
-      model:      this.settings.get("slack_model") ?? "",
-    };
-  }
-
-  @Put("slack")
-  async saveSlack(@Body() body: { botToken?: string; appToken?: string; allowedIds?: string; model?: string; reconnect?: boolean }) {
-    if (body.botToken?.trim())   this.settings.set("slack_bot_token",   body.botToken.trim());
-    if (body.appToken?.trim())   this.settings.set("slack_app_token",   body.appToken.trim());
-    if (body.allowedIds != null) this.settings.set("slack_allowed_ids", String(body.allowedIds).trim());
-    if (body.model != null)      this.settings.set("slack_model",       String(body.model).trim());
-
-    if (body.botToken?.trim() || body.appToken?.trim() || body.reconnect) {
-      const bt = this.settings.get("slack_bot_token");
-      const at = this.settings.get("slack_app_token");
-      if (!bt || !at) throw new BadRequestException("Both Bot Token and App-Level Token are required");
-      const { botName } = await this.slack.start(true);
-      return { ok: true, running: true, botName };
-    }
-    return { ok: true, running: this.slack.isRunning() };
-  }
-
-  @Delete("slack")
-  async stopSlack() {
-    await this.slack.stop();
-    this.slack.deleteConversation();
-    return { ok: true, running: false };
+    return this.getConnections();
   }
 
   // ── Danger zone ───────────────────────────────────────────────────────────

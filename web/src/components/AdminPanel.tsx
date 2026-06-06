@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
-import { Cpu, Users as UsersIcon, Boxes, Wrench, AlertTriangle, Plug } from "lucide-react";
+import { Cpu, Users as UsersIcon, Boxes, Wrench, AlertTriangle, Plug, ChevronDown } from "lucide-react";
 import { api, streamPullModel } from "../api";
 import type { ModelInfo, User } from "../types";
-import { IntegrationsManager } from "./IntegrationsPanel";
 
 const inputCls =
   "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-fg outline-none focus:border-accent placeholder:text-muted";
@@ -502,6 +501,7 @@ function DangerTab() {
 function ToolsTab() {
   const [tools, setTools] = useState<import("../types").ToolDefinition[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     api.admin.listTools().then(setTools).catch(() => {});
@@ -527,31 +527,132 @@ function ToolsTab() {
     git: "Runs read-only git commands in a repo",
   };
 
+  const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+  // Friendly names for the connection a group of account tools belongs to.
+  const CONN_NAMES: Record<string, string> = { google: "Google Calendar", gmail: "Gmail" };
+  const connName = (id: string) => CONN_NAMES[id] ?? cap(id);
+
+  const renderTool = (t: import("../types").ToolDefinition, hideConnBadge = false) => (
+    <div key={t.name} className="flex items-center justify-between rounded-xl border border-border bg-surface-2 px-4 py-3">
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={`text-sm font-semibold ${t.enabled ? "text-fg" : "text-muted line-through"}`}>
+            {t.name.replace(/_/g, " ")}
+          </span>
+          {t.requiresConnection && !hideConnBadge && (
+            <span className="rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-semibold text-accent-2">Requires {cap(t.requiresConnection)}</span>
+          )}
+        </div>
+        <span className="text-xs text-muted">{TOOL_DESC[t.name] ?? t.description}</span>
+      </div>
+      <button
+        disabled={busy === t.name}
+        onClick={() => toggle(t.name, !t.enabled)}
+        className={`relative h-6 w-11 flex-shrink-0 rounded-full transition-colors ${
+          t.enabled ? "bg-accent" : "bg-surface"
+        } border border-border disabled:opacity-50`}
+        title={t.enabled ? "Click to disable" : "Click to enable"}
+      >
+        <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+          t.enabled ? "left-[22px]" : "left-0.5"
+        }`} />
+      </button>
+    </div>
+  );
+
+  const systemTools = tools.filter((t) => !t.requiresConnection);
+  const accountTools = tools.filter((t) => t.requiresConnection);
+
+  // Group account tools by the connection they require, preserving first-seen order.
+  const groupOrder: string[] = [];
+  const groups: Record<string, import("../types").ToolDefinition[]> = {};
+  for (const t of accountTools) {
+    const k = t.requiresConnection!;
+    if (!groups[k]) { groups[k] = []; groupOrder.push(k); }
+    groups[k].push(t);
+  }
+  const isOpen = (k: string) => openGroups[k] ?? false;
+  const toggleGroup = (k: string) => setOpenGroups((g) => ({ ...g, [k]: !isOpen(k) }));
+
   return (
-    <Section title="Available tools">
+    <div className="flex flex-col gap-6">
+      <Section title="System tools">
+        <p className="mb-4 text-xs text-muted">
+          Built-in tools that always work. Disabled tools can't be used by any agent.
+        </p>
+        <div className="flex flex-col gap-2">{systemTools.map((t) => renderTool(t))}</div>
+      </Section>
+
+      {accountTools.length > 0 && (
+        <Section title="Account tools">
+          <p className="mb-4 text-xs text-muted">
+            These require a connected account to run. You enable/disable them here; each user connects their own account in their Settings.
+          </p>
+          <div className="flex flex-col gap-2">
+            {groupOrder.map((k) => {
+              const list = groups[k];
+              const enabledCount = list.filter((t) => t.enabled).length;
+              const open = isOpen(k);
+              return (
+                <div key={k} className="rounded-xl border border-border bg-surface-2 overflow-hidden">
+                  <button
+                    onClick={() => toggleGroup(k)}
+                    className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-surface"
+                  >
+                    <div className="flex items-center gap-2">
+                      <ChevronDown className={`h-4 w-4 text-muted transition-transform ${open ? "" : "-rotate-90"}`} />
+                      <span className="text-sm font-semibold">{connName(k)}</span>
+                    </div>
+                    <span className="text-[11px] text-muted">{enabledCount}/{list.length} enabled</span>
+                  </button>
+                  {open && (
+                    <div className="flex flex-col gap-2 border-t border-border px-3 py-3">
+                      {list.map((t) => renderTool(t, true))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </Section>
+      )}
+    </div>
+  );
+}
+
+
+// ── Connections tab ──────────────────────────────────────────────────────────
+
+function ConnectionsTab() {
+  const [conns, setConns] = useState<{ id: string; name: string; enabled: boolean }[]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  useEffect(() => { api.admin.listConnections().then(setConns).catch(() => {}); }, []);
+
+  async function toggle(id: string, enabled: boolean) {
+    setBusy(id);
+    try { setConns(await api.admin.setConnectionEnabled(id, enabled)); }
+    catch { /* ignore */ } finally { setBusy(null); }
+  }
+
+  return (
+    <Section title="Connections">
       <p className="mb-4 text-xs text-muted">
-        Disabled tools cannot be used by any agent, even if selected during agent creation.
+        Enable or disable connection types for everyone. Disabling one immediately stops all running
+        bots of that type and hides it from users' Settings.
       </p>
       <div className="flex flex-col gap-2">
-        {tools.map((t) => (
-          <div key={t.name} className="flex items-center justify-between rounded-xl border border-border bg-surface-2 px-4 py-3">
-            <div className="flex flex-col gap-0.5">
-              <span className={`text-sm font-semibold ${t.enabled ? "text-fg" : "text-muted line-through"}`}>
-                {t.name.replace(/_/g, " ")}
-              </span>
-              <span className="text-xs text-muted">{TOOL_DESC[t.name] ?? t.description}</span>
-            </div>
+        {conns.map((c) => (
+          <div key={c.id} className="flex items-center justify-between rounded-xl border border-border bg-surface-2 px-4 py-3">
+            <span className={`text-sm font-semibold ${c.enabled ? "text-fg" : "text-muted line-through"}`}>{c.name}</span>
             <button
-              disabled={busy === t.name}
-              onClick={() => toggle(t.name, !t.enabled)}
-              className={`relative h-6 w-11 flex-shrink-0 rounded-full transition-colors ${
-                t.enabled ? "bg-accent" : "bg-surface"
-              } border border-border disabled:opacity-50`}
-              title={t.enabled ? "Click to disable" : "Click to enable"}
+              disabled={busy === c.id}
+              onClick={() => toggle(c.id, !c.enabled)}
+              className={`relative h-6 w-11 flex-shrink-0 rounded-full transition-colors ${c.enabled ? "bg-accent" : "bg-surface"} border border-border disabled:opacity-50`}
+              title={c.enabled ? "Click to disable" : "Click to enable"}
             >
-              <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
-                t.enabled ? "left-[22px]" : "left-0.5"
-              }`} />
+              <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${c.enabled ? "left-[22px]" : "left-0.5"}`} />
             </button>
           </div>
         ))}
@@ -560,16 +661,15 @@ function ToolsTab() {
   );
 }
 
-
 // ── Main panel ───────────────────────────────────────────────────────────────
 
-type Tab = "users" | "models" | "tools" | "integrations" | "danger";
+type Tab = "users" | "models" | "tools" | "connections" | "danger";
 
 const TAB_ICONS: Record<Tab, React.ReactNode> = {
   users:        <UsersIcon className="h-3.5 w-3.5" />,
   models:       <Boxes className="h-3.5 w-3.5" />,
   tools:        <Wrench className="h-3.5 w-3.5" />,
-  integrations: <Plug className="h-3.5 w-3.5" />,
+  connections:  <Plug className="h-3.5 w-3.5" />,
   danger:       <AlertTriangle className="h-3.5 w-3.5" />,
 };
 
@@ -601,7 +701,7 @@ export function AdminPanel({
 
         {/* Tabs */}
         <div className="flex gap-1 border-b border-border px-4 pt-1">
-          {(["users", "models", "tools", "integrations", "danger"] as Tab[]).map((t) => (
+          {(["users", "models", "tools", "connections", "danger"] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -623,7 +723,7 @@ export function AdminPanel({
           {tab === "users"   && <UsersTab currentUserId={currentUser.id} />}
           {tab === "models"  && <ModelsTab />}
           {tab === "tools"        && <ToolsTab />}
-          {tab === "integrations" && <IntegrationsManager />}
+          {tab === "connections"  && <ConnectionsTab />}
           {tab === "danger"  && <DangerTab />}
         </div>
       </div>
