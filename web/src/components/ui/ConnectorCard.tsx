@@ -41,7 +41,9 @@ export function ConnectorCard({
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold">{name}</span>
           {added && (
-            <span className="text-[9px] font-bold uppercase tracking-wide text-ok">{addedLabel}</span>
+            <span className="flex items-center gap-1 rounded-full bg-ok/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-ok">
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-ok" />{addedLabel}
+            </span>
           )}
         </div>
         <p className="text-[11px] text-muted leading-snug mt-0.5 truncate">{description}</p>

@@ -5,10 +5,23 @@ import { ConversationsService } from "../conversations/conversations.service";
 import { UsersService } from "../users/users.service";
 import { AgentsService } from "../agents/agents.service";
 
+/** Per-user settings keys — each user runs their own Slack app. */
+const K = {
+  botToken: (u: string) => `slack_bot_token_${u}`,
+  appToken: (u: string) => `slack_app_token_${u}`,
+  botName:  (u: string) => `slack_bot_name_${u}`,
+  allowed:  (u: string) => `slack_allowed_ids_${u}`,
+  model:    (u: string) => `slack_model_${u}`,
+  enabled:  (u: string) => `slack_enabled_${u}`,
+  chatMap:  (u: string) => `slack_chat_map_${u}`,
+};
+
 @Injectable()
 export class SlackService implements OnModuleDestroy {
   private readonly logger = new Logger(SlackService.name);
-  private app: BoltApp | null = null;
+
+  // ownerUserId → that user's live Slack app.
+  private apps = new Map<string, { app: BoltApp; botName: string }>();
 
   private runChat?: (userId: string, convoId: string, content: string, model?: string) => Promise<string>;
 
@@ -21,57 +34,44 @@ export class SlackService implements OnModuleDestroy {
 
   setRunner(fn: (userId: string, convoId: string, content: string, model?: string) => Promise<string>) {
     this.runChat = fn;
-    if (this.settings.get("slack_enabled") === "1") {
-      this.start().catch((e) => this.logger.error("Slack auto-start failed:", e.message));
+    for (const u of this.users.listAll()) {
+      if (this.settings.get(K.enabled(u.id)) === "1") {
+        this.start(u.id).catch((e) => this.logger.error(`Slack auto-start failed for ${u.id}: ${e.message}`));
+      }
     }
   }
 
-  // ── Public API ─────────────────────────────────────────────────────────────
+  // ── Public API (per user) ───────────────────────────────────────────────────
 
-  async start(notify = false): Promise<{ botName: string }> {
-    const botToken = this.settings.get("slack_bot_token");
-    const appToken = this.settings.get("slack_app_token");
+  async start(userId: string, notify = false): Promise<{ botName: string }> {
+    if (!this.settings.isConnectionEnabled("slack")) {
+      throw new Error("Slack is disabled by the administrator");
+    }
+    const botToken = this.settings.get(K.botToken(userId));
+    const appToken = this.settings.get(K.appToken(userId));
     if (!botToken) throw new Error("Slack bot token not configured");
     if (!appToken)  throw new Error("Slack app-level token not configured");
-    if (this.app) await this.stop();
+    await this.stop(userId);
 
-    this.app = new BoltApp({
-      token: botToken,
-      appToken,
-      socketMode: true,   // no public URL needed — connects via WebSocket
-      logLevel: LogLevel.ERROR,
-    });
+    const app = new BoltApp({ token: botToken, appToken, socketMode: true, logLevel: LogLevel.ERROR });
+    this.registerHandlers(userId, app);
+    await app.start();
 
-    this.registerHandlers();
-    await this.app.start();
-
-    // Get bot info
-    const info = await this.app.client.auth.test();
+    const info = await app.client.auth.test();
     const botName = String(info.user ?? "enzo-ai");
+    this.apps.set(userId, { app, botName });
+    this.settings.set(K.enabled(userId), "1");
+    this.settings.set(K.botName(userId), botName);
+    this.logger.log(`Slack bot @${botName} connected for user ${userId}`);
 
-    this.settings.set("slack_enabled", "1");
-    this.settings.set("slack_bot_name", botName); // store for DM titles
-    this.logger.log(`Slack bot @${botName} connected via Socket Mode`);
-
-    // List channels the bot is a member of and create conversations eagerly
     try {
-      const result = await this.app.client.conversations.list({
-        types: "public_channel,private_channel",
-        limit: 200,
-      });
+      const result = await app.client.conversations.list({ types: "public_channel,private_channel", limit: 200 });
       const memberChannels = (result.channels ?? []).filter((c: any) => c.is_member);
-      this.logger.log(`Slack bot is member of ${memberChannels.length} channels`);
-
       for (const ch of memberChannels) {
         const channelId = ch.id as string;
-        const chatTitle = `#${ch.name ?? channelId}`;
-
-        // Eagerly create conversation so it appears in web UI immediately
-        this.getOrCreateChatConversation(channelId, chatTitle);
-
-        // Send connection message only on explicit connect
+        this.getOrCreateChatConversation(userId, channelId, `#${ch.name ?? channelId}`);
         if (notify) {
-          await this.app.client.chat.postMessage({
+          await app.client.chat.postMessage({
             channel: channelId,
             text: `✅ *Enzo AI is online!* Send me a message or mention me to chat with your local AI.`,
           }).catch((e: Error) => this.logger.warn(`Could not notify #${ch.name}: ${e.message}`));
@@ -81,89 +81,123 @@ export class SlackService implements OnModuleDestroy {
       this.logger.error(`Failed to list Slack channels: ${(e as Error).message}`);
     }
 
-    // Also DM allowed user IDs if configured and notify=true
     if (notify) {
-      const allowedIds = this.settings.get("slack_allowed_ids");
-      if (allowedIds) {
-        for (const id of allowedIds.split(",").map(s => s.trim()).filter(Boolean)) {
-          await this.app.client.chat.postMessage({
-            channel: id,
-            text: `✅ *Enzo AI bot is online!* DM me any time to chat.`,
-          }).catch(() => this.logger.warn(`Could not DM Slack user ${id}`));
-        }
+      const allowedIds = this.settings.get(K.allowed(userId));
+      for (const id of (allowedIds ?? "").split(",").map((s) => s.trim()).filter(Boolean)) {
+        await app.client.chat.postMessage({ channel: id, text: `✅ *Enzo AI bot is online!* DM me any time to chat.` })
+          .catch(() => this.logger.warn(`Could not DM Slack user ${id}`));
       }
     }
 
     return { botName };
   }
 
-  async stop(): Promise<void> {
-    await this.app?.stop();
-    this.app = null;
-    this.settings.set("slack_enabled", "0");
-    this.logger.log("Slack bot disconnected");
+  async stop(userId: string): Promise<void> {
+    const entry = this.apps.get(userId);
+    if (entry) {
+      await entry.app.stop().catch(() => {});
+      this.apps.delete(userId);
+      this.logger.log(`Slack bot disconnected for user ${userId}`);
+    }
+    this.settings.set(K.enabled(userId), "0");
   }
 
-  isRunning(): boolean {
-    return this.app !== null;
+  isRunning(userId: string): boolean {
+    return this.apps.has(userId);
   }
 
-  async notifyAgentResult(channelIds: string, content: string): Promise<void> {
-    if (!this.app) return;
-    const ids = channelIds.split(",").map(s => s.trim()).filter(Boolean);
-    for (const id of ids) {
-      for (const chunk of splitMessage(content)) {
-        await this.app.client.chat.postMessage({ channel: id, text: chunk }).catch((e) =>
-          this.logger.error(`Failed to notify Slack ${id}: ${e.message}`)
-        );
+  /** Stop every running app (admin disabled the connection). */
+  async stopAllRunning(): Promise<void> {
+    for (const [, entry] of this.apps) await entry.app.stop().catch(() => {});
+    this.apps.clear();
+    this.logger.log("All Slack apps stopped (connection disabled by admin)");
+  }
+
+  /** Start apps for every user who has it enabled (admin re-enabled it). */
+  startAllEnabled(): void {
+    for (const u of this.users.listAll()) {
+      if (this.settings.get(K.enabled(u.id)) === "1") {
+        this.start(u.id).catch((e) => this.logger.error(`Slack start failed for ${u.id}: ${e.message}`));
       }
     }
   }
 
-  deleteConversation(): void {
-    const botUser = this.users.listAll().find((u) => u.role === "admin");
-    if (!botUser) return;
-    const map = this.loadChatMap();
+  updateConfig(userId: string, cfg: { botToken?: string; appToken?: string; allowedIds?: string; model?: string }): void {
+    if (cfg.allowedIds != null) this.settings.set(K.allowed(userId), String(cfg.allowedIds).trim());
+    if (cfg.model != null) this.settings.set(K.model(userId), String(cfg.model).trim());
+    if (cfg.botToken?.trim()) this.settings.set(K.botToken(userId), cfg.botToken.trim());
+    if (cfg.appToken?.trim()) this.settings.set(K.appToken(userId), cfg.appToken.trim());
+  }
+
+  getStatus(userId: string) {
+    return {
+      available: this.settings.isConnectionEnabled("slack"),
+      enabled: this.isRunning(userId),
+      botName: this.settings.get(K.botName(userId)) ?? null,
+      botToken: this.settings.get(K.botToken(userId)) ? "••••••••" : null,
+      appToken: this.settings.get(K.appToken(userId)) ? "••••••••" : null,
+      allowedIds: this.settings.get(K.allowed(userId)) ?? "",
+      model: this.settings.get(K.model(userId)) ?? "",
+    };
+  }
+
+  async notifyAgentResult(userId: string, channelIds: string, content: string): Promise<void> {
+    const entry = this.apps.get(userId);
+    if (!entry) return;
+    for (const id of channelIds.split(",").map((s) => s.trim()).filter(Boolean)) {
+      for (const chunk of splitMessage(content)) {
+        await entry.app.client.chat.postMessage({ channel: id, text: chunk })
+          .catch((e: Error) => this.logger.error(`Failed to notify Slack ${id}: ${e.message}`));
+      }
+    }
+  }
+
+  /** Clear a user's saved Slack config (tokens/name/allowlist/model). */
+  clearConfig(userId: string): void {
+    this.settings.set(K.botToken(userId), "");
+    this.settings.set(K.appToken(userId), "");
+    this.settings.set(K.botName(userId), "");
+    this.settings.set(K.allowed(userId), "");
+    this.settings.set(K.model(userId), "");
+  }
+
+  deleteConversation(userId: string): void {
+    const map = this.loadChatMap(userId);
     for (const convoId of Object.values(map)) {
       try { this.convos.delete(convoId); } catch { /* already gone */ }
     }
-    this.settings.set("slack_chat_map", "{}");
+    this.settings.set(K.chatMap(userId), "{}");
+    // Also sweep any orphaned conversations tagged with this integration.
+    try { this.convos.deleteByIntegration(userId, "slack"); } catch { /* ignore */ }
   }
 
-  /** Send a message to the Slack channel/DM backing a conversation.
-   *  Relays web-UI replies back to Slack so both sides stay in sync. */
-  async sendToConversation(convoId: string, text: string): Promise<void> {
-    if (!this.app || !text.trim()) return;
-    const map = this.loadChatMap();
+  /** Relay a web-UI reply back to the Slack channel/DM backing a conversation. */
+  async sendToConversation(userId: string, convoId: string, text: string): Promise<void> {
+    const entry = this.apps.get(userId);
+    if (!entry || !text.trim()) return;
+    const map = this.loadChatMap(userId);
     const channelId = Object.keys(map).find((k) => map[k] === convoId);
     if (!channelId) return;
     for (const chunk of splitMessage(text)) {
-      await this.app.client.chat.postMessage({ channel: channelId, text: chunk }).catch((e) =>
-        this.logger.error(`Failed to relay to Slack channel ${channelId}: ${e.message}`),
-      );
+      await entry.app.client.chat.postMessage({ channel: channelId, text: chunk })
+        .catch((e: Error) => this.logger.error(`Failed to relay to Slack channel ${channelId}: ${e.message}`));
     }
   }
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
-  private registerHandlers(): void {
-    if (!this.app) return;
-
-    // Respond to any message the bot can see (DMs, mentions in channels)
-    this.app.message(async ({ message, say, client }) => {
+  private registerHandlers(ownerUserId: string, app: BoltApp): void {
+    app.message(async ({ message, say, client }) => {
       const msg = message as any;
-
-      // Skip bot messages and messages without text
       if (msg.subtype === "bot_message" || msg.bot_id || !msg.text) return;
 
       const slackUserId = msg.user;
       const channelId   = msg.channel;
-      const channelType = msg.channel_type; // "im" = DM, "channel" = channel
+      const channelType = msg.channel_type;
 
-      // Allowlist check
-      const allowed = this.settings.get("slack_allowed_ids");
+      const allowed = this.settings.get(K.allowed(ownerUserId));
       if (allowed) {
-        const ids = allowed.split(",").map(s => s.trim());
+        const ids = allowed.split(",").map((s) => s.trim());
         if (!ids.includes(slackUserId) && !ids.includes(channelId)) return;
       }
 
@@ -172,21 +206,17 @@ export class SlackService implements OnModuleDestroy {
         return;
       }
 
-      // Strip @mention from message text
       const text = msg.text.replace(/<@[A-Z0-9]+>/g, "").trim();
       if (!text) return;
 
       const isDM = channelType === "im";
 
       try {
-        // Store the raw text so it renders cleanly in the web UI (same as web chat).
         const content = text;
 
-        // Conversation title
         let chatTitle: string;
         if (isDM) {
-          // Use bot name for DM conversations — clean and consistent
-          chatTitle = this.settings.get("slack_bot_name") ?? "EnzoAI";
+          chatTitle = this.settings.get(K.botName(ownerUserId)) ?? "Slack";
         } else {
           chatTitle = `#${channelId}`;
           try {
@@ -195,79 +225,66 @@ export class SlackService implements OnModuleDestroy {
           } catch { /* ignore */ }
         }
 
-        // Find linked agent
-        const linkedAgent = this.findAgentForChannel(channelId);
+        const linkedAgent = this.findAgentForChannel(ownerUserId, channelId);
         const { userId, convoId } = this.getOrCreateChatConversation(
+          ownerUserId,
           channelId,
           linkedAgent ? `${linkedAgent.emoji} ${linkedAgent.name}` : chatTitle,
           linkedAgent?.id,
         );
 
-        // Show typing indicator
         await client.reactions.add({ channel: channelId, timestamp: msg.ts, name: "thinking_face" }).catch(() => {});
-
-        const model  = this.settings.get("slack_model") ?? undefined;
-        const reply  = await this.runChat(userId, convoId, content, model);
-
-        // Remove thinking emoji, send reply
+        const model = this.settings.get(K.model(ownerUserId)) ?? undefined;
+        const reply = await this.runChat(userId, convoId, content, model);
         await client.reactions.remove({ channel: channelId, timestamp: msg.ts, name: "thinking_face" }).catch(() => {});
 
         for (const chunk of splitMessage(reply)) {
           await say({ text: chunk, thread_ts: isDM ? undefined : msg.ts });
         }
-
       } catch (err) {
         this.logger.error("Slack message handling failed:", (err as Error).message);
         await say("⚠️ Something went wrong. Please try again.").catch(() => {});
       }
     });
 
-    this.app.error(async (error) => {
-      this.logger.error("Slack error:", error.message);
-    });
+    app.error(async (error) => this.logger.error("Slack error:", error.message));
   }
 
-  // ── Conversation management ────────────────────────────────────────────────
+  // ── Conversation management (per user) ───────────────────────────────────────
 
-  getOrCreateChatConversation(channelId: string, chatTitle: string, agentId?: string): { userId: string; convoId: string } {
-    const botUser = this.users.listAll().find((u) => u.role === "admin");
-    if (!botUser) throw new Error("No admin user found");
-
-    const map = this.loadChatMap();
+  getOrCreateChatConversation(ownerUserId: string, channelId: string, chatTitle: string, agentId?: string): { userId: string; convoId: string } {
+    const map = this.loadChatMap(ownerUserId);
     if (!map[channelId]) {
-      const convo = this.convos.create(botUser.id, undefined, agentId, "slack");
+      const convo = this.convos.create(ownerUserId, undefined, agentId, "slack");
       this.convos.rename(convo.id, chatTitle);
       map[channelId] = convo.id;
-      this.saveChatMap(map);
+      this.saveChatMap(ownerUserId, map);
     } else if (chatTitle) {
-      // Update title in case it was previously saved as a raw channel ID
       this.convos.rename(map[channelId], chatTitle);
     }
-    return { userId: botUser.id, convoId: map[channelId] };
+    return { userId: ownerUserId, convoId: map[channelId] };
   }
 
-  private findAgentForChannel(channelId: string) {
-    const botUser = this.users.listAll().find((u) => u.role === "admin");
-    if (!botUser) return null;
-    const agents = this.agentsSvc.list(botUser.id);
+  private findAgentForChannel(ownerUserId: string, channelId: string) {
+    const agents = this.agentsSvc.list(ownerUserId);
     return agents.find((a) => {
       if (!a.telegram_chat_ids) return false;
-      return a.telegram_chat_ids.split(",").map(s => s.trim()).includes(channelId);
+      return a.telegram_chat_ids.split(",").map((s) => s.trim()).includes(channelId);
     }) ?? null;
   }
 
-  private loadChatMap(): Record<string, string> {
-    const raw = this.settings.get("slack_chat_map");
+  private loadChatMap(userId: string): Record<string, string> {
+    const raw = this.settings.get(K.chatMap(userId));
     if (!raw) return {};
     try { return JSON.parse(raw); } catch { return {}; }
   }
 
-  private saveChatMap(map: Record<string, string>): void {
-    this.settings.set("slack_chat_map", JSON.stringify(map));
+  private saveChatMap(userId: string, map: Record<string, string>): void {
+    this.settings.set(K.chatMap(userId), JSON.stringify(map));
   }
 
   async onModuleDestroy() {
-    await this.app?.stop().catch(() => {});
+    for (const [, entry] of this.apps) await entry.app.stop().catch(() => {});
   }
 }
 

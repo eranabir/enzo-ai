@@ -42,6 +42,21 @@ export class SettingsService {
     return !this.getDisabledTools().includes(name);
   }
 
+  // ── Connections (admin can globally enable/disable a connection type) ────────
+  getDisabledConnections(): string[] {
+    const raw = this.get("disabled_connections");
+    if (!raw) return [];
+    try { return JSON.parse(raw) as string[]; } catch { return []; }
+  }
+
+  setDisabledConnections(ids: string[]): void {
+    this.set("disabled_connections", JSON.stringify(ids));
+  }
+
+  isConnectionEnabled(id: string): boolean {
+    return !this.getDisabledConnections().includes(id);
+  }
+
   all(): Record<string, string> {
     const rows = this.db.prepare(`SELECT key, value FROM settings`).all() as { key: string; value: string }[];
     return Object.fromEntries(rows.map((r) => [r.key, r.value]));

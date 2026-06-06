@@ -1,116 +1,34 @@
 import { useEffect, useState } from "react";
-import { SiTelegram, SiDiscord } from "react-icons/si";
-import { SlackIcon } from "./ui/SlackIcon";
 import { api } from "../api";
 import { ModelPicker } from "./ui/ModelPicker";
-import { ConnectorCard, ConnectorSectionLabel } from "./ui/ConnectorCard";
 
 const inputCls = "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-fg outline-none focus:border-accent placeholder:text-muted";
 
-type IntegrationId = "telegram" | "discord" | "slack";
-
-interface IntegrationDef {
-  id: IntegrationId;
-  name: string;
-  description: string;
-  icon: React.ReactNode;
-  iconBg: string;
-}
-
-const INTEGRATIONS: IntegrationDef[] = [
-  {
-    id: "telegram",
-    name: "Telegram",
-    description: "Chat with your AI from anywhere via Telegram",
-    icon: <SiTelegram className="h-6 w-6 text-[#2AABEE]" />,
-    iconBg: "#fff",
-  },
-  {
-    id: "discord",
-    name: "Discord",
-    description: "Bring Enzo AI into your Discord server or DMs",
-    icon: <SiDiscord className="h-6 w-6 text-white" />,
-    iconBg: "#5865F2",
-  },
-  {
-    id: "slack",
-    name: "Slack",
-    description: "Use Enzo AI directly in your Slack workspace",
-    icon: <SlackIcon className="h-6 w-6" />,
-    iconBg: "#fff",
-  },
-];
+// Telegram / Discord / Slack are now per-user integrations, configured in
+// Settings → Connections. The config components below are rendered there.
 
 /**
- * Embeddable integrations manager — rendered inside the Admin panel's
- * Integrations tab. Switches between a connector-card grid and a per-service
- * connection screen, mirroring the MCP Servers UI.
+ * A token input. When a value is already saved it shows a masked "configured"
+ * placeholder so the user can see it's set; typing a new value replaces it,
+ * leaving it blank keeps the existing token.
  */
-export function IntegrationsManager() {
-  const [selected, setSelected] = useState<IntegrationId | null>(null);
-  const [running, setRunning] = useState<Record<IntegrationId, boolean>>({
-    telegram: false, discord: false, slack: false,
-  });
-
-  function refresh() {
-    api.admin.getTelegram().then(d => setRunning(r => ({ ...r, telegram: d.enabled }))).catch(() => {});
-    api.admin.getDiscord().then(d => setRunning(r => ({ ...r, discord: d.enabled }))).catch(() => {});
-    api.admin.getSlack().then(d => setRunning(r => ({ ...r, slack: d.enabled }))).catch(() => {});
-  }
-
-  useEffect(() => { refresh(); }, []);
-
-  const def = INTEGRATIONS.find(i => i.id === selected);
-
-  // ── Detail / connection view ────────────────────────────────────────────────
-  if (selected && def) {
-    return (
-      <div className="flex flex-col gap-5">
-        <button onClick={() => { setSelected(null); refresh(); }} className="self-start text-sm text-muted hover:text-fg transition-colors">← Back</button>
-
-        {/* Icon + name (same as MCP detail) */}
-        <div className="flex items-center gap-4">
-          <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl border border-border" style={{ background: def.iconBg }}>
-            {def.icon}
-          </div>
-          <div>
-            <h2 className="text-lg font-bold">{def.name}</h2>
-            <p className="text-sm text-muted">{def.description}</p>
-          </div>
-        </div>
-
-        {selected === "telegram" && <TelegramConfig />}
-        {selected === "discord" && <DiscordConfig />}
-        {selected === "slack" && <SlackConfig />}
-      </div>
-    );
-  }
-
-  // ── Grid view ─────────────────────────────────────────────────────────────────
+function TokenField({ hasValue, value, onChange, placeholder }: {
+  hasValue: boolean; value: string; onChange: (v: string) => void; placeholder: string;
+}) {
   return (
-    <div>
-      <ConnectorSectionLabel>Available</ConnectorSectionLabel>
-      <div className="grid grid-cols-2 gap-3">
-        {INTEGRATIONS.map(i => (
-          <ConnectorCard
-            key={i.id}
-            icon={i.icon}
-            iconBg={i.iconBg}
-            name={i.name}
-            description={i.description}
-            added={running[i.id]}
-            addedLabel="Connected"
-            onClick={() => setSelected(i.id)}
-          />
-        ))}
-      </div>
-    </div>
+    <input
+      className={inputCls}
+      type="password"
+      placeholder={hasValue ? "•••••••••••••• · configured" : placeholder}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    />
   );
 }
 
 // ── Telegram config ─────────────────────────────────────────────────────────────
 
-function TelegramConfig() {
+export function TelegramConfig() {
   const [token, setToken] = useState("");
   const [allowedIds, setAllowed] = useState("");
   const [model, setModel] = useState("");
@@ -121,8 +39,9 @@ function TelegramConfig() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    api.admin.getTelegram().then(d => {
+    api.telegram.status().then(d => {
       setRunning(d.enabled); setAllowed(d.allowedIds); setModel(d.model); setHasToken(!!d.token);
+      if (d.username) setBotName(d.username);
     }).catch(() => {});
   }, []);
 
@@ -132,7 +51,7 @@ function TelegramConfig() {
     try {
       const body: { token?: string; allowedIds: string; model: string } = { allowedIds, model };
       if (token.trim()) body.token = token;
-      const res = await api.admin.saveTelegram(body);
+      const res = await api.telegram.save(body);
       setRunning(res.running); setHasToken(true);
       if (res.username) setBotName(res.username);
       setToken("");
@@ -140,27 +59,35 @@ function TelegramConfig() {
     finally { setBusy(false); }
   }
 
-  async function stop() {
-    setBusy(true);
-    try { await api.admin.stopTelegram(); setRunning(false); setBotName(null); }
+  async function remove() {
+    if (!confirm("Remove this Telegram connection? This deletes the saved bot token and all chats it created.")) return;
+    setBusy(true); setError(null);
+    try {
+      await api.telegram.disconnect();
+      setRunning(false); setHasToken(false); setBotName(null);
+      setToken(""); setAllowed(""); setModel("");
+    } catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }
   }
 
   return (
     <>
-      {running && (
+      {running ? (
         <div className="rounded-xl border border-ok/30 bg-ok/10 px-4 py-3">
           <p className="text-sm font-semibold text-ok">✓ Bot {botName ? `@${botName}` : ""} is live</p>
           <p className="mt-0.5 text-xs text-muted">Open Telegram and message it — it replies with your local AI.</p>
         </div>
-      )}
+      ) : hasToken ? (
+        <div className="rounded-xl border border-border bg-surface-2 px-4 py-3">
+          <p className="text-sm font-semibold text-fg">● Configured{botName ? ` — @${botName}` : ""}</p>
+          <p className="mt-0.5 text-xs text-muted">A bot token is saved but the bot isn't running. Save to reconnect.</p>
+        </div>
+      ) : null}
       <div className="flex flex-col gap-3">
         <div>
           <label className="mb-1 block text-xs font-semibold text-muted">Bot Token</label>
           <p className="mb-1.5 text-[11px] text-muted">Get one from <span className="text-accent-2">@BotFather</span> on Telegram → /newbot</p>
-          <input className={inputCls} type="password"
-            placeholder={hasToken ? "••••••••  (configured — paste to replace)" : "Paste your bot token"}
-            value={token} onChange={e => setToken(e.target.value)} />
+          <TokenField hasValue={hasToken} value={token} onChange={setToken} placeholder="Paste your bot token" />
         </div>
         <div>
           <label className="mb-1 block text-xs font-semibold text-muted">Allowed User IDs <span className="font-normal">(optional)</span></label>
@@ -171,7 +98,7 @@ function TelegramConfig() {
           <label className="mb-1 block text-xs font-semibold text-muted">Model</label>
           <ModelPicker value={model} onChange={setModel} />
         </div>
-        <ActionRow busy={busy} running={running} onSave={save} onStop={stop} canSave={!!token.trim() || hasToken} />
+        <ActionRow busy={busy} running={running} configured={running || hasToken} onSave={save} onRemove={remove} canSave={!!token.trim() || hasToken} />
         {error && <p className="text-xs text-danger">{error}</p>}
       </div>
     </>
@@ -180,7 +107,7 @@ function TelegramConfig() {
 
 // ── Discord config ──────────────────────────────────────────────────────────────
 
-function DiscordConfig() {
+export function DiscordConfig() {
   const [token, setToken] = useState("");
   const [allowedIds, setAllowed] = useState("");
   const [model, setModel] = useState("");
@@ -191,8 +118,9 @@ function DiscordConfig() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    api.admin.getDiscord().then(d => {
+    api.discord.status().then(d => {
       setRunning(d.enabled); setAllowed(d.allowedIds); setModel(d.model); setHasToken(!!d.token);
+      if (d.tag) setBotTag(d.tag);
     }).catch(() => {});
   }, []);
 
@@ -200,10 +128,9 @@ function DiscordConfig() {
     if (!token.trim() && !hasToken) return;
     setBusy(true); setError(null);
     try {
-      const body: { token?: string; allowedIds: string; model: string; reconnect?: boolean } = { allowedIds, model };
+      const body: { token?: string; allowedIds: string; model: string } = { allowedIds, model };
       if (token.trim()) body.token = token;
-      if (running && !token.trim()) body.reconnect = true;
-      const res = await api.admin.saveDiscord(body);
+      const res = await api.discord.save(body);
       setRunning(res.running); setHasToken(true);
       if (res.tag) setBotTag(res.tag);
       setToken("");
@@ -211,27 +138,35 @@ function DiscordConfig() {
     finally { setBusy(false); }
   }
 
-  async function stop() {
-    setBusy(true);
-    try { await api.admin.stopDiscord(); setRunning(false); setBotTag(null); }
+  async function remove() {
+    if (!confirm("Remove this Discord connection? This deletes the saved bot token and all chats it created.")) return;
+    setBusy(true); setError(null);
+    try {
+      await api.discord.disconnect();
+      setRunning(false); setHasToken(false); setBotTag(null);
+      setToken(""); setAllowed(""); setModel("");
+    } catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }
   }
 
   return (
     <>
-      {running && (
+      {running ? (
         <div className="rounded-xl border border-ok/30 bg-ok/10 px-4 py-3">
           <p className="text-sm font-semibold text-ok">✓ Bot {botTag ?? ""} is live</p>
           <p className="mt-0.5 text-xs text-muted">@mention the bot in any channel, or DM it directly.</p>
         </div>
-      )}
+      ) : hasToken ? (
+        <div className="rounded-xl border border-border bg-surface-2 px-4 py-3">
+          <p className="text-sm font-semibold text-fg">● Configured{botTag ? ` — ${botTag}` : ""}</p>
+          <p className="mt-0.5 text-xs text-muted">A bot token is saved but the bot isn't running. Save to reconnect.</p>
+        </div>
+      ) : null}
       <div className="flex flex-col gap-3">
         <div>
           <label className="mb-1 block text-xs font-semibold text-muted">Bot Token</label>
           <p className="mb-1.5 text-[11px] text-muted">Get from <span className="text-accent-2">discord.com/developers/applications</span> → your app → Bot → Reset Token</p>
-          <input className={inputCls} type="password"
-            placeholder={hasToken ? "••••••••  (configured — paste to replace)" : "Paste your bot token"}
-            value={token} onChange={e => setToken(e.target.value)} />
+          <TokenField hasValue={hasToken} value={token} onChange={setToken} placeholder="Paste your bot token" />
         </div>
         <div>
           <label className="mb-1 block text-xs font-semibold text-muted">Allowed User IDs <span className="font-normal">(optional)</span></label>
@@ -242,7 +177,7 @@ function DiscordConfig() {
           <label className="mb-1 block text-xs font-semibold text-muted">Model</label>
           <ModelPicker value={model} onChange={setModel} />
         </div>
-        <ActionRow busy={busy} running={running} onSave={save} onStop={stop} canSave={!!token.trim() || hasToken} />
+        <ActionRow busy={busy} running={running} configured={running || hasToken} onSave={save} onRemove={remove} canSave={!!token.trim() || hasToken} />
         {error && <p className="text-xs text-danger">{error}</p>}
         <div className="rounded-xl border border-border bg-surface-2 px-4 py-3 text-xs text-muted space-y-1.5">
           <p className="font-semibold text-fg">Setup checklist</p>
@@ -257,7 +192,7 @@ function DiscordConfig() {
 
 // ── Slack config ────────────────────────────────────────────────────────────────
 
-function SlackConfig() {
+export function SlackConfig() {
   const [botToken, setBotToken] = useState("");
   const [appToken, setAppToken] = useState("");
   const [allowedIds, setAllowed] = useState("");
@@ -269,9 +204,10 @@ function SlackConfig() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    api.admin.getSlack().then(d => {
+    api.slack.status().then(d => {
       setRunning(d.enabled); setAllowed(d.allowedIds); setModel(d.model);
       setHasTokens(!!(d.botToken && d.appToken));
+      if (d.botName) setBotName(d.botName);
     }).catch(() => {});
   }, []);
 
@@ -279,11 +215,10 @@ function SlackConfig() {
     if (!botToken.trim() && !appToken.trim() && !hasTokens) return;
     setBusy(true); setError(null);
     try {
-      const body: Record<string, string | boolean> = { allowedIds, model };
+      const body: { botToken?: string; appToken?: string; allowedIds: string; model: string } = { allowedIds, model };
       if (botToken.trim()) body.botToken = botToken;
       if (appToken.trim()) body.appToken = appToken;
-      if (running && !botToken.trim() && !appToken.trim()) body.reconnect = true;
-      const res = await api.admin.saveSlack(body as any);
+      const res = await api.slack.save(body);
       setRunning(res.running); setHasTokens(true);
       if (res.botName) setBotName(res.botName);
       setBotToken(""); setAppToken("");
@@ -291,34 +226,40 @@ function SlackConfig() {
     finally { setBusy(false); }
   }
 
-  async function stop() {
-    setBusy(true);
-    try { await api.admin.stopSlack(); setRunning(false); setBotName(null); }
+  async function remove() {
+    if (!confirm("Remove this Slack connection? This deletes the saved tokens and all chats it created.")) return;
+    setBusy(true); setError(null);
+    try {
+      await api.slack.disconnect();
+      setRunning(false); setHasTokens(false); setBotName(null);
+      setBotToken(""); setAppToken(""); setAllowed(""); setModel("");
+    } catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }
   }
 
   return (
     <>
-      {running && (
+      {running ? (
         <div className="rounded-xl border border-ok/30 bg-ok/10 px-4 py-3">
           <p className="text-sm font-semibold text-ok">✓ Bot @{botName ?? "enzo-ai"} is live</p>
           <p className="mt-0.5 text-xs text-muted">Message the bot directly or mention it in channels.</p>
         </div>
-      )}
+      ) : hasTokens ? (
+        <div className="rounded-xl border border-border bg-surface-2 px-4 py-3">
+          <p className="text-sm font-semibold text-fg">● Configured{botName ? ` — @${botName}` : ""}</p>
+          <p className="mt-0.5 text-xs text-muted">Tokens are saved but the app isn't running. Save to reconnect.</p>
+        </div>
+      ) : null}
       <div className="flex flex-col gap-3">
         <div>
           <label className="mb-1 block text-xs font-semibold text-muted">Bot Token <span className="font-normal">(xoxb-...)</span></label>
           <p className="mb-1.5 text-[11px] text-muted">api.slack.com/apps → OAuth & Permissions → Bot User OAuth Token</p>
-          <input className={inputCls} type="password"
-            placeholder={hasTokens ? "••••••••  (configured)" : "xoxb-..."}
-            value={botToken} onChange={e => setBotToken(e.target.value)} />
+          <TokenField hasValue={hasTokens} value={botToken} onChange={setBotToken} placeholder="xoxb-..." />
         </div>
         <div>
           <label className="mb-1 block text-xs font-semibold text-muted">App-Level Token <span className="font-normal">(xapp-...)</span></label>
           <p className="mb-1.5 text-[11px] text-muted">Basic Information → App-Level Tokens → create with <code className="bg-surface px-1 rounded text-[10px]">connections:write</code></p>
-          <input className={inputCls} type="password"
-            placeholder={hasTokens ? "••••••••  (configured)" : "xapp-..."}
-            value={appToken} onChange={e => setAppToken(e.target.value)} />
+          <TokenField hasValue={hasTokens} value={appToken} onChange={setAppToken} placeholder="xapp-..." />
         </div>
         <div>
           <label className="mb-1 block text-xs font-semibold text-muted">Allowed Channel / User IDs <span className="font-normal">(optional)</span></label>
@@ -328,7 +269,7 @@ function SlackConfig() {
           <label className="mb-1 block text-xs font-semibold text-muted">Model</label>
           <ModelPicker value={model} onChange={setModel} />
         </div>
-        <ActionRow busy={busy} running={running} onSave={save} onStop={stop} canSave={!!botToken.trim() || !!appToken.trim() || hasTokens} />
+        <ActionRow busy={busy} running={running} configured={running || hasTokens} onSave={save} onRemove={remove} canSave={!!botToken.trim() || !!appToken.trim() || hasTokens} />
         {error && <p className="text-xs text-danger">{error}</p>}
         <div className="rounded-xl border border-border bg-surface-2 px-4 py-3 text-xs text-muted space-y-1.5">
           <p className="font-semibold text-fg">Setup checklist</p>
@@ -344,19 +285,21 @@ function SlackConfig() {
 
 // ── Shared action row ───────────────────────────────────────────────────────────
 
-function ActionRow({ busy, running, onSave, onStop, canSave }: {
-  busy: boolean; running: boolean; onSave: () => void; onStop: () => void; canSave: boolean;
+function ActionRow({ busy, running, configured, onSave, onRemove, canSave }: {
+  busy: boolean; running: boolean; configured: boolean; onSave: () => void; onRemove: () => void; canSave: boolean;
 }) {
   return (
-    <div className="flex gap-2">
-      <button onClick={onSave} disabled={busy || !canSave}
-        className="flex-1 rounded-xl bg-accent py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent-2 disabled:opacity-40 disabled:cursor-not-allowed">
-        {busy ? "Connecting…" : running ? "Save & Reconnect" : "Save & Connect"}
-      </button>
-      {running && (
-        <button onClick={onStop} disabled={busy}
-          className="rounded-xl border border-danger/40 bg-danger/10 px-4 text-sm font-semibold text-danger hover:bg-danger/20 disabled:opacity-50">
-          Disconnect
+    <div className="flex flex-col gap-2">
+      <div className="flex gap-2">
+        <button onClick={onSave} disabled={busy || !canSave}
+          className="flex-1 rounded-xl bg-accent py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent-2 disabled:opacity-40 disabled:cursor-not-allowed">
+          {busy ? "Connecting…" : running ? "Save & Reconnect" : "Save & Connect"}
+        </button>
+      </div>
+      {configured && (
+        <button onClick={onRemove} disabled={busy}
+          className="rounded-xl border border-danger/40 bg-danger/10 py-2 text-sm font-semibold text-danger transition-colors hover:bg-danger/20 disabled:opacity-50">
+          Remove connection &amp; delete its chats
         </button>
       )}
     </div>

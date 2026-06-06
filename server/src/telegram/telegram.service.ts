@@ -10,13 +10,25 @@ import { AgentsService } from "../agents/agents.service";
  *  before any real Telegram chat id is known. The first inbound chat adopts it. */
 const PENDING_KEY = "__pending__";
 
+/** Per-user settings keys — each user runs their own Telegram bot, with their
+ *  own conversations and memory. */
+const K = {
+  token:   (u: string) => `telegram_bot_token_${u}`,
+  allowed: (u: string) => `telegram_allowed_ids_${u}`,
+  model:   (u: string) => `telegram_model_${u}`,
+  enabled: (u: string) => `telegram_enabled_${u}`,
+  chatMap: (u: string) => `telegram_chat_map_${u}`,
+};
+
 @Injectable()
 export class TelegramService implements OnModuleDestroy {
   private readonly logger = new Logger(TelegramService.name);
-  private bot: Telegraf | null = null;
 
-  // Injected lazily from main.ts after ChatService is wired up — avoids
-  // circular dependency between TelegramModule ↔ ChatModule.
+  // ownerUserId → that user's live bot. One bot per user who connected one.
+  private bots = new Map<string, { bot: Telegraf; username: string }>();
+
+  // Injected from app.module after ChatService is wired up — avoids a circular
+  // dependency between TelegramModule ↔ ChatModule.
   private runChat?: (
     userId: string,
     conversationId: string,
@@ -31,101 +43,129 @@ export class TelegramService implements OnModuleDestroy {
     private readonly agentsSvc: AgentsService,
   ) {}
 
-  /** Called by TelegramModule after ChatService is available. */
+  /** Called by app.module after ChatService is available. Auto-starts every
+   *  user who has Telegram enabled. */
   setRunner(
     fn: (userId: string, convoId: string, content: string, model?: string) => Promise<string>,
   ) {
     this.runChat = fn;
-    // Auto-start if already configured
-    if (this.settings.get("telegram_enabled") === "1") {
-      this.start().catch((e) => this.logger.error("Auto-start failed:", e.message));
+    for (const u of this.users.listAll()) {
+      if (this.settings.get(K.enabled(u.id)) === "1") {
+        this.start(u.id).catch((e) => this.logger.error(`Telegram auto-start failed for ${u.id}: ${e.message}`));
+      }
     }
   }
 
-  // ── Public API ─────────────────────────────────────────────────────────────
+  // ── Public API (per user) ───────────────────────────────────────────────────
 
-  /** Start the bot and return the verified bot username.
-   *  @param notify - send "bot is online" message to allowed users (only on explicit connect, not auto-restart)
-   */
-  async start(notify = false): Promise<{ username: string }> {
-    const token = this.settings.get("telegram_bot_token");
+  /** Start a user's bot and return its verified username. */
+  async start(userId: string, notify = false): Promise<{ username: string }> {
+    if (!this.settings.isConnectionEnabled("telegram")) {
+      throw new Error("Telegram is disabled by the administrator");
+    }
+    const token = this.settings.get(K.token(userId));
     if (!token) throw new Error("Bot token not configured");
-    if (this.bot) this.stop();
+    this.stop(userId);
 
-    this.bot = new Telegraf(token);
+    const bot = new Telegraf(token);
+    const me = await bot.telegram.getMe(); // verifies the token
+    this.registerHandlers(userId, bot);
+    bot.launch().catch((e) => this.logger.error(`Telegram bot crashed (user ${userId}): ${e.message}`));
 
-    // Verify the token is valid and get the bot info before launching
-    const me = await this.bot.telegram.getMe();
+    const username = me.username ?? me.first_name;
+    this.bots.set(userId, { bot, username });
+    this.settings.set(K.enabled(userId), "1");
+    this.logger.log(`Telegram bot @${username} started for user ${userId}`);
 
-    this.registerHandlers();
-
-    // Long polling — reaches out to Telegram, no public URL needed
-    this.bot.launch().catch((e) => this.logger.error("Bot crashed:", e.message));
-    this.settings.set("telegram_enabled", "1");
-    this.logger.log(`Telegram bot @${me.username} started`);
-
-    // Notify allowed users that the bot is online (only on explicit connect)
-    const allowedIds = this.settings.get("telegram_allowed_ids");
-    if (notify && allowedIds) {
-      const ids = allowedIds.split(",").map((s) => s.trim()).filter(Boolean);
-      for (const id of ids) {
-        this.bot.telegram.sendMessage(id,
-          `✅ *Enzo AI connected*\nBot @${me.username ?? me.first_name} is online and ready.\nSend me a message to start chatting!`,
-          { parse_mode: "Markdown" }
-        ).catch(() => {
-          // User may not have messaged the bot yet — can't initiate without a prior chat
-          this.logger.warn(`Could not notify Telegram user ${id} — they need to /start the bot first`);
-        });
+    if (notify) {
+      const allowedIds = this.settings.get(K.allowed(userId));
+      for (const id of (allowedIds ?? "").split(",").map((s) => s.trim()).filter(Boolean)) {
+        bot.telegram.sendMessage(id,
+          `✅ *Enzo AI connected*\nBot @${username} is online and ready.\nSend me a message to start chatting!`,
+          { parse_mode: "Markdown" },
+        ).catch(() => this.logger.warn(`Could not notify Telegram user ${id} — they must /start the bot first`));
       }
     }
 
-    return { username: me.username ?? me.first_name };
+    return { username };
   }
 
-  stop(): void {
-    this.bot?.stop("manual");
-    this.bot = null;
-    this.settings.set("telegram_enabled", "0");
-    this.logger.log("Telegram bot stopped");
+  stop(userId: string): void {
+    const entry = this.bots.get(userId);
+    if (entry) {
+      entry.bot.stop("manual");
+      this.bots.delete(userId);
+      this.logger.log(`Telegram bot stopped for user ${userId}`);
+    }
+    this.settings.set(K.enabled(userId), "0");
   }
 
-  isRunning(): boolean {
-    return this.bot !== null;
+  isRunning(userId: string): boolean {
+    return this.bots.has(userId);
+  }
+
+  /** Stop every running bot (admin disabled the connection). Keeps per-user
+   *  enabled flags so startAllEnabled() can restore them on re-enable. */
+  stopAllRunning(): void {
+    for (const [, entry] of this.bots) entry.bot.stop("admin-disabled");
+    this.bots.clear();
+    this.logger.log("All Telegram bots stopped (connection disabled by admin)");
+  }
+
+  /** Start bots for every user who has it enabled (admin re-enabled it). */
+  startAllEnabled(): void {
+    for (const u of this.users.listAll()) {
+      if (this.settings.get(K.enabled(u.id)) === "1") {
+        this.start(u.id).catch((e) => this.logger.error(`Telegram start failed for ${u.id}: ${e.message}`));
+      }
+    }
+  }
+
+  /** Persist a user's Telegram config (token/allowlist/model). */
+  updateConfig(userId: string, cfg: { token?: string; allowedIds?: string; model?: string }): void {
+    if (cfg.allowedIds != null) this.settings.set(K.allowed(userId), String(cfg.allowedIds).trim());
+    if (cfg.model != null) this.settings.set(K.model(userId), String(cfg.model).trim());
+    if (cfg.token?.trim()) this.settings.set(K.token(userId), cfg.token.trim());
+  }
+
+  /** Current config + status for a user (drives the Connections UI). */
+  getStatus(userId: string) {
+    return {
+      available: this.settings.isConnectionEnabled("telegram"),
+      enabled: this.isRunning(userId),
+      username: this.bots.get(userId)?.username ?? null,
+      token: this.settings.get(K.token(userId)) ? "••••••••" : null,
+      allowedIds: this.settings.get(K.allowed(userId)) ?? "",
+      model: this.settings.get(K.model(userId)) ?? "",
+    };
   }
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
-  private registerHandlers(): void {
-    if (!this.bot) return;
-
-    this.bot.start((ctx) =>
+  private registerHandlers(ownerUserId: string, bot: Telegraf): void {
+    bot.start((ctx) =>
       ctx.reply(
         "✅ *Connected to Enzo AI*\n\nI'm your private, locally-running AI assistant.\nJust send me a message and I'll reply — no data leaves your server.\n\nWhat can I help you with?",
-        { parse_mode: "Markdown" }
-      )
+        { parse_mode: "Markdown" },
+      ),
     );
 
-    // /chatid — returns the current chat's ID so users can link agents to it
-    this.bot.command("chatid", (ctx) =>
+    bot.command("chatid", (ctx) =>
       ctx.reply(
         `📋 Chat ID: \`${ctx.chat.id}\`\n\nUse this ID in the Agents settings to link an agent to this chat.`,
-        { parse_mode: "Markdown" }
-      )
+        { parse_mode: "Markdown" },
+      ),
     );
 
-    this.bot.on(message("text"), async (ctx) => {
+    bot.on(message("text"), async (ctx) => {
       const telegramUserId = String(ctx.from.id);
       const chatId         = String(ctx.chat.id);
       const isGroup        = ctx.chat.type === "group" || ctx.chat.type === "supergroup";
       const senderName     = [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(" ")
                              || ctx.from.username || "User";
-      // Store the raw message text so it renders cleanly in the web UI, the same
-      // as a web chat message. (Previously group messages baked "[Name]: " into
-      // the content, which then showed awkwardly next to the "You" label.)
       const text           = ctx.message.text;
 
-      // Check allowlist (if configured)
-      const allowed = this.settings.get("telegram_allowed_ids");
+      const allowed = this.settings.get(K.allowed(ownerUserId));
       if (allowed) {
         const ids = allowed.split(",").map((s) => s.trim());
         if (!ids.includes(telegramUserId)) {
@@ -139,26 +179,23 @@ export class TelegramService implements OnModuleDestroy {
         return;
       }
 
-      // Show typing indicator
       await ctx.sendChatAction("typing");
 
       try {
-        // Chat title: group name for groups, sender name for DMs
         const chatTitle = isGroup
           ? (("title" in ctx.chat ? ctx.chat.title : null) ?? `Group ${chatId}`)
           : senderName;
-        // Check if any agent is linked to this Telegram chat
-        const linkedAgent = this.findAgentForChat(chatId);
+        const linkedAgent = this.findAgentForChat(ownerUserId, chatId);
         const agentTitle = linkedAgent ? `${linkedAgent.emoji} ${linkedAgent.name}` : chatTitle;
 
         const { userId, convoId } = this.getOrCreateChatConversation(
+          ownerUserId,
           chatId,
           linkedAgent ? agentTitle : chatTitle,
           linkedAgent?.id,
         );
-        const model = this.settings.get("telegram_model") ?? undefined;
+        const model = this.settings.get(K.model(ownerUserId)) ?? undefined;
 
-        // Keep sending "typing" every 4s while the LLM processes
         const typingInterval = setInterval(() => ctx.sendChatAction("typing").catch(() => {}), 4000);
         let reply: string;
         try {
@@ -167,7 +204,6 @@ export class TelegramService implements OnModuleDestroy {
           clearInterval(typingInterval);
         }
 
-        // Telegram has a 4096 char limit — split if needed
         for (const chunk of splitMessage(reply)) {
           await ctx.reply(chunk, { parse_mode: "Markdown" });
         }
@@ -177,128 +213,110 @@ export class TelegramService implements OnModuleDestroy {
       }
     });
 
-    this.bot.catch((err) => {
-      this.logger.error("Telegraf error:", err);
-    });
+    bot.catch((err) => this.logger.error("Telegraf error:", err));
   }
 
-  // ── Conversation management ────────────────────────────────────────────────
+  // ── Conversation management (per user) ───────────────────────────────────────
 
-  /**
-   * Create a fresh, clean conversation the moment the integration is connected,
-   * so it shows up in the UI right away (rather than only after the first
-   * inbound message). Any stale Telegram conversations from a previous setup are
-   * removed first, so the new session is clean and unrelated to older chats.
-   * The first inbound chat binds to this pending conversation instead of
-   * creating another one.
-   */
-  prepareConversation(): void {
-    const botUser = this.users.listAll().find((u) => u.role === "admin");
-    if (!botUser) return;
-    // Wipe leftover Telegram conversations + mappings from any previous connect.
-    this.deleteConversation();
-    const convo = this.convos.create(botUser.id, undefined, undefined, "telegram");
+  /** Create a fresh, clean conversation on connect so it shows in the UI right
+   *  away. Wipes any stale Telegram conversations for this user first. */
+  prepareConversation(userId: string): void {
+    this.deleteConversation(userId);
+    const convo = this.convos.create(userId, undefined, undefined, "telegram");
     this.convos.rename(convo.id, "Telegram");
-    this.saveChatMap({ [PENDING_KEY]: convo.id });
-    this.logger.log(`Prepared clean Telegram conversation ${convo.id}`);
+    this.saveChatMap(userId, { [PENDING_KEY]: convo.id });
+    this.logger.log(`Prepared clean Telegram conversation ${convo.id} for user ${userId}`);
   }
 
-  /**
-   * Get or create a conversation for a Telegram chat (DM or group).
-   * One conversation per chat ID:
-   *   - DM → one conversation per person
-   *   - Group → one shared conversation for the whole group
-   * The first chat to arrive after connect adopts the pending conversation
-   * created by prepareConversation().
-   */
-  getOrCreateChatConversation(chatId: string, chatTitle: string, agentId?: string): { userId: string; convoId: string } {
-    const botUser = this.users.listAll().find((u) => u.role === "admin");
-    if (!botUser) throw new Error("No admin user found to run the bot as");
-
-    const map = this.loadChatMap();
+  getOrCreateChatConversation(ownerUserId: string, chatId: string, chatTitle: string, agentId?: string): { userId: string; convoId: string } {
+    const map = this.loadChatMap(ownerUserId);
 
     if (!map[chatId]) {
       if (map[PENDING_KEY]) {
-        // Adopt the clean conversation created at connect time.
         const convoId = map[PENDING_KEY];
         delete map[PENDING_KEY];
         this.convos.rename(convoId, chatTitle);
         if (agentId) this.convos.setAgent(convoId, agentId);
         map[chatId] = convoId;
       } else {
-        const convo = this.convos.create(botUser.id, undefined, agentId, "telegram");
+        const convo = this.convos.create(ownerUserId, undefined, agentId, "telegram");
         this.convos.rename(convo.id, chatTitle);
         map[chatId] = convo.id;
       }
-      this.saveChatMap(map);
+      this.saveChatMap(ownerUserId, map);
     }
 
-    return { userId: botUser.id, convoId: map[chatId] };
+    return { userId: ownerUserId, convoId: map[chatId] };
   }
 
-  /** Send a message to the Telegram chat backing a given conversation.
-   *  Used to relay web-UI replies back to Telegram so both sides stay in sync. */
-  async sendToConversation(convoId: string, text: string): Promise<void> {
-    if (!this.bot || !text.trim()) return;
-    const map = this.loadChatMap();
+  /** Relay a web-UI reply back to the Telegram chat backing a conversation. */
+  async sendToConversation(userId: string, convoId: string, text: string): Promise<void> {
+    const entry = this.bots.get(userId);
+    if (!entry || !text.trim()) return;
+    const map = this.loadChatMap(userId);
     const chatId = Object.keys(map).find((k) => k !== PENDING_KEY && map[k] === convoId);
-    if (!chatId) return; // no Telegram chat has messaged this conversation yet
+    if (!chatId) return;
     for (const chunk of splitMessage(text)) {
-      await this.bot.telegram.sendMessage(chatId, chunk, { parse_mode: "Markdown" }).catch((e) =>
+      await entry.bot.telegram.sendMessage(chatId, chunk, { parse_mode: "Markdown" }).catch((e) =>
         this.logger.error(`Failed to relay to Telegram chat ${chatId}: ${e.message}`),
       );
     }
   }
 
-  /** Find an agent that has this Telegram chat ID in its telegram_chat_ids. */
-  private findAgentForChat(chatId: string) {
-    const botUser = this.users.listAll().find((u) => u.role === "admin");
-    if (!botUser) return null;
-    const agents = this.agentsSvc.list(botUser.id);
+  private findAgentForChat(ownerUserId: string, chatId: string) {
+    const agents = this.agentsSvc.list(ownerUserId);
     return agents.find((a) => {
       if (!a.telegram_chat_ids) return false;
-      return a.telegram_chat_ids.split(",").map(s => s.trim()).includes(chatId);
+      return a.telegram_chat_ids.split(",").map((s) => s.trim()).includes(chatId);
     }) ?? null;
   }
 
-  /** Send a message proactively to all Telegram chats linked to an agent. */
-  async notifyAgentResult(agentTelegramChatIds: string, message: string): Promise<void> {
-    if (!this.bot) return;
-    const chatIds = agentTelegramChatIds.split(",").map(s => s.trim()).filter(Boolean);
+  /** Proactively send an agent's scheduled result to its linked Telegram chats. */
+  async notifyAgentResult(userId: string, agentTelegramChatIds: string, message: string): Promise<void> {
+    const entry = this.bots.get(userId);
+    if (!entry) return;
+    const chatIds = agentTelegramChatIds.split(",").map((s) => s.trim()).filter(Boolean);
     for (const chatId of chatIds) {
       for (const chunk of splitMessage(message)) {
-        await this.bot.telegram.sendMessage(chatId, chunk, { parse_mode: "Markdown" }).catch((e) =>
-          this.logger.error(`Failed to notify Telegram chat ${chatId}: ${e.message}`)
+        await entry.bot.telegram.sendMessage(chatId, chunk, { parse_mode: "Markdown" }).catch((e) =>
+          this.logger.error(`Failed to notify Telegram chat ${chatId}: ${e.message}`),
         );
       }
     }
   }
 
-  /** Delete ALL Telegram conversations (called from Integrations → Disconnect). */
-  deleteConversation(): void {
-    const botUser = this.users.listAll().find((u) => u.role === "admin");
-    if (!botUser) return;
-    const map = this.loadChatMap();
+  /** Clear a user's saved Telegram config (token/allowlist/model). */
+  clearConfig(userId: string): void {
+    this.settings.set(K.token(userId), "");
+    this.settings.set(K.allowed(userId), "");
+    this.settings.set(K.model(userId), "");
+  }
+
+  /** Delete all of a user's Telegram conversations (on disconnect/reconnect). */
+  deleteConversation(userId: string): void {
+    const map = this.loadChatMap(userId);
     for (const convoId of Object.values(map)) {
       try { this.convos.delete(convoId); } catch { /* already gone */ }
     }
-    this.settings.set("telegram_chat_map", "{}");
+    this.settings.set(K.chatMap(userId), "{}");
+    // Also sweep any orphaned conversations tagged with this integration.
+    try { this.convos.deleteByIntegration(userId, "telegram"); } catch { /* ignore */ }
   }
 
-  private loadChatMap(): Record<string, string> {
-    const raw = this.settings.get("telegram_chat_map");
+  private loadChatMap(userId: string): Record<string, string> {
+    const raw = this.settings.get(K.chatMap(userId));
     if (!raw) return {};
     try { return JSON.parse(raw); } catch { return {}; }
   }
 
-  private saveChatMap(map: Record<string, string>): void {
-    this.settings.set("telegram_chat_map", JSON.stringify(map));
+  private saveChatMap(userId: string, map: Record<string, string>): void {
+    this.settings.set(K.chatMap(userId), JSON.stringify(map));
   }
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
 
   onModuleDestroy() {
-    this.bot?.stop("module-destroy");
+    for (const [, entry] of this.bots) entry.bot.stop("module-destroy");
   }
 }
 

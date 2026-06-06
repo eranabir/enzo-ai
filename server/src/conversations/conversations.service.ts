@@ -80,6 +80,15 @@ export class ConversationsService {
     this.db.prepare(`DELETE FROM conversations WHERE id = ?`).run(id);
   }
 
+  /** Delete every conversation (and its messages) for a user tied to an integration. */
+  deleteByIntegration(userId: string, integration: string): number {
+    const rows = this.db
+      .prepare(`SELECT id FROM conversations WHERE user_id = ? AND integration = ?`)
+      .all(userId, integration) as { id: string }[];
+    for (const { id } of rows) this.delete(id);
+    return rows.length;
+  }
+
   listMessages(conversationId: string): MessageRow[] {
     return this.db
       .prepare(

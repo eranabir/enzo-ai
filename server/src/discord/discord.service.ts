@@ -12,12 +12,22 @@ import { ConversationsService } from "../conversations/conversations.service";
 import { UsersService } from "../users/users.service";
 import { AgentsService } from "../agents/agents.service";
 
+/** Per-user settings keys — each user runs their own Discord bot. */
+const K = {
+  token:   (u: string) => `discord_bot_token_${u}`,
+  allowed: (u: string) => `discord_allowed_ids_${u}`,
+  model:   (u: string) => `discord_model_${u}`,
+  enabled: (u: string) => `discord_enabled_${u}`,
+  chatMap: (u: string) => `discord_chat_map_${u}`,
+};
+
 @Injectable()
 export class DiscordService implements OnModuleDestroy {
   private readonly logger = new Logger(DiscordService.name);
-  private client: Client | null = null;
 
-  // Injected lazily from app.module.ts to avoid circular deps
+  // ownerUserId → that user's live Discord client.
+  private clients = new Map<string, { client: Client; tag: string }>();
+
   private runChat?: (userId: string, convoId: string, content: string, model?: string) => Promise<string>;
 
   constructor(
@@ -29,40 +39,44 @@ export class DiscordService implements OnModuleDestroy {
 
   setRunner(fn: (userId: string, convoId: string, content: string, model?: string) => Promise<string>) {
     this.runChat = fn;
-    if (this.settings.get("discord_enabled") === "1") {
-      this.start().catch((e) => this.logger.error("Discord auto-start failed:", e.message));
+    for (const u of this.users.listAll()) {
+      if (this.settings.get(K.enabled(u.id)) === "1") {
+        this.start(u.id).catch((e) => this.logger.error(`Discord auto-start failed for ${u.id}: ${e.message}`));
+      }
     }
   }
 
-  // ── Public API ─────────────────────────────────────────────────────────────
+  // ── Public API (per user) ───────────────────────────────────────────────────
 
-  async start(notify = false): Promise<{ tag: string }> {
-    const token = this.settings.get("discord_bot_token");
+  async start(userId: string, notify = false): Promise<{ tag: string }> {
+    if (!this.settings.isConnectionEnabled("discord")) {
+      throw new Error("Discord is disabled by the administrator");
+    }
+    const token = this.settings.get(K.token(userId));
     if (!token) throw new Error("Discord bot token not configured");
-    if (this.client) this.stop();
+    this.stop(userId);
 
-    this.client = new Client({
+    const client = new Client({
       intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent, // privileged — must enable in Discord Dev Portal
+        GatewayIntentBits.MessageContent,
         GatewayIntentBits.DirectMessages,
         GatewayIntentBits.DirectMessageReactions,
       ],
-      partials: [Partials.Channel, Partials.Message], // needed for DM support
+      partials: [Partials.Channel, Partials.Message],
     });
 
-    this.registerHandlers();
+    this.registerHandlers(userId, client);
+    await client.login(token);
+    const tag = client.user?.tag ?? "Unknown";
 
-    await this.client.login(token);
-    const tag = this.client.user?.tag ?? "Unknown";
-
-    this.settings.set("discord_enabled", "1");
-    this.logger.log(`Discord bot ${tag} connected`);
+    this.clients.set(userId, { client, tag });
+    this.settings.set(K.enabled(userId), "1");
+    this.logger.log(`Discord bot ${tag} connected for user ${userId}`);
 
     if (notify) {
-      // Send connection message to guilds + DM allowed users (explicit connect only)
-      for (const [, guild] of this.client.guilds.cache) {
+      for (const [, guild] of client.guilds.cache) {
         try {
           const channels = await guild.channels.fetch();
           const textChannel = (guild.systemChannel
@@ -76,16 +90,13 @@ export class DiscordService implements OnModuleDestroy {
           this.logger.warn(`Could not notify guild ${guild.name}: ${(e as Error).message}`);
         }
       }
-
-      const allowedIds = this.settings.get("discord_allowed_ids");
-      if (allowedIds) {
-        for (const id of allowedIds.split(",").map(s => s.trim()).filter(Boolean)) {
-          try {
-            const user = await this.client.users.fetch(id);
-            await user.send(`✅ **Enzo AI bot is online!** DM me any time to chat.`);
-          } catch {
-            this.logger.warn(`Could not DM Discord user ${id} — they may have DMs disabled`);
-          }
+      const allowedIds = this.settings.get(K.allowed(userId));
+      for (const id of (allowedIds ?? "").split(",").map((s) => s.trim()).filter(Boolean)) {
+        try {
+          const u = await client.users.fetch(id);
+          await u.send(`✅ **Enzo AI bot is online!** DM me any time to chat.`);
+        } catch {
+          this.logger.warn(`Could not DM Discord user ${id} — they may have DMs disabled`);
         }
       }
     }
@@ -93,29 +104,62 @@ export class DiscordService implements OnModuleDestroy {
     return { tag };
   }
 
-  stop(): void {
-    this.client?.destroy();
-    this.client = null;
-    this.settings.set("discord_enabled", "0");
-    this.logger.log("Discord bot disconnected");
+  stop(userId: string): void {
+    const entry = this.clients.get(userId);
+    if (entry) {
+      entry.client.destroy();
+      this.clients.delete(userId);
+      this.logger.log(`Discord bot disconnected for user ${userId}`);
+    }
+    this.settings.set(K.enabled(userId), "0");
   }
 
-  isRunning(): boolean {
-    return !!this.client?.isReady();
+  isRunning(userId: string): boolean {
+    return !!this.clients.get(userId)?.client.isReady();
   }
 
-  /** Send a message to a Discord channel (for agent scheduled runs). */
-  async notifyAgentResult(channelIds: string, content: string): Promise<void> {
-    if (!this.client) return;
-    const ids = channelIds.split(",").map(s => s.trim()).filter(Boolean);
-    for (const id of ids) {
+  /** Stop every running bot (admin disabled the connection). */
+  stopAllRunning(): void {
+    for (const [, entry] of this.clients) entry.client.destroy();
+    this.clients.clear();
+    this.logger.log("All Discord bots stopped (connection disabled by admin)");
+  }
+
+  /** Start bots for every user who has it enabled (admin re-enabled it). */
+  startAllEnabled(): void {
+    for (const u of this.users.listAll()) {
+      if (this.settings.get(K.enabled(u.id)) === "1") {
+        this.start(u.id).catch((e) => this.logger.error(`Discord start failed for ${u.id}: ${e.message}`));
+      }
+    }
+  }
+
+  updateConfig(userId: string, cfg: { token?: string; allowedIds?: string; model?: string }): void {
+    if (cfg.allowedIds != null) this.settings.set(K.allowed(userId), String(cfg.allowedIds).trim());
+    if (cfg.model != null) this.settings.set(K.model(userId), String(cfg.model).trim());
+    if (cfg.token?.trim()) this.settings.set(K.token(userId), cfg.token.trim());
+  }
+
+  getStatus(userId: string) {
+    return {
+      available: this.settings.isConnectionEnabled("discord"),
+      enabled: this.isRunning(userId),
+      tag: this.clients.get(userId)?.tag ?? null,
+      token: this.settings.get(K.token(userId)) ? "••••••••" : null,
+      allowedIds: this.settings.get(K.allowed(userId)) ?? "",
+      model: this.settings.get(K.model(userId)) ?? "",
+    };
+  }
+
+  /** Relay an agent's scheduled result to the user's linked Discord channels. */
+  async notifyAgentResult(userId: string, channelIds: string, content: string): Promise<void> {
+    const entry = this.clients.get(userId);
+    if (!entry) return;
+    for (const id of channelIds.split(",").map((s) => s.trim()).filter(Boolean)) {
       try {
-        const channel = await this.client.channels.fetch(id);
+        const channel = await entry.client.channels.fetch(id);
         if (channel?.isTextBased()) {
-          // Split long messages
-          for (const chunk of splitMessage(content)) {
-            await (channel as any).send(chunk);
-          }
+          for (const chunk of splitMessage(content)) await (channel as any).send(chunk);
         }
       } catch (e) {
         this.logger.error(`Failed to notify Discord channel ${id}: ${(e as Error).message}`);
@@ -123,29 +167,36 @@ export class DiscordService implements OnModuleDestroy {
     }
   }
 
-  deleteConversation(): void {
-    const botUser = this.users.listAll().find((u) => u.role === "admin");
-    if (!botUser) return;
-    const map = this.loadChatMap();
+  /** Clear a user's saved Discord config (token/allowlist/model). */
+  clearConfig(userId: string): void {
+    this.settings.set(K.token(userId), "");
+    this.settings.set(K.allowed(userId), "");
+    this.settings.set(K.model(userId), "");
+  }
+
+  deleteConversation(userId: string): void {
+    const map = this.loadChatMap(userId);
     for (const convoId of Object.values(map)) {
       try { this.convos.delete(convoId); } catch { /* already gone */ }
     }
-    this.settings.set("discord_chat_map", "{}");
+    this.settings.set(K.chatMap(userId), "{}");
+    // Also sweep any orphaned conversations tagged with this integration.
+    try { this.convos.deleteByIntegration(userId, "discord"); } catch { /* ignore */ }
   }
 
-  /** Send a message to the Discord channel/DM backing a conversation.
-   *  Relays web-UI replies back to Discord so both sides stay in sync. */
-  async sendToConversation(convoId: string, text: string): Promise<void> {
-    if (!this.client || !text.trim()) return;
-    const map = this.loadChatMap();
+  /** Relay a web-UI reply back to the Discord channel/DM backing a conversation. */
+  async sendToConversation(userId: string, convoId: string, text: string): Promise<void> {
+    const entry = this.clients.get(userId);
+    if (!entry || !text.trim()) return;
+    const map = this.loadChatMap(userId);
     const chatId = Object.keys(map).find((k) => map[k] === convoId);
     if (!chatId) return;
     try {
       if (chatId.startsWith("dm-")) {
-        const user = await this.client.users.fetch(chatId.slice(3));
-        for (const chunk of splitMessage(text)) await user.send(chunk);
+        const u = await entry.client.users.fetch(chatId.slice(3));
+        for (const chunk of splitMessage(text)) await u.send(chunk);
       } else {
-        const channel = await this.client.channels.fetch(chatId);
+        const channel = await entry.client.channels.fetch(chatId);
         if (channel?.isTextBased()) {
           for (const chunk of splitMessage(text)) await (channel as any).send(chunk);
         }
@@ -157,22 +208,17 @@ export class DiscordService implements OnModuleDestroy {
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
-  private registerHandlers(): void {
-    if (!this.client) return;
-
-    this.client.once(Events.ClientReady, async (c) => {
-      this.logger.log(`Discord ready: ${c.user.tag}`);
-      // Set presence — always, on every connect including auto-restart
+  private registerHandlers(ownerUserId: string, client: Client): void {
+    client.once(Events.ClientReady, async (c) => {
+      this.logger.log(`Discord ready (user ${ownerUserId}): ${c.user.tag}`);
       c.user.setPresence({ status: "online", activities: [{ name: "Enzo AI", type: 4 }] });
-
-      // Eagerly create conversations for each guild channel (no message sent here)
       for (const [, guild] of c.guilds.cache) {
         try {
           const channels = await guild.channels.fetch();
           const textChannel = (guild.systemChannel
             ?? channels.find((ch) => ch?.isTextBased())) as TextChannel | undefined;
           if (textChannel) {
-            this.getOrCreateChatConversation(textChannel.id, `#${textChannel.name}`);
+            this.getOrCreateChatConversation(ownerUserId, textChannel.id, `#${textChannel.name}`);
           }
         } catch (e) {
           this.logger.warn(`Guild "${guild.name}": ${(e as Error).message}`);
@@ -180,22 +226,17 @@ export class DiscordService implements OnModuleDestroy {
       }
     });
 
-    this.client.on(Events.MessageCreate, async (message: Message) => {
-      // Ignore bots (including ourselves)
+    client.on(Events.MessageCreate, async (message: Message) => {
       if (message.author.bot) return;
 
       const isDM      = message.channel.isDMBased();
-      const isMention = this.client?.user ? message.mentions.has(this.client.user) : false;
-
-      // In servers: only respond to @mentions
-      // In DMs: always respond
+      const isMention = client.user ? message.mentions.has(client.user) : false;
       if (!isDM && !isMention) return;
 
-      // Check allowlist
-      const allowed = this.settings.get("discord_allowed_ids");
+      const allowed = this.settings.get(K.allowed(ownerUserId));
       if (allowed) {
-        const ids = allowed.split(",").map(s => s.trim());
-        if (!ids.includes(message.author.id)) return; // silently ignore
+        const ids = allowed.split(",").map((s) => s.trim());
+        if (!ids.includes(message.author.id)) return;
       }
 
       if (!this.runChat) {
@@ -203,7 +244,6 @@ export class DiscordService implements OnModuleDestroy {
         return;
       }
 
-      // Strip @mention from the message content
       const text = message.content.replace(/<@!?\d+>/g, "").trim();
       if (!text) return;
 
@@ -212,23 +252,21 @@ export class DiscordService implements OnModuleDestroy {
       const chatTitle = isServer
         ? `#${(message.channel as any).name ?? message.channelId}`
         : message.author.displayName ?? message.author.username;
-      // Store the raw text so it renders cleanly in the web UI (same as web chat).
       const content = text;
 
       try {
         await (message.channel as any).sendTyping?.().catch(() => {});
 
-        // Find a linked agent for this channel
-        const linkedAgent = this.findAgentForChannel(chatId);
+        const linkedAgent = this.findAgentForChannel(ownerUserId, chatId);
         const { userId, convoId } = this.getOrCreateChatConversation(
+          ownerUserId,
           chatId,
           linkedAgent ? `${linkedAgent.emoji} ${linkedAgent.name}` : chatTitle,
           linkedAgent?.id,
         );
 
-        const model = this.settings.get("discord_model") ?? undefined;
-        const typingInterval = setInterval(() =>
-          (message.channel as any).sendTyping?.().catch(() => {}), 8000);
+        const model = this.settings.get(K.model(ownerUserId)) ?? undefined;
+        const typingInterval = setInterval(() => (message.channel as any).sendTyping?.().catch(() => {}), 8000);
         let reply: string;
         try {
           reply = await this.runChat(userId, convoId, content, model);
@@ -239,56 +277,48 @@ export class DiscordService implements OnModuleDestroy {
         for (const chunk of splitMessage(reply, 2000)) {
           await message.reply({ content: chunk, allowedMentions: { repliedUser: false } });
         }
-
       } catch (err) {
         this.logger.error("Discord message handling failed:", (err as Error).message);
         await message.reply("⚠️ Something went wrong. Please try again.");
       }
     });
 
-    this.client.on(Events.Error, (err) => {
-      this.logger.error("Discord client error:", err.message);
-    });
+    client.on(Events.Error, (err) => this.logger.error("Discord client error:", err.message));
   }
 
-  // ── Conversation management ────────────────────────────────────────────────
+  // ── Conversation management (per user) ───────────────────────────────────────
 
-  getOrCreateChatConversation(chatId: string, chatTitle: string, agentId?: string): { userId: string; convoId: string } {
-    const botUser = this.users.listAll().find((u) => u.role === "admin");
-    if (!botUser) throw new Error("No admin user found");
-
-    const map = this.loadChatMap();
+  getOrCreateChatConversation(ownerUserId: string, chatId: string, chatTitle: string, agentId?: string): { userId: string; convoId: string } {
+    const map = this.loadChatMap(ownerUserId);
     if (!map[chatId]) {
-      const convo = this.convos.create(botUser.id, undefined, agentId, "discord");
+      const convo = this.convos.create(ownerUserId, undefined, agentId, "discord");
       this.convos.rename(convo.id, chatTitle);
       map[chatId] = convo.id;
-      this.saveChatMap(map);
+      this.saveChatMap(ownerUserId, map);
     }
-    return { userId: botUser.id, convoId: map[chatId] };
+    return { userId: ownerUserId, convoId: map[chatId] };
   }
 
-  private findAgentForChannel(channelId: string) {
-    const botUser = this.users.listAll().find((u) => u.role === "admin");
-    if (!botUser) return null;
-    const agents = this.agentsSvc.list(botUser.id);
+  private findAgentForChannel(ownerUserId: string, channelId: string) {
+    const agents = this.agentsSvc.list(ownerUserId);
     return agents.find((a) => {
       if (!a.telegram_chat_ids) return false; // reuse same field for now
-      return a.telegram_chat_ids.split(",").map(s => s.trim()).includes(channelId);
+      return a.telegram_chat_ids.split(",").map((s) => s.trim()).includes(channelId);
     }) ?? null;
   }
 
-  private loadChatMap(): Record<string, string> {
-    const raw = this.settings.get("discord_chat_map");
+  private loadChatMap(userId: string): Record<string, string> {
+    const raw = this.settings.get(K.chatMap(userId));
     if (!raw) return {};
     try { return JSON.parse(raw); } catch { return {}; }
   }
 
-  private saveChatMap(map: Record<string, string>): void {
-    this.settings.set("discord_chat_map", JSON.stringify(map));
+  private saveChatMap(userId: string, map: Record<string, string>): void {
+    this.settings.set(K.chatMap(userId), JSON.stringify(map));
   }
 
   onModuleDestroy() {
-    this.client?.destroy();
+    for (const [, entry] of this.clients) entry.client.destroy();
   }
 }
 
