@@ -62,15 +62,26 @@ buildDependenciesFromSource: false
 mac:
   category: public.app-category.productivity
   icon: assets/icon.icns
-  # Code signing + notarization. These only activate in CI when the credentials
-  # are present (CSC_LINK/CSC_KEY_PASSWORD for the Developer ID cert; APPLE_ID +
-  # APPLE_APP_SPECIFIC_PASSWORD + APPLE_TEAM_ID for notarization). Without them,
-  # electron-builder skips signing/notarization and produces an unsigned build.
-  hardenedRuntime: true
+  # ── Ad-hoc signing (stopgap until Apple Developer ID + notarization) ──
+  # `sign` points at a custom hook that runs `codesign --sign -`, giving the app
+  # an ad-hoc signature. Gatekeeper then reports "unidentified developer" (which
+  # the user can bypass via right-click → Open → Open Anyway) instead of the
+  # dead-end "damaged and can't be opened" verdict it gives unsigned apps.
+  #
+  # To switch to real Developer ID signing + notarization later:
+  #   1. remove the `sign:` line below
+  #   2. set hardenedRuntime: true and notarize: true
+  #   3. provide CSC_LINK/CSC_KEY_PASSWORD + APPLE_ID/APPLE_APP_SPECIFIC_PASSWORD/
+  #      APPLE_TEAM_ID in CI (and drop CSC_IDENTITY_AUTO_DISCOVERY: false)
+  sign: build/ad-hoc-sign.js
+  # Hardened runtime is only needed for notarization; leaving it off keeps the
+  # ad-hoc-signed app launching cleanly (no library-validation enforcement on the
+  # bundled native module / ollama binary).
+  hardenedRuntime: false
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
-  notarize: true
+  notarize: false
   target:
     - target: dmg
 
