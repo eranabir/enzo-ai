@@ -5,7 +5,7 @@ import { TelegramService } from "./telegram.service";
 
 /**
  * Per-user Telegram integration. Each user connects their own bot; its messages
- * land in that user's conversations and memory. Auth-gated, not admin-only.
+ * land in that user's chats and memory. Auth-gated, not admin-only.
  */
 @Controller("integrations/telegram")
 @UseGuards(AuthGuard)
@@ -25,7 +25,7 @@ export class TelegramController {
     this.telegram.updateConfig(userId, body);
     if (body.token?.trim()) {
       const { username } = await this.telegram.start(userId, true);
-      this.telegram.prepareConversation(userId);
+      this.telegram.prepareChat(userId);
       return { ok: true, running: true, username };
     }
     return { ok: true, running: this.telegram.isRunning(userId) };
@@ -34,7 +34,7 @@ export class TelegramController {
   @Delete()
   disconnect(@UserId() userId: string) {
     this.telegram.stop(userId);
-    this.telegram.deleteConversation(userId);
+    this.telegram.deleteChat(userId);
     this.telegram.clearConfig(userId);
     return { ok: true, running: false };
   }

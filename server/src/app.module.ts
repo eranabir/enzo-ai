@@ -7,7 +7,7 @@ import { AuthModule } from "./auth/auth.module";
 import { ApiKeysModule } from "./api-keys/api-keys.module";
 import { SettingsModule } from "./settings/settings.module";
 import { LlmModule } from "./llm/llm.module";
-import { ConversationsModule } from "./conversations/conversations.module";
+import { ChatsModule } from "./chats/chats.module";
 import { ModelsModule } from "./models/models.module";
 import { ChatModule } from "./chat/chat.module";
 import { MemoriesModule } from "./memories/memories.module";
@@ -27,6 +27,8 @@ import { CalendarModule } from "./calendar/calendar.module";
 import { GmailModule } from "./gmail/gmail.module";
 import { AppsModule } from "./apps/apps.module";
 import { McpModule } from "./mcp/mcp.module";
+import { VaultModule } from "./vault/vault.module";
+import { VaultService } from "./vault/vault.service";
 
 @Module({
   imports: [
@@ -36,7 +38,7 @@ import { McpModule } from "./mcp/mcp.module";
     ApiKeysModule,
     SettingsModule,
     LlmModule,
-    ConversationsModule,
+    ChatsModule,
     ModelsModule,
     ChatModule,
     MemoriesModule,
@@ -50,6 +52,7 @@ import { McpModule } from "./mcp/mcp.module";
     GmailModule,
     AppsModule,
     McpModule,
+    VaultModule,
   ],
   controllers: [AppController],
   // AppController needs TelegramService + DiscordService for /api/health/integrations
@@ -103,13 +106,32 @@ export class AppModule implements OnModuleInit {
     }
 
     // ChatService → integrations: push web-sent replies back out to the linked
-    // platform so the conversation stays in sync both ways.
+    // platform so the chat stays in sync both ways.
     if (chat) {
       chat.setIntegrationRelay(async (integration, userId, convoId, text) => {
-        if (integration === "telegram") await telegram?.sendToConversation(userId, convoId, text);
-        else if (integration === "discord") await discordSvc?.sendToConversation(userId, convoId, text);
-        else if (integration === "slack") await slackSvc?.sendToConversation(userId, convoId, text);
+        if (integration === "telegram") await telegram?.sendToChat(userId, convoId, text);
+        else if (integration === "discord") await discordSvc?.sendToChat(userId, convoId, text);
+        else if (integration === "slack") await slackSvc?.sendToChat(userId, convoId, text);
       });
+    }
+
+    // ── Encryption gate ──────────────────────────────────────────────────────
+    // Bots write incoming messages into (possibly encrypted) chats, so they may
+    // only run once the vault is ready (unencrypted, or unlocked). On a headless
+    // NAS the vault auto-unlocks from ENZO_PASSPHRASE; otherwise bots start the
+    // moment an admin unlocks via the UI.
+    const vault = this.moduleRef.get(VaultService, { strict: false });
+    const startBots = () => {
+      telegram?.startAllEnabled();
+      discordSvc?.startAllEnabled();
+      slackSvc?.startAllEnabled();
+    };
+    if (vault) {
+      vault.tryAutoUnlock();
+      vault.onUnlock(startBots);
+      if (vault.isReady()) startBots();
+    } else {
+      startBots();
     }
   }
 }

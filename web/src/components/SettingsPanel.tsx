@@ -368,7 +368,7 @@ export function SettingsPanel({ open, user, onClose, onUpdated }: Props) {
                 </div>
                 <div>
                   <h2 className="text-lg font-bold">Telegram</h2>
-                  <p className="text-sm text-muted">Chat with your AI from Telegram — your own bot, your conversations.</p>
+                  <p className="text-sm text-muted">Chat with your AI from Telegram — your own bot, your chats.</p>
                 </div>
               </div>
               <TelegramConfig />

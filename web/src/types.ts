@@ -2,7 +2,7 @@ export type Role = "system" | "user" | "assistant";
 
 export interface Message {
   id: string;
-  conversation_id: string;
+  chat_id: string;
   role: Role;
   content: string;
   image_mime?: string | null;
@@ -57,21 +57,21 @@ export interface Memory {
   id: string;
   type: MemoryType;
   content: string;
-  sourceConversationId: string | null;
+  sourceChatId: string | null;
   createdAt: number;
 }
 
-export interface Conversation {
+export interface Chat {
   id: string;
   title: string;
   model: string | null;
   memory_enabled: number; // 1 = on, 0 = off (SQLite boolean)
-  integration: string | null; // "telegram" | null — managed by an integration
+  connection: string | null; // "telegram" | null — managed by a connection
   created_at: number;
   updated_at: number;
 }
 
-export interface ConversationDetail extends Conversation {
+export interface ChatDetail extends Chat {
   messages: Message[];
 }
 

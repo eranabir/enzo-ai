@@ -572,7 +572,7 @@ nav .container {
   .cli-layout { grid-template-columns: 1fr; gap: 40px; }
 }
 
-/* ── Integration Cards Grid ── */
+/* ── Connection Cards Grid ── */
 .int-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -607,7 +607,7 @@ nav .container {
   .int-grid { grid-template-columns: 1fr; }
 }
 
-/* ── Integrations (old — keep for fallback) ── */
+/* ── Connections (old — keep for fallback) ── */
 .integrations-glass {
   background: rgba(255,255,255,0.03);
   border: 1px solid var(--border);

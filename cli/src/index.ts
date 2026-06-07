@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 import { Command } from "commander";
 import kleur from "kleur";
-import { api, streamChat } from "./api";
+import { api, streamChat, streamSse } from "./api";
 import { clearAuth, loadConfig, saveConfig } from "./config";
 import {
   accent, bold, brand, chatInput, dim, divider, ensureAuth,
-  error, header, ok, prompt, promptSecret, purple, purple2, spinner,
+  error, header, ok, prompt, promptSecret, purple, purple2, spinner, warn,
 } from "./ui";
 
 const program = new Command();
@@ -59,12 +59,12 @@ program
     const cfg = loadConfig();
     const stop = spinner("Checking…");
     try {
-      const [health, modelInfo, statusInfo, profiles, integrations] = await Promise.all([
+      const [health, modelInfo, statusInfo, profiles, connections] = await Promise.all([
         api.health(),
         api.models(),
         api.status(),
         api.profiles(),
-        api.integrationStatus().catch(() => ({ telegram: false, discord: false, slack: false })),
+        api.connectionStatus().catch(() => ({ telegram: false, discord: false, slack: false })),
       ]);
 
       // Detect whether the web UI is served by this server or a separate Vite dev server
@@ -92,14 +92,14 @@ program
       console.log(`  Models  ${list || dim("none installed")}`);
       console.log(`  Users   ${profiles.length} registered`);
       console.log(`  You     ${sessionLine}`);
-      // Show connected integrations if any are running
-      const connectedIntegrations = [
-        integrations.telegram && "Telegram",
-        integrations.discord  && "Discord",
-        integrations.slack    && "Slack",
+      // Show connected accounts if any are running
+      const connectedConnections = [
+        connections.telegram && "Telegram",
+        connections.discord  && "Discord",
+        connections.slack    && "Slack",
       ].filter(Boolean);
-      if (connectedIntegrations.length) {
-        console.log(`  Bots    ${ok("●")} ${connectedIntegrations.join(", ")}`);
+      if (connectedConnections.length) {
+        console.log(`  Bots    ${ok("●")} ${connectedConnections.join(", ")}`);
       }
       console.log();
     } catch {
@@ -132,6 +132,167 @@ program
       console.error(error(`\n  ✗ ${(e as Error).message}\n`));
       process.exit(1);
     }
+  });
+
+// ── register / setup wizard ────────────────────────────────────────────────────
+
+program
+  .command("register")
+  .alias("setup")
+  .description("Create an account and run the full setup wizard (encryption, model)")
+  .option("-u, --username <name>")
+  .action(async (opts) => {
+    header("setup");
+
+    // 1. Server reachable?
+    const stopH = spinner("Connecting to Enzo AI…");
+    try { await api.health(); stopH(); }
+    catch {
+      stopH();
+      console.error(error(`\n  ✗ Can't reach the server at ${loadConfig().serverUrl}.`));
+      console.error(dim(`    Make sure it's running, or set it: enzo-ai config server <url>\n`));
+      process.exit(1);
+    }
+
+    // 2. First user becomes admin.
+    let firstUser = false;
+    try { firstUser = (await api.profiles()).length === 0; } catch { /* ignore */ }
+    console.log(firstUser
+      ? "\n  " + accent("You're the first user — you'll be the admin.")
+      : dim("\n  Creating an additional account."));
+
+    // 3. Credentials.
+    const username = opts.username || await prompt("\n  Username: ");
+    if (!username) { console.error(error("\n  Username is required.\n")); process.exit(1); }
+    let password = "";
+    for (;;) {
+      password = await promptSecret("  Password (min 4 chars): ");
+      if (password.length < 4) { console.log(warn("  Too short — at least 4 characters.")); continue; }
+      const confirm = await promptSecret("  Confirm password: ");
+      if (confirm !== password) { console.log(warn("  Passwords don't match — try again.")); continue; }
+      break;
+    }
+    const firstName = await prompt("  First name (optional): ");
+    const lastName  = await prompt("  Last name (optional): ");
+
+    // 4. Create the account + save the session.
+    const stopR = spinner("Creating your account…");
+    let user: { username: string; displayName: string; role: string; isAdmin?: boolean };
+    try {
+      const res = await api.register({
+        username, password,
+        firstName: firstName || undefined,
+        lastName: lastName || undefined,
+      });
+      saveConfig({ token: res.token, username: res.user.username });
+      user = res.user;
+      stopR();
+      console.log(ok("\n  ✓ Account created — ") + accent(user.displayName) + dim(` (${user.role})`));
+    } catch (e) {
+      stopR();
+      console.error(error(`\n  ✗ ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+
+    const isAdmin = user.role === "admin" || user.isAdmin === true;
+
+    // 5. Encryption (admin only, if not already configured).
+    if (isAdmin) {
+      let configured = false;
+      try { configured = (await api.vaultStatus()).configured; } catch { /* ignore */ }
+      if (!configured) {
+        divider();
+        console.log(bold("\n  🔒 Secure your chats"));
+        console.log(dim("  Encrypt your messages, titles and memories at rest with a passphrase."));
+        console.log(dim("  A copied database or backup is useless without it.\n"));
+        const want = (await prompt("  Set up encryption now? [Y/n]: ")).toLowerCase();
+        if (want !== "n" && want !== "no") {
+          let pass = "";
+          for (;;) {
+            pass = await promptSecret("  Choose a passphrase (min 6 chars): ");
+            if (pass.length < 6) { console.log(warn("  Too short — at least 6 characters.")); continue; }
+            const c = await promptSecret("  Confirm passphrase: ");
+            if (c !== pass) { console.log(warn("  Passphrases don't match — try again.")); continue; }
+            break;
+          }
+          const stopE = spinner("Encrypting…");
+          try {
+            const res = await api.vaultSetup(pass);
+            stopE();
+            console.log(ok("\n  ✓ Encryption enabled\n"));
+            console.log(warn("  ⚠  SAVE YOUR RECOVERY KEY — shown only once:"));
+            console.log("\n     " + bold(accent(res.recoveryKey)) + "\n");
+            console.log(dim("  This is the only way back in if you forget your passphrase."));
+            await prompt("\n  Press Enter once you've saved it… ");
+          } catch (e) {
+            stopE();
+            console.error(error(`\n  ✗ ${(e as Error).message}\n`));
+          }
+        } else {
+          console.log(dim("  Skipped — enable it later from the app's Admin → Encryption.\n"));
+        }
+      }
+    }
+
+    // 6. Local model.
+    divider();
+    console.log(bold("\n  Model setup"));
+    let ollama = false;
+    try { ollama = (await api.status()).ollama; } catch { /* ignore */ }
+    if (!ollama) {
+      console.log(warn("\n  Local engine (Ollama) not detected — skipping model download."));
+      console.log(dim("  Install Ollama, or add a cloud API key later.\n"));
+    } else {
+      try {
+        const { models, default: def } = await api.models();
+        const installed = new Set(models.map((m) => m.id));
+        if (models.length > 0) {
+          console.log(ok(`\n  ✓ ${models.length} model(s) ready: `) + dim([...installed].slice(0, 4).join(", ")));
+        }
+
+        console.log("\n  How would you like to pick a model?");
+        console.log(`    ${accent("[1]")} Use the default${installed.has(def) ? ok(" (installed)") : ""}  ${dim(def)}`);
+        console.log(`    ${accent("[2]")} Analyze my system & choose`);
+        console.log(`    ${accent("[3]")} Skip`);
+        const choice = (await prompt("\n  Choose [1/2/3] (Enter = 1): ")).trim() || "1";
+
+        if (choice === "3") {
+          console.log(dim("  Skipped."));
+        } else if (choice === "2") {
+          const stopA = spinner("Analyzing your system…");
+          let a: Awaited<ReturnType<typeof api.system>> | null = null;
+          try { a = await api.system(); stopA(); }
+          catch (e) { stopA(); console.log(warn(`  Couldn't analyze: ${(e as Error).message}`)); }
+          if (a) {
+            const i = a.info;
+            console.log(dim(`\n  ${i.cpuCount} cores · ${i.ramGb} GB RAM · GPU ${i.gpuName ?? "—"}${i.vramGb ? ` (${i.vramGb} GB VRAM)` : ""}`));
+            const opts = [
+              { modelId: a.recommendation.modelId, label: a.recommendation.label, note: a.recommendation.reason, rec: true },
+              ...a.recommendation.alternatives.map((x) => ({ ...x, rec: false })),
+            ];
+            console.log("\n  Recommended for your system:");
+            opts.forEach((o, idx) => {
+              console.log(`    ${accent(`[${idx + 1}]`)} ${bold(o.label)}${o.rec ? purple2(" ★ recommended") : ""}${installed.has(o.modelId) ? ok(" ✓ installed") : ""}`);
+              console.log(dim(`        ${o.note} · ${o.modelId}`));
+            });
+            const n = parseInt((await prompt(`\n  Pick a model [1-${opts.length}] (Enter = 1): `)).trim() || "1", 10);
+            const chosen = opts[n >= 1 && n <= opts.length ? n - 1 : 0];
+            if (installed.has(chosen.modelId)) console.log(ok(`\n  ✓ ${chosen.modelId} is already installed`));
+            else await pullWithProgress(chosen.modelId);
+          }
+        } else {
+          // default
+          if (installed.has(def)) console.log(ok(`\n  ✓ ${def} is already installed`));
+          else await pullWithProgress(def);
+        }
+      } catch (e) {
+        console.log(warn(`\n  Couldn't load models: ${(e as Error).message}`));
+      }
+    }
+
+    // 7. Done.
+    divider();
+    console.log(ok("\n  ✓ All set! ") + dim("Start chatting:") + "  " + accent("enzo-ai chat") + "\n");
   });
 
 // ── logout ───────────────────────────────────────────────────────────────────
@@ -176,14 +337,14 @@ program
 
 program
   .command("chats")
-  .alias("conversations")
+  .alias("chats")
   .description("List recent chats with their IDs")
   .action(async () => {
     const { token } = loadConfig();
     ensureAuth(token);
     const stop = spinner("Loading…");
     try {
-      const convos = await api.listConversations();
+      const convos = await api.listChats();
       stop();
       if (!convos.length) {
         console.log(dim("\n  No chats yet. Start one with: enzo-ai chat\n"));
@@ -408,19 +569,20 @@ toolsCmd
     }
   });
 
-// ── integrations ──────────────────────────────────────────────────────────────
+// ── connections ─────────────────────────────────────────────────────────────────
 
 program
-  .command("integrations")
-  .description("Show connected integrations (Telegram, Discord, Slack)")
+  .command("connections")
+  .alias("integrations")
+  .description("Show your connections (Telegram, Discord, Slack)")
   .action(async () => {
     const { token } = loadConfig();
     ensureAuth(token);
     const stop = spinner("Loading…");
     try {
-      const status = await api.integrationStatus();
+      const status = await api.connectionStatus();
       stop();
-      console.log("\n" + brand + "  " + dim("integrations"));
+      console.log("\n" + brand + "  " + dim("connections"));
       divider();
       const rows = [
         { name: "Telegram", key: "telegram" as const },
@@ -434,7 +596,7 @@ program
         console.log(`  ${dot}  ${name.padEnd(12)} ${label}`);
       }
       console.log();
-      console.log(dim("  Configure integrations in: Admin Panel → Integrations"));
+      console.log(dim("  Configure connections in: Settings → Connections"));
       console.log();
     } catch (e) {
       stop();
@@ -461,8 +623,8 @@ program
         // Resolve short prefix (e.g. "efed6b76") to full UUID
         const input = opts.id.trim();
         if (input.length < 36) {
-          // Prefix match against the user's conversations
-          const all = await api.listConversations();
+          // Prefix match against the user's chats
+          const all = await api.listChats();
           const match = all.find((c) => c.id.startsWith(input));
           if (!match) {
             stop1();
@@ -477,7 +639,7 @@ program
           convoId = input; // full UUID provided
         }
       } else {
-        convoId = (await api.createConversation()).id;
+        convoId = (await api.createChat()).id;
       }
       stop1();
     } catch (e) {
@@ -533,6 +695,24 @@ async function sendAndStream(convoId: string, message: string, model?: string) {
     process.stdout.write("\n\n");
   } catch (e) {
     process.stdout.write(error(`\n  ${(e as Error).message}\n\n`));
+  }
+}
+
+/** Pull a model, rendering live progress on one line. */
+async function pullWithProgress(model: string) {
+  process.stdout.write(dim(`\n  Downloading ${model}…\n`));
+  try {
+    for await (const ev of streamSse("/api/models/pull", { model })) {
+      if (ev.error) { process.stdout.write("\r\x1b[K" + error(`  ✗ ${ev.error}\n`)); return; }
+      if (ev.done)  { process.stdout.write("\r\x1b[K" + ok(`  ✓ ${model} downloaded\n`)); return; }
+      if (ev.status) {
+        const pct = typeof ev.total === "number" && ev.total > 0
+          ? Math.round(((ev.completed ?? 0) / ev.total) * 100) : null;
+        process.stdout.write(`\r\x1b[K  ${purple("⬇")} ${ev.status}${pct != null ? `  ${pct}%` : ""}`);
+      }
+    }
+  } catch (e) {
+    process.stdout.write("\r\x1b[K" + error(`  ✗ ${(e as Error).message}\n`));
   }
 }
 

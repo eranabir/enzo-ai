@@ -13,12 +13,12 @@ import {
 } from "@nestjs/common";
 import { AuthGuard } from "../auth/auth.guard";
 import { UserId } from "../auth/current-user.decorator";
-import { ConversationsService } from "./conversations.service";
+import { ChatsService } from "./chats.service";
 
-@Controller("conversations")
+@Controller("chats")
 @UseGuards(AuthGuard)
-export class ConversationsController {
-  constructor(private readonly convos: ConversationsService) {}
+export class ChatsController {
+  constructor(private readonly convos: ChatsService) {}
 
   @Get()
   list(@UserId() userId: string) {
@@ -57,9 +57,9 @@ export class ConversationsController {
   remove(@UserId() userId: string, @Param("id") id: string) {
     const convo = this.convos.get(id, userId);
     if (!convo) return;
-    if (convo.integration) {
+    if (convo.connection) {
       throw new BadRequestException(
-        `This conversation is managed by the ${convo.integration} integration and cannot be deleted from here.`,
+        `This chat is managed by the ${convo.connection} connection and cannot be deleted from here.`,
       );
     }
     this.convos.delete(convo.id);

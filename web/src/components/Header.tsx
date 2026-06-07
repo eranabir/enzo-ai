@@ -1,5 +1,5 @@
 import { Brain, Cpu } from "lucide-react";
-import type { Conversation, ModelInfo } from "../types";
+import type { Chat, ModelInfo } from "../types";
 import {
   Select,
   SelectContent,
@@ -12,29 +12,29 @@ export function Header({
   models,
   model,
   online,
-  activeConversation,
+  activeChat,
   onModelChange,
   onToggleMemory,
 }: {
   models: ModelInfo[];
   model: string;
   online: boolean | null;
-  activeConversation: Conversation | null;
+  activeChat: Chat | null;
   onModelChange: (m: string) => void;
   onToggleMemory: (enabled: boolean) => void;
 }) {
   const statusColor =
     online ? "text-ok" : online === false ? "text-danger" : "text-muted";
 
-  const memoryOn = activeConversation
-    ? activeConversation.memory_enabled !== 0
-    : true; // default for new conversations
+  const memoryOn = activeChat
+    ? activeChat.memory_enabled !== 0
+    : true; // default for new chats
 
   return (
     <header className="flex items-center justify-between border-b border-border bg-bg px-5 py-2.5">
       <div className="min-w-0 max-w-[280px]">
-        {activeConversation
-          ? <p className="truncate text-sm font-semibold text-fg">{activeConversation.title}</p>
+        {activeChat
+          ? <p className="truncate text-sm font-semibold text-fg">{activeChat.title}</p>
           : <p className="text-sm font-semibold text-muted"></p>
         }
       </div>
@@ -53,11 +53,11 @@ export function Header({
           {online ? "Local" : online === false ? "Offline" : "…"}
         </div>
 
-        {/* Memory toggle — only shown when a conversation is active */}
-        {activeConversation && (
+        {/* Memory toggle — only shown when a chat is active */}
+        {activeChat && (
           <button
             onClick={() => onToggleMemory(!memoryOn)}
-            title={memoryOn ? "Memory on — click to disable for this conversation" : "Memory off — click to enable"}
+            title={memoryOn ? "Memory on — click to disable for this chat" : "Memory off — click to enable"}
             className="flex cursor-pointer items-center gap-2 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted transition-colors hover:border-accent/40 hover:bg-surface-2 hover:text-fg"
           >
             <Brain className={`h-3.5 w-3.5 transition-colors ${memoryOn ? "text-accent-2" : "text-muted"}`} />

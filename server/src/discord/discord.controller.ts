@@ -30,7 +30,7 @@ export class DiscordController {
   @Delete()
   disconnect(@UserId() userId: string) {
     this.discord.stop(userId);
-    this.discord.deleteConversation(userId);
+    this.discord.deleteChat(userId);
     this.discord.clearConfig(userId);
     return { ok: true, running: false };
   }

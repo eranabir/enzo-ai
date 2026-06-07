@@ -1,6 +1,6 @@
 import type {
-  Conversation,
-  ConversationDetail,
+  Chat,
+  ChatDetail,
   ModelInfo,
   ProfileSummary,
   SystemAnalysis,
@@ -84,24 +84,24 @@ export const api = {
 
   logout: () => fetch("/api/auth/logout", { method: "POST", headers: headers() }),
 
-  // ---- conversations ----
-  listConversations: () =>
-    fetch("/api/conversations", { headers: headers() }).then(parse<Conversation[]>),
+  // ---- chats ----
+  listChats: () =>
+    fetch("/api/chats", { headers: headers() }).then(parse<Chat[]>),
 
-  createConversation: (agentId?: string) =>
-    fetch("/api/conversations", {
+  createChat: (agentId?: string) =>
+    fetch("/api/chats", {
       method: "POST",
       headers: headers(true),
       body: JSON.stringify(agentId ? { agentId } : {}),
-    }).then(parse<Conversation>),
+    }).then(parse<Chat>),
 
-  getConversation: (id: string) =>
-    fetch(`/api/conversations/${id}`, { headers: headers() }).then(
-      parse<ConversationDetail>,
+  getChat: (id: string) =>
+    fetch(`/api/chats/${id}`, { headers: headers() }).then(
+      parse<ChatDetail>,
     ),
 
-  deleteConversation: (id: string) =>
-    fetch(`/api/conversations/${id}`, { method: "DELETE", headers: headers() }),
+  deleteChat: (id: string) =>
+    fetch(`/api/chats/${id}`, { method: "DELETE", headers: headers() }),
 
   // ---- models (auth required — returns local + user's external providers) ----
   models: () =>
@@ -143,6 +143,25 @@ export const api = {
         .then(parse<{ url: string }>),
     disconnect: () =>
       fetch("/api/gmail", { method: "DELETE", headers: headers() })
+        .then(parse<{ ok: boolean }>),
+  },
+
+  // ── Vault (encryption) ─────────────────────────────────────────────────────
+  vault: {
+    status: () =>
+      fetch("/api/vault/status", { headers: headers() })
+        .then(parse<{ configured: boolean; unlocked: boolean }>),
+    setup: (passphrase: string) =>
+      fetch("/api/vault/setup", { method: "POST", headers: headers(true), body: JSON.stringify({ passphrase }) })
+        .then(parse<{ ok: boolean; recoveryKey: string; configured: boolean; unlocked: boolean }>),
+    unlock: (secret: string) =>
+      fetch("/api/vault/unlock", { method: "POST", headers: headers(true), body: JSON.stringify({ secret }) })
+        .then(parse<{ ok: boolean; configured: boolean; unlocked: boolean }>),
+    lock: () =>
+      fetch("/api/vault/lock", { method: "POST", headers: headers() })
+        .then(parse<{ ok: boolean; configured: boolean; unlocked: boolean }>),
+    changePassphrase: (passphrase: string) =>
+      fetch("/api/vault/change-passphrase", { method: "POST", headers: headers(true), body: JSON.stringify({ passphrase }) })
         .then(parse<{ ok: boolean }>),
   },
 
@@ -206,13 +225,13 @@ export const api = {
       fetch("/api/memories", { method: "DELETE", headers: headers() }),
   },
 
-  // ---- conversations: toggle memory ----
-  setMemory: (conversationId: string, enabled: boolean) =>
-    fetch(`/api/conversations/${conversationId}`, {
+  // ---- chats: toggle memory ----
+  setMemory: (chatId: string, enabled: boolean) =>
+    fetch(`/api/chats/${chatId}`, {
       method: "PATCH",
       headers: headers(true),
       body: JSON.stringify({ memoryEnabled: enabled }),
-    }).then(parse<import("./types").Conversation>),
+    }).then(parse<import("./types").Chat>),
 
   // ---- admin ----
   admin: {
@@ -359,7 +378,7 @@ export async function streamPullModel(
  * Uses fetch (not EventSource) so we can POST the body + auth header.
  */
 export async function streamChat(
-  body: { conversationId: string; content: string; model?: string; imageBase64?: string; imageMime?: string },
+  body: { chatId: string; content: string; model?: string; imageBase64?: string; imageMime?: string },
   handlers: ChatHandlers,
   signal?: AbortSignal,
 ): Promise<void> {

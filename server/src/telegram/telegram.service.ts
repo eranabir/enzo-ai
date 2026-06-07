@@ -2,16 +2,16 @@ import { Injectable, Logger, OnModuleDestroy } from "@nestjs/common";
 import { Telegraf } from "telegraf";
 import { message } from "telegraf/filters";
 import { SettingsService } from "../settings/settings.service";
-import { ConversationsService } from "../conversations/conversations.service";
+import { ChatsService } from "../chats/chats.service";
 import { UsersService } from "../users/users.service";
 import { AgentsService } from "../agents/agents.service";
 
-/** Placeholder key in the chat map for the conversation created at connect time,
+/** Placeholder key in the chat map for the chat created at connect time,
  *  before any real Telegram chat id is known. The first inbound chat adopts it. */
 const PENDING_KEY = "__pending__";
 
 /** Per-user settings keys — each user runs their own Telegram bot, with their
- *  own conversations and memory. */
+ *  own chats and memory. */
 const K = {
   token:   (u: string) => `telegram_bot_token_${u}`,
   allowed: (u: string) => `telegram_allowed_ids_${u}`,
@@ -31,14 +31,14 @@ export class TelegramService implements OnModuleDestroy {
   // dependency between TelegramModule ↔ ChatModule.
   private runChat?: (
     userId: string,
-    conversationId: string,
+    chatId: string,
     content: string,
     model: string | undefined,
   ) => Promise<string>;
 
   constructor(
     private readonly settings: SettingsService,
-    private readonly convos: ConversationsService,
+    private readonly convos: ChatsService,
     private readonly users: UsersService,
     private readonly agentsSvc: AgentsService,
   ) {}
@@ -48,12 +48,9 @@ export class TelegramService implements OnModuleDestroy {
   setRunner(
     fn: (userId: string, convoId: string, content: string, model?: string) => Promise<string>,
   ) {
+    // Note: bots are started separately via startAllEnabled() once the vault is
+    // ready (see AppModule), so we don't auto-start here.
     this.runChat = fn;
-    for (const u of this.users.listAll()) {
-      if (this.settings.get(K.enabled(u.id)) === "1") {
-        this.start(u.id).catch((e) => this.logger.error(`Telegram auto-start failed for ${u.id}: ${e.message}`));
-      }
-    }
   }
 
   // ── Public API (per user) ───────────────────────────────────────────────────
@@ -188,7 +185,7 @@ export class TelegramService implements OnModuleDestroy {
         const linkedAgent = this.findAgentForChat(ownerUserId, chatId);
         const agentTitle = linkedAgent ? `${linkedAgent.emoji} ${linkedAgent.name}` : chatTitle;
 
-        const { userId, convoId } = this.getOrCreateChatConversation(
+        const { userId, convoId } = this.getOrCreateChat(
           ownerUserId,
           chatId,
           linkedAgent ? agentTitle : chatTitle,
@@ -216,19 +213,19 @@ export class TelegramService implements OnModuleDestroy {
     bot.catch((err) => this.logger.error("Telegraf error:", err));
   }
 
-  // ── Conversation management (per user) ───────────────────────────────────────
+  // ── Chat management (per user) ───────────────────────────────────────
 
-  /** Create a fresh, clean conversation on connect so it shows in the UI right
-   *  away. Wipes any stale Telegram conversations for this user first. */
-  prepareConversation(userId: string): void {
-    this.deleteConversation(userId);
+  /** Create a fresh, clean chat on connect so it shows in the UI right
+   *  away. Wipes any stale Telegram chats for this user first. */
+  prepareChat(userId: string): void {
+    this.deleteChat(userId);
     const convo = this.convos.create(userId, undefined, undefined, "telegram");
     this.convos.rename(convo.id, "Telegram");
     this.saveChatMap(userId, { [PENDING_KEY]: convo.id });
-    this.logger.log(`Prepared clean Telegram conversation ${convo.id} for user ${userId}`);
+    this.logger.log(`Prepared clean Telegram chat ${convo.id} for user ${userId}`);
   }
 
-  getOrCreateChatConversation(ownerUserId: string, chatId: string, chatTitle: string, agentId?: string): { userId: string; convoId: string } {
+  getOrCreateChat(ownerUserId: string, chatId: string, chatTitle: string, agentId?: string): { userId: string; convoId: string } {
     const map = this.loadChatMap(ownerUserId);
 
     if (!map[chatId]) {
@@ -249,8 +246,8 @@ export class TelegramService implements OnModuleDestroy {
     return { userId: ownerUserId, convoId: map[chatId] };
   }
 
-  /** Relay a web-UI reply back to the Telegram chat backing a conversation. */
-  async sendToConversation(userId: string, convoId: string, text: string): Promise<void> {
+  /** Relay a web-UI reply back to the Telegram chat backing a chat. */
+  async sendToChat(userId: string, convoId: string, text: string): Promise<void> {
     const entry = this.bots.get(userId);
     if (!entry || !text.trim()) return;
     const map = this.loadChatMap(userId);
@@ -292,15 +289,15 @@ export class TelegramService implements OnModuleDestroy {
     this.settings.set(K.model(userId), "");
   }
 
-  /** Delete all of a user's Telegram conversations (on disconnect/reconnect). */
-  deleteConversation(userId: string): void {
+  /** Delete all of a user's Telegram chats (on disconnect/reconnect). */
+  deleteChat(userId: string): void {
     const map = this.loadChatMap(userId);
     for (const convoId of Object.values(map)) {
       try { this.convos.delete(convoId); } catch { /* already gone */ }
     }
     this.settings.set(K.chatMap(userId), "{}");
-    // Also sweep any orphaned conversations tagged with this integration.
-    try { this.convos.deleteByIntegration(userId, "telegram"); } catch { /* ignore */ }
+    // Also sweep any orphaned chats tagged with this integration.
+    try { this.convos.deleteByConnection(userId, "telegram"); } catch { /* ignore */ }
   }
 
   private loadChatMap(userId: string): Record<string, string> {

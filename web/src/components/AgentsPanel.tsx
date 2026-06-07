@@ -558,7 +558,7 @@ export function AgentsPanel({ onStartChat, onClose }: Props) {
                 })}
               </div>
               {form.tools.length > 0 && (
-                <p className="text-[11px] text-muted">Selected tools will be available to the agent during conversations.</p>
+                <p className="text-[11px] text-muted">Selected tools will be available to the agent during chats.</p>
               )}
             </div>
           )}

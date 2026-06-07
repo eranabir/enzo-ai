@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { Message } from "../types";
+import { Markdown } from "./Markdown";
 
 const SUGGESTIONS = [
   { icon: "✍️", text: "Help me write a professional email" },
@@ -12,14 +13,14 @@ export function ChatView({
   messages,
   busy,
   online,
-  hasActiveConversation,
+  hasActiveChat,
   onNewChat,
   onSend,
 }: {
   messages: Message[];
   busy: boolean;
   online: boolean | null;
-  hasActiveConversation: boolean;
+  hasActiveChat: boolean;
   onNewChat: () => void;
   onSend?: (text: string) => void;
 }) {
@@ -29,8 +30,8 @@ export function ChatView({
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // No conversation open → full empty state with CTA
-  if (!hasActiveConversation) {
+  // No chat open → full empty state with CTA
+  if (!hasActiveChat) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-6 overflow-y-auto px-6">
         <div className="text-center">
@@ -53,7 +54,7 @@ export function ChatView({
     );
   }
 
-  // Conversation open but no messages yet — show suggestions
+  // Chat open but no messages yet — show suggestions
   if (messages.length === 0) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-8 overflow-y-auto px-6">
@@ -102,15 +103,17 @@ export function ChatView({
               />
             </div>
           )}
-          <div
-            className={`leading-relaxed whitespace-pre-wrap break-words ${
-              m.role === "user"
-                ? "inline-block rounded-[10px] bg-user px-3.5 py-2.5"
-                : ""
-            }`}
-          >
-            {m.content || (busy ? <span className="animate-blink text-accent-2">▋</span> : "")}
-          </div>
+          {m.role === "user" ? (
+            <div className="inline-block whitespace-pre-wrap break-words rounded-[10px] bg-user px-3.5 py-2.5 leading-relaxed">
+              {m.content}
+            </div>
+          ) : (
+            <div className="break-words leading-relaxed">
+              {m.content
+                ? <Markdown content={m.content} />
+                : (busy ? <span className="animate-blink text-accent-2">▋</span> : "")}
+            </div>
+          )}
         </div>
       ))}
       <div ref={endRef} />

@@ -9,8 +9,8 @@ export type DatabaseConnection = Database.Database;
 
 /**
  * Provides a single SQLite connection app-wide and creates the schema on boot.
- * Users own conversations; conversations own messages. All of it is the
- * locally-persisted context/memory.
+ * Users own chats; chats own messages. All of it is the locally-persisted
+ * context/memory.
  */
 @Global()
 @Module({
@@ -22,6 +22,35 @@ export type DatabaseConnection = Database.Database;
         const db = new Database(dbPath);
         db.pragma("journal_mode = WAL");
         db.pragma("foreign_keys = ON");
+
+        // ── Legacy rename migration (conversations → chats, integration → connection) ──
+        // Runs BEFORE CREATE TABLE so existing installs are renamed in place rather
+        // than getting an empty `chats` table alongside the old `conversations`.
+        const tableExists = (name: string) =>
+          !!db.prepare(`SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?`).get(name);
+        const colExists = (table: string, col: string) =>
+          tableExists(table) &&
+          (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).some((c) => c.name === col);
+
+        if (tableExists("conversations") && !tableExists("chats")) {
+          db.exec(`ALTER TABLE conversations RENAME TO chats`);
+        }
+        if (tableExists("conversation_summaries") && !tableExists("chat_summaries")) {
+          db.exec(`ALTER TABLE conversation_summaries RENAME TO chat_summaries`);
+        }
+        if (colExists("chats", "integration") && !colExists("chats", "connection")) {
+          db.exec(`ALTER TABLE chats RENAME COLUMN integration TO connection`);
+        }
+        if (colExists("messages", "conversation_id") && !colExists("messages", "chat_id")) {
+          db.exec(`ALTER TABLE messages RENAME COLUMN conversation_id TO chat_id`);
+        }
+        if (colExists("memories", "source_conversation_id") && !colExists("memories", "source_chat_id")) {
+          db.exec(`ALTER TABLE memories RENAME COLUMN source_conversation_id TO source_chat_id`);
+        }
+        if (colExists("chat_summaries", "conversation_id") && !colExists("chat_summaries", "chat_id")) {
+          db.exec(`ALTER TABLE chat_summaries RENAME COLUMN conversation_id TO chat_id`);
+        }
+
         db.exec(`
           CREATE TABLE IF NOT EXISTS users (
             id               TEXT PRIMARY KEY,
@@ -59,36 +88,40 @@ export type DatabaseConnection = Database.Database;
             UNIQUE(user_id, provider)
           );
 
-          CREATE TABLE IF NOT EXISTS conversations (
-            id          TEXT PRIMARY KEY,
-            user_id     TEXT REFERENCES users(id) ON DELETE CASCADE,
-            title       TEXT NOT NULL DEFAULT 'New chat',
-            model       TEXT,
-            created_at  INTEGER NOT NULL,
-            updated_at  INTEGER NOT NULL
+          CREATE TABLE IF NOT EXISTS chats (
+            id             TEXT PRIMARY KEY,
+            user_id        TEXT REFERENCES users(id) ON DELETE CASCADE,
+            title          TEXT NOT NULL DEFAULT 'New chat',
+            model          TEXT,
+            memory_enabled INTEGER NOT NULL DEFAULT 1,
+            agent_id       TEXT,
+            connection     TEXT,
+            created_at     INTEGER NOT NULL,
+            updated_at     INTEGER NOT NULL
           );
 
           CREATE TABLE IF NOT EXISTS messages (
-            id              TEXT PRIMARY KEY,
-            conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
-            role            TEXT NOT NULL CHECK (role IN ('system','user','assistant')),
-            content         TEXT NOT NULL,
-            created_at      INTEGER NOT NULL
+            id         TEXT PRIMARY KEY,
+            chat_id    TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+            role       TEXT NOT NULL CHECK (role IN ('system','user','assistant')),
+            content    TEXT NOT NULL,
+            image_mime TEXT,
+            created_at INTEGER NOT NULL
           );
 
           CREATE TABLE IF NOT EXISTS memories (
-            id                     TEXT PRIMARY KEY,
-            user_id                TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-            type                   TEXT NOT NULL CHECK (type IN ('fact','decision','preference','work_context')),
-            content                TEXT NOT NULL,
-            source_conversation_id TEXT REFERENCES conversations(id) ON DELETE SET NULL,
-            created_at             INTEGER NOT NULL
+            id              TEXT PRIMARY KEY,
+            user_id         TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            type            TEXT NOT NULL CHECK (type IN ('fact','decision','preference','work_context')),
+            content         TEXT NOT NULL,
+            source_chat_id  TEXT REFERENCES chats(id) ON DELETE SET NULL,
+            created_at      INTEGER NOT NULL
           );
 
-          CREATE TABLE IF NOT EXISTS conversation_summaries (
-            conversation_id  TEXT PRIMARY KEY REFERENCES conversations(id) ON DELETE CASCADE,
-            summary          TEXT NOT NULL,
-            created_at       INTEGER NOT NULL
+          CREATE TABLE IF NOT EXISTS chat_summaries (
+            chat_id     TEXT PRIMARY KEY REFERENCES chats(id) ON DELETE CASCADE,
+            summary     TEXT NOT NULL,
+            created_at  INTEGER NOT NULL
           );
 
           CREATE TABLE IF NOT EXISTS agents (
@@ -108,8 +141,6 @@ export type DatabaseConnection = Database.Database;
             updated_at       INTEGER NOT NULL
           );
 
-          CREATE INDEX IF NOT EXISTS idx_messages_conversation
-            ON messages(conversation_id, created_at);
           CREATE TABLE IF NOT EXISTS mcp_servers (
             id         TEXT PRIMARY KEY,
             user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -123,6 +154,8 @@ export type DatabaseConnection = Database.Database;
             created_at INTEGER NOT NULL
           );
 
+          CREATE INDEX IF NOT EXISTS idx_messages_chat
+            ON messages(chat_id, created_at);
           CREATE INDEX IF NOT EXISTS idx_agents_user
             ON agents(user_id, created_at);
           CREATE INDEX IF NOT EXISTS idx_memories_user
@@ -131,43 +164,24 @@ export type DatabaseConnection = Database.Database;
             ON mcp_servers(user_id, created_at);
         `);
 
-        // Migrations — run before any indexes that reference the new columns.
-        const convCols = db.prepare(`PRAGMA table_info(conversations)`).all() as { name: string }[];
-        if (!convCols.some((c) => c.name === "user_id")) {
-          db.exec(`ALTER TABLE conversations ADD COLUMN user_id TEXT`);
-        }
-        if (!convCols.some((c) => c.name === "memory_enabled")) {
-          db.exec(`ALTER TABLE conversations ADD COLUMN memory_enabled INTEGER NOT NULL DEFAULT 1`);
-        }
-        if (!convCols.some((c) => c.name === "agent_id")) {
-          db.exec(`ALTER TABLE conversations ADD COLUMN agent_id TEXT`);
-        }
+        // ── Column-add migrations (older installs) — guarded so they're no-ops on fresh DBs ──
+        if (!colExists("chats", "user_id"))        db.exec(`ALTER TABLE chats ADD COLUMN user_id TEXT`);
+        if (!colExists("chats", "memory_enabled"))  db.exec(`ALTER TABLE chats ADD COLUMN memory_enabled INTEGER NOT NULL DEFAULT 1`);
+        if (!colExists("chats", "agent_id"))        db.exec(`ALTER TABLE chats ADD COLUMN agent_id TEXT`);
+        if (!colExists("chats", "connection"))      db.exec(`ALTER TABLE chats ADD COLUMN connection TEXT`);
 
-        // Add telegram_chat_ids to agents (comma-separated chat IDs for proactive + reactive routing)
         const agentCols = db.prepare(`PRAGMA table_info(agents)`).all() as { name: string }[];
         if (!agentCols.some((c) => c.name === "telegram_chat_ids")) {
           db.exec(`ALTER TABLE agents ADD COLUMN telegram_chat_ids TEXT`);
         }
 
-        // Add integration column to conversations (links to Telegram/Discord/Slack chat).
-        // Must run BEFORE the emoji-cleanup UPDATE below, which references this column —
-        // otherwise a fresh DB (no `integration` column yet) throws "no such column".
-        const intCols = db.prepare(`PRAGMA table_info(conversations)`).all() as { name: string }[];
-        if (!intCols.some((c) => c.name === "integration")) {
-          db.exec(`ALTER TABLE conversations ADD COLUMN integration TEXT`);
-        }
-
-        // Clean up old emoji prefixes from integration conversation titles (💬 / 🎮)
+        // Clean up old emoji prefixes from connection chat titles (💬 / 🎮)
         db.prepare(
-          `UPDATE conversations SET title = TRIM(REPLACE(REPLACE(title, '💬 ', ''), '🎮 ', ''))
-           WHERE integration IS NOT NULL AND (title LIKE '💬 %' OR title LIKE '🎮 %')`
+          `UPDATE chats SET title = TRIM(REPLACE(REPLACE(title, '💬 ', ''), '🎮 ', ''))
+           WHERE connection IS NOT NULL AND (title LIKE '💬 %' OR title LIKE '🎮 %')`
         ).run();
 
-        // Add image_mime to messages for vision / image-upload support
-        const msgCols = db.prepare(`PRAGMA table_info(messages)`).all() as { name: string }[];
-        if (!msgCols.some((c) => c.name === "image_mime")) {
-          db.exec(`ALTER TABLE messages ADD COLUMN image_mime TEXT`);
-        }
+        if (!colExists("messages", "image_mime")) db.exec(`ALTER TABLE messages ADD COLUMN image_mime TEXT`);
 
         const userCols = db.prepare(`PRAGMA table_info(users)`).all() as { name: string }[];
         if (!userCols.some((c) => c.name === "role")) {
@@ -186,8 +200,8 @@ export type DatabaseConnection = Database.Database;
         }
 
         db.exec(`
-          CREATE INDEX IF NOT EXISTS idx_conversations_user
-            ON conversations(user_id, updated_at);
+          CREATE INDEX IF NOT EXISTS idx_chats_user
+            ON chats(user_id, updated_at);
         `);
 
         return db;

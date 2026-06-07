@@ -8,10 +8,21 @@ interface Props {
 }
 
 type Mode = "local" | "cloud" | "both";
-type Step = 1 | 2 | 3;
+type StepKey = "welcome" | "encrypt" | "models" | "done";
 
 export function SetupWizard({ user, onDone }: Props) {
-  const [step, setStep] = useState<Step>(1);
+  const [stepIdx, setStepIdx] = useState(0);
+  // Encryption setup is offered to the admin (first user) during onboarding.
+  const [includeEncStep, setIncludeEncStep] = useState(false);
+  const [encPass, setEncPass] = useState("");
+  const [encPass2, setEncPass2] = useState("");
+  const [encBusy, setEncBusy] = useState(false);
+  const [encErr, setEncErr] = useState<string | null>(null);
+  const [encRecoveryKey, setEncRecoveryKey] = useState<string | null>(null);
+  const [encDone, setEncDone] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const steps: StepKey[] = ["welcome", ...(includeEncStep ? (["encrypt"] as StepKey[]) : []), "models", "done"];
+  const current = steps[stepIdx];
   // The "Choose your AI" step was removed — we always set up both local models
   // and (optional) cloud keys on the model-configuration step. Asserted to the
   // wider Mode union so the existing mode checks below still type-check.
@@ -34,8 +45,16 @@ export function SetupWizard({ user, onDone }: Props) {
   const [pullStatus, setPullStatus] = useState("");
   const [pullProgress, setPullProgress] = useState<{ completed: number; total: number } | null>(null);
 
+  // Offer the encryption step to the admin if encryption isn't already set up.
   useEffect(() => {
-    if (step === 2 && (mode === "local" || mode === "both")) {
+    if (!user.isAdmin) return;
+    api.vault.status()
+      .then((s) => { if (!s.configured) setIncludeEncStep(true); })
+      .catch(() => {});
+  }, [user.isAdmin]);
+
+  useEffect(() => {
+    if (current === "models" && (mode === "local" || mode === "both")) {
       setChecking(true);
       api.status()
         .then((s) => {
@@ -49,7 +68,20 @@ export function SetupWizard({ user, onDone }: Props) {
         .catch(() => setOllamaOk(false))
         .finally(() => setChecking(false));
     }
-  }, [step, mode]);
+  }, [current, mode]);
+
+  async function setupEncryption() {
+    if (encPass.length < 6) { setEncErr("Passphrase must be at least 6 characters."); return; }
+    if (encPass !== encPass2) { setEncErr("Passphrases don't match."); return; }
+    setEncBusy(true); setEncErr(null);
+    try {
+      const res = await api.vault.setup(encPass);
+      setEncRecoveryKey(res.recoveryKey);
+      setEncDone(true);
+      setEncPass(""); setEncPass2("");
+    } catch (e) { setEncErr((e as Error).message); }
+    finally { setEncBusy(false); }
+  }
 
   /** Run hardware analysis (lazily, only when the user picks "Analyze system"). */
   function runAnalyze() {
@@ -129,22 +161,22 @@ export function SetupWizard({ user, onDone }: Props) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/95 backdrop-blur-sm p-4">
       {/* Progress dots */}
       <div className="absolute top-8 left-1/2 -translate-x-1/2 flex gap-2">
-        {[1,2,3].map(s => (
-          <div key={s} className={`h-1.5 rounded-full transition-all duration-300 ${s === step ? "w-8 bg-accent" : s < step ? "w-3 bg-accent/50" : "w-3 bg-border"}`} />
+        {steps.map((s, i) => (
+          <div key={s} className={`h-1.5 rounded-full transition-all duration-300 ${i === stepIdx ? "w-8 bg-accent" : i < stepIdx ? "w-3 bg-accent/50" : "w-3 bg-border"}`} />
         ))}
       </div>
 
       <div className="w-full max-w-lg">
 
-        {/* Step 1 — Welcome */}
-        {step === 1 && (
+        {/* Step — Welcome */}
+        {current === "welcome" && (
           <div className="text-center">
             <div className="mb-6 inline-flex h-20 w-20 items-center justify-center rounded-2xl border border-accent/30 bg-accent/10 text-4xl">
               ⬡
             </div>
             <h1 className="mb-2 text-3xl font-bold">Welcome, {user.username}</h1>
             <p className="mb-2 text-muted">You're setting up <span className="text-accent-2 font-semibold">enzo ai</span> — your private AI assistant.</p>
-            <p className="mb-8 text-sm text-muted">Everything runs on your machine. Your conversations, memories, and data never leave.</p>
+            <p className="mb-8 text-sm text-muted">Everything runs on your machine. Your chats, memories, and data never leave.</p>
             <div className="grid grid-cols-3 gap-3 mb-8 text-left">
               {[
                 { icon: "🔒", title: "Private", desc: "Zero telemetry. Nothing sent to us." },
@@ -158,14 +190,69 @@ export function SetupWizard({ user, onDone }: Props) {
                 </div>
               ))}
             </div>
-            <button onClick={() => setStep(2)} className="w-full rounded-xl bg-accent py-3 font-semibold text-white hover:bg-accent-2 transition-colors">
+            <button onClick={() => setStepIdx(i => i + 1)} className="w-full rounded-xl bg-accent py-3 font-semibold text-white hover:bg-accent-2 transition-colors">
               Get started →
             </button>
           </div>
         )}
 
-        {/* Step 2 — Model Configuration */}
-        {step === 2 && (
+        {/* Step — Secure your chats (admin only) */}
+        {current === "encrypt" && (
+          <div>
+            <div className="mb-6 text-center">
+              <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl border border-accent/30 bg-accent/10 text-3xl">🔒</div>
+              <h2 className="text-2xl font-bold">Secure your chats</h2>
+              <p className="mt-2 text-sm text-muted">
+                Encrypt your messages, titles and memories at rest with a passphrase. A copied database
+                or backup is useless without it.
+              </p>
+            </div>
+
+            {!encDone ? (
+              <div className="rounded-xl border border-border bg-surface-2 p-5">
+                <div className="flex flex-col gap-3">
+                  <input className="w-full rounded-lg border border-border bg-bg px-3 py-2.5 text-sm text-fg outline-none focus:border-accent placeholder:text-muted"
+                    type="password" placeholder="Choose a passphrase" value={encPass} onChange={e => setEncPass(e.target.value)} />
+                  <input className="w-full rounded-lg border border-border bg-bg px-3 py-2.5 text-sm text-fg outline-none focus:border-accent placeholder:text-muted"
+                    type="password" placeholder="Confirm passphrase" value={encPass2} onChange={e => setEncPass2(e.target.value)} />
+                  {encErr && <p className="text-xs text-danger">{encErr}</p>}
+                  <button onClick={setupEncryption} disabled={encBusy || !encPass || !encPass2}
+                    className="w-full rounded-xl bg-accent py-2.5 text-sm font-semibold text-white hover:bg-accent-2 disabled:opacity-40">
+                    {encBusy ? "Encrypting…" : "Encrypt my chats"}
+                  </button>
+                </div>
+                <p className="mt-3 text-[11px] text-muted leading-relaxed">
+                  Remember this passphrase — you'll enter it (or a recovery key) to unlock your chats.
+                  On a headless server set <code className="bg-bg px-1 rounded">ENZO_PASSPHRASE</code> to auto-unlock.
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-warning/40 bg-warning/10 p-5">
+                <p className="text-sm font-semibold text-fg">Save your recovery key</p>
+                <p className="mt-1 text-xs text-muted">This is the <b>only</b> way back in if you forget your passphrase. It won't be shown again.</p>
+                <div className="mt-3 flex items-center gap-2">
+                  <code className="flex-1 select-all break-all rounded-lg border border-border bg-bg px-3 py-2.5 font-mono text-sm">{encRecoveryKey}</code>
+                  <button
+                    onClick={() => { navigator.clipboard?.writeText(encRecoveryKey ?? "").then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }).catch(() => {}); }}
+                    className={`flex-shrink-0 rounded-lg border px-3 py-2.5 text-xs transition-colors ${copied ? "border-ok/40 bg-ok/10 text-ok" : "border-border text-muted hover:text-fg"}`}
+                  >{copied ? "Copied ✓" : "Copy"}</button>
+                </div>
+              </div>
+            )}
+
+            <div className="mt-4 flex items-center gap-3">
+              <button onClick={() => setStepIdx(i => i - 1)} className="flex-1 rounded-xl border border-border py-2.5 text-sm text-muted hover:text-fg">← Back</button>
+              {!encDone ? (
+                <button onClick={() => setStepIdx(i => i + 1)} className="flex-1 rounded-xl border border-border py-2.5 text-sm text-muted hover:text-fg">Skip for now</button>
+              ) : (
+                <button onClick={() => setStepIdx(i => i + 1)} className="flex-1 rounded-xl bg-accent py-2.5 text-sm font-semibold text-white hover:bg-accent-2">I've saved it →</button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Step — Model Configuration */}
+        {current === "models" && (
           <div>
             <h2 className="mb-6 text-xl font-bold text-center">Model Configuration</h2>
 
@@ -393,9 +480,9 @@ export function SetupWizard({ user, onDone }: Props) {
               return (
                 <div>
                   <div className="flex gap-3">
-                    <button onClick={() => setStep(1)} className="flex-1 rounded-xl border border-border py-2.5 text-sm text-muted hover:text-fg">← Back</button>
+                    <button onClick={() => setStepIdx(i => i - 1)} className="flex-1 rounded-xl border border-border py-2.5 text-sm text-muted hover:text-fg">← Back</button>
                     <button
-                      onClick={() => setStep(3)}
+                      onClick={() => setStepIdx(i => i + 1)}
                       disabled={needsModel}
                       className="flex-1 rounded-xl bg-accent py-2.5 text-sm font-semibold text-white hover:bg-accent-2 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
@@ -411,8 +498,8 @@ export function SetupWizard({ user, onDone }: Props) {
           </div>
         )}
 
-        {/* Step 3 — All set */}
-        {step === 3 && (
+        {/* Step — All set */}
+        {current === "done" && (
           <div className="text-center">
             <div className="mb-6 inline-flex h-20 w-20 items-center justify-center rounded-2xl border border-ok/30 bg-ok/10 text-4xl animate-pulse">
               ✓
@@ -424,6 +511,7 @@ export function SetupWizard({ user, onDone }: Props) {
               {(mode === "local" || mode === "both") && ollamaOk && <div className="flex items-center gap-2 text-muted"><span className="text-ok">✓</span> Local engine connected</div>}
               {(mode === "local" || mode === "both") && models.length > 0 && <div className="flex items-center gap-2 text-muted"><span className="text-ok">✓</span> Local model ready</div>}
               {keySaved.length > 0 && <div className="flex items-center gap-2 text-muted"><span className="text-ok">✓</span> {keySaved.length} cloud provider{keySaved.length > 1 ? "s" : ""} configured</div>}
+              {encDone && <div className="flex items-center gap-2 text-muted"><span className="text-ok">✓</span> Chats encrypted with your passphrase</div>}
               <div className="flex items-center gap-2 text-muted"><span className="text-ok">✓</span> Memory system active</div>
             </div>
             <button onClick={finish} className="w-full rounded-xl bg-accent py-3 font-semibold text-white hover:bg-accent-2 transition-colors">

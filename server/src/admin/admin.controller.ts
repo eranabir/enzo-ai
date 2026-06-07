@@ -223,8 +223,8 @@ export class AdminController {
     // Delete in dependency order (foreign keys are ON)
     this.db.pragma("foreign_keys = OFF");
     for (const table of [
-      "memories", "conversation_summaries", "messages",
-      "conversations", "api_keys", "sessions", "settings", "users",
+      "memories", "chat_summaries", "messages",
+      "chats", "api_keys", "sessions", "settings", "users",
     ]) {
       this.db.prepare(`DELETE FROM ${table}`).run();
     }

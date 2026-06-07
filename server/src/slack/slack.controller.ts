@@ -31,7 +31,7 @@ export class SlackController {
   @Delete()
   async disconnect(@UserId() userId: string) {
     await this.slack.stop(userId);
-    this.slack.deleteConversation(userId);
+    this.slack.deleteChat(userId);
     this.slack.clearConfig(userId);
     return { ok: true, running: false };
   }

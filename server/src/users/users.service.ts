@@ -144,7 +144,7 @@ export class UsersService {
   /** Admin: delete a user and all their data. */
   deleteUser(id: string): void {
     this.db.prepare(`DELETE FROM sessions WHERE user_id = ?`).run(id);
-    this.db.prepare(`DELETE FROM conversations WHERE user_id = ?`).run(id);
+    this.db.prepare(`DELETE FROM chats WHERE user_id = ?`).run(id);
     this.db.prepare(`DELETE FROM users WHERE id = ?`).run(id);
   }
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { X, Plus, Trash2, ToggleLeft, ToggleRight, Plug } from "lucide-react";
+import { X, Plus, Trash2, ToggleLeft, ToggleRight, Plug, ChevronLeft } from "lucide-react";
 import { api } from "../api";
 import type { McpServer } from "../types";
 import { ConnectorCard, ConnectorSectionLabel } from "./ui/ConnectorCard";
@@ -243,15 +243,16 @@ export function McpPanel({ onClose }: Props) {
     const envFilled = !hasEnv || (selectedFeatured.envRequired ?? []).every(k => envValues[k]?.trim());
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/80 backdrop-blur-sm p-4">
-        <div className="flex w-full max-w-md flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl">
+        <div className="flex h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl">
           <div className="flex items-center justify-between border-b border-border px-5 py-4">
-            <button onClick={() => { setView("grid"); setErr(null); }} className="text-sm text-muted hover:text-fg flex items-center gap-1">
-              ← Back
+            <button onClick={() => { setView("grid"); setErr(null); }} className="flex items-center gap-1 rounded-lg -ml-2 px-2 py-1 text-sm font-medium text-muted transition-colors hover:bg-surface-2 hover:text-fg">
+              <ChevronLeft className="h-4 w-4" /> All servers
             </button>
+            <h2 className="font-bold">{selectedFeatured.name}</h2>
             <button onClick={onClose} className="text-muted hover:text-fg"><X className="h-4 w-4" /></button>
           </div>
 
-          <div className="p-6 flex flex-col gap-5">
+          <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
             {/* Icon + name */}
             <div className="flex items-center gap-4">
               <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl border border-border" style={{ background: selectedFeatured.bgColor }}>
@@ -308,14 +309,16 @@ export function McpPanel({ onClose }: Props) {
   if (view === "custom-form") {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/80 backdrop-blur-sm p-4">
-        <div className="flex w-full max-w-md flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl">
+        <div className="flex h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl">
           <div className="flex items-center justify-between border-b border-border px-5 py-4">
-            <button onClick={() => { setView("grid"); setErr(null); }} className="text-sm text-muted hover:text-fg">← Back</button>
+            <button onClick={() => { setView("grid"); setErr(null); }} className="flex items-center gap-1 rounded-lg -ml-2 px-2 py-1 text-sm font-medium text-muted transition-colors hover:bg-surface-2 hover:text-fg">
+              <ChevronLeft className="h-4 w-4" /> All servers
+            </button>
             <h2 className="font-bold">Custom connector</h2>
             <button onClick={onClose} className="text-muted hover:text-fg"><X className="h-4 w-4" /></button>
           </div>
 
-          <div className="p-5 flex flex-col gap-4">
+          <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
             {err && <p className="text-xs text-danger">{err}</p>}
 
             <div className="flex flex-col gap-1.5">

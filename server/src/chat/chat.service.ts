@@ -1,7 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { promises as fs } from "node:fs";
 import * as path from "node:path";
-import { ConversationsService } from "../conversations/conversations.service";
+import { ChatsService } from "../chats/chats.service";
 import { LlmService } from "../llm/llm.service";
 import { UsersService } from "../users/users.service";
 import { SettingsService } from "../settings/settings.service";
@@ -10,8 +10,9 @@ import { MemoryExtractionService } from "../memories/memory-extraction.service";
 import { AgentsService } from "../agents/agents.service";
 import { ToolsService, type ToolName } from "../agents/tools.service";
 import { McpService } from "../mcp/mcp.service";
+import { VaultService } from "../vault/vault.service";
 import type { ChatMessage } from "../llm/provider.types";
-import type { ConversationRow } from "../database/database.types";
+import type { ChatRow } from "../database/database.types";
 import type { UserRow } from "../users/users.types";
 import { config } from "../config";
 
@@ -27,7 +28,7 @@ export class ChatService {
   private readonly logger = new Logger(ChatService.name);
 
   constructor(
-    private readonly convos: ConversationsService,
+    private readonly convos: ChatsService,
     private readonly llm: LlmService,
     private readonly users: UsersService,
     private readonly settings: SettingsService,
@@ -36,11 +37,12 @@ export class ChatService {
     private readonly agentsService: AgentsService,
     private readonly toolsService: ToolsService,
     private readonly mcpService: McpService,
+    private readonly vault: VaultService,
   ) {}
 
   // Wired from app.module to push assistant replies out to an integration
   // (Telegram/Discord/Slack) when a message is sent from the web UI in an
-  // integration-linked conversation. Avoids a circular module dependency.
+  // integration-linked chat. Avoids a circular module dependency.
   private relayToIntegration?: (
     integration: string,
     userId: string,
@@ -57,7 +59,7 @@ export class ChatService {
   /**
    * Build the system prompt.
    *
-   * When memory is ON:   profile + long-term memories + recent conversation summaries
+   * When memory is ON:   profile + long-term memories + recent chat summaries
    * When memory is OFF:  profile only (clean prompt, predictable tokens for paid APIs)
    */
   private buildSystemPrompt(
@@ -74,6 +76,9 @@ export class ChatService {
           "You are Enzo AI, a helpful, concise, locally-running AI assistant.",
           "You run entirely on the user's own machine and value their privacy.",
         ];
+
+    // Always fence code so the UI can render proper syntax-highlighted blocks.
+    lines.push("When you include code, always wrap it in a fenced code block with the language, e.g. ```python ... ```. Use Markdown for formatting.");
 
     if (user) {
       lines.push(`The person you are assisting goes by "${user.username}".`);
@@ -105,10 +110,10 @@ export class ChatService {
       }
     }
 
-    // ── Inject recent conversation summaries ──────────────────────────────
+    // ── Inject recent chat summaries ──────────────────────────────
     const summaries = this.memoriesService.recentSummaries(user.id, convoId, 3);
     if (summaries.length > 0) {
-      lines.push("\n\nRecent work context (from previous conversations):");
+      lines.push("\n\nRecent work context (from previous chats):");
       for (const s of summaries) {
         lines.push(`- ${s.summary}`);
       }
@@ -146,7 +151,7 @@ export class ChatService {
   }
 
   async *streamReply(
-    convo: ConversationRow,
+    convo: ChatRow,
     userId: string,
     content: string,
     requestedModel: string | undefined,
@@ -158,6 +163,12 @@ export class ChatService {
     // reply back to the platform that already received it via its own handler.
     origin?: string,
   ): AsyncIterable<ChatEvent> {
+    // Encryption gate: refuse to read/write chats while the vault is locked.
+    if (this.vault.isConfigured() && !this.vault.isUnlocked()) {
+      yield { error: "🔒 Chats are locked. Enter your passphrase to unlock." };
+      yield { done: true };
+      return;
+    }
     // Load attached agent (if any)
     const agent = (convo as any).agent_id
       ? this.agentsService.get((convo as any).agent_id, userId) ?? null
@@ -276,10 +287,10 @@ export class ChatService {
 
       this.convos.addMessage(convo.id, "assistant", assistant);
 
-      // If this conversation is linked to an integration and the message did NOT
+      // If this chat is linked to an integration and the message did NOT
       // originate from that integration (i.e. it was sent from the web UI),
       // push the assistant reply out to the platform so both sides stay in sync.
-      const integration = (convo as any).integration as string | null;
+      const integration = (convo as any).connection as string | null;
       if (integration && integration !== origin && this.relayToIntegration) {
         this.relayToIntegration(integration, userId, convo.id, assistant).catch((e) =>
           this.logger.error(`Failed to relay reply to ${integration}: ${e.message}`),
@@ -306,12 +317,12 @@ export class ChatService {
   }
 
   /**
-   * Process a message in an existing conversation and return the complete reply.
+   * Process a message in an existing chat and return the complete reply.
    * Used by Telegram, CLI, and other non-streaming clients.
    */
   async processMessage(userId: string, convoId: string, content: string, model?: string, origin?: string): Promise<string> {
     const convo = this.convos.get(convoId, userId);
-    if (!convo) throw new Error(`Conversation ${convoId} not found for user ${userId}`);
+    if (!convo) throw new Error(`Chat ${convoId} not found for user ${userId}`);
     const controller = new AbortController();
     let reply = "";
     for await (const event of this.streamReply(convo, userId, content, model, controller.signal, undefined, undefined, origin)) {
@@ -321,7 +332,7 @@ export class ChatService {
     return reply || "No response";
   }
 
-  /** Run an agent's scheduled prompt as a background conversation (result saved to memories). Returns the result text. */
+  /** Run an agent's scheduled prompt as a background chat (result saved to memories). Returns the result text. */
   async runScheduledAgent(agentId: string, userId: string, prompt: string): Promise<string> {
     const agent = this.agentsService.get(agentId, userId);
     if (!agent) return "";

@@ -12,26 +12,26 @@ import {
 import type { Response } from "express";
 import { AuthGuard } from "../auth/auth.guard";
 import { UserId } from "../auth/current-user.decorator";
-import { ConversationsService } from "../conversations/conversations.service";
+import { ChatsService } from "../chats/chats.service";
 import { ChatService } from "./chat.service";
 
 @Controller("chat")
 @UseGuards(AuthGuard)
 export class ChatController {
   constructor(
-    private readonly convos: ConversationsService,
+    private readonly convos: ChatsService,
     private readonly chat: ChatService,
   ) {}
 
   /**
    * Send a user message and stream the assistant reply over SSE.
-   * Body: { conversationId, content, model? }
+   * Body: { chatId, content, model? }
    */
   @Post()
   async send(
     @UserId() userId: string,
     @Body() body: {
-      conversationId?: string;
+      chatId?: string;
       content?: string;
       model?: string;
       imageBase64?: string;
@@ -39,9 +39,9 @@ export class ChatController {
     },
     @Res() res: Response,
   ) {
-    const convo = this.convos.get(String(body?.conversationId ?? ""), userId);
+    const convo = this.convos.get(String(body?.chatId ?? ""), userId);
     const content = String(body?.content ?? "").trim();
-    if (!convo) throw new NotFoundException("conversation not found");
+    if (!convo) throw new NotFoundException("chat not found");
     if (!content) throw new BadRequestException("content is required");
 
     res.setHeader("Content-Type", "text/event-stream");
@@ -68,21 +68,21 @@ export class ChatController {
     res.end();
   }
 
-  /** Serve a message's attached image (auth-gated via conversation ownership). */
+  /** Serve a message's attached image (auth-gated via chat ownership). */
   @Get("image/:messageId")
   async getImage(
     @UserId() userId: string,
     @Param("messageId") messageId: string,
     @Res() res: Response,
   ) {
-    // Verify message belongs to a conversation owned by this user
-    const ref = this.convos.getMessageConversation(messageId);
+    // Verify message belongs to a chat owned by this user
+    const ref = this.convos.getMessageChat(messageId);
     if (!ref) throw new NotFoundException("Message not found");
-    const convo = this.convos.get(ref.conversation_id, userId);
+    const convo = this.convos.get(ref.chat_id, userId);
     if (!convo) throw new NotFoundException("Not authorized");
 
     // Get the mime from the messages table
-    const msgRow = this.convos.listMessages(ref.conversation_id)
+    const msgRow = this.convos.listMessages(ref.chat_id)
       .find((m) => m.id === messageId);
     if (!msgRow?.image_mime) throw new NotFoundException("No image on this message");
 

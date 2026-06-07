@@ -8,17 +8,17 @@ const MIN_EXCHANGES = 4; // minimum user+assistant pairs before extraction
 
 /** Prompts — kept short so even a 3B model handles them reliably. */
 const SUMMARY_PROMPT = (messages: string) => `
-Summarize the following conversation in 2-3 sentences.
+Summarize the following chat in 2-3 sentences.
 Focus on what was worked on, decided, or learned. Be specific and concise.
 Do not mention greetings or small talk.
 
-Conversation:
+Chat:
 ${messages}
 
 Summary:`.trim();
 
 const EXTRACT_PROMPT = (messages: string) => `
-Based on the following conversation, extract at most 3 pieces of information
+Based on the following chat, extract at most 3 pieces of information
 worth remembering long-term about the person. Be very selective — only durable,
 useful facts. If nothing worth keeping, return [].
 
@@ -31,7 +31,7 @@ Types:
 Return ONLY a JSON array, no other text:
 [{"type":"fact|decision|preference|work_context","content":"one clear sentence"}]
 
-Conversation:
+Chat:
 ${messages}
 
 JSON:`.trim();
@@ -46,11 +46,11 @@ export class MemoryExtractionService {
   ) {}
 
   /**
-   * Returns true if a conversation has enough content to be worth extracting
+   * Returns true if a chat has enough content to be worth extracting
    * and hasn't been summarised yet.
    */
-  shouldExtract(conversationId: string, messages: MessageRow[]): boolean {
-    if (this.memories.hasSummary(conversationId)) return false;
+  shouldExtract(chatId: string, messages: MessageRow[]): boolean {
+    if (this.memories.hasSummary(chatId)) return false;
     const exchanges = messages.filter(
       (m) => m.role === "user" || m.role === "assistant",
     ).length;
@@ -60,21 +60,21 @@ export class MemoryExtractionService {
   /**
    * Fire-and-forget extraction — never awaited by the chat route.
    * Always uses the local Ollama model regardless of which model the
-   * conversation is using (we never send user data to a paid API for this).
+   * chat is using (we never send user data to a paid API for this).
    */
   extractInBackground(
-    conversationId: string,
+    chatId: string,
     userId: string,
     messages: MessageRow[],
   ): void {
     // Deliberately not awaited — runs as a detached microtask
-    this.runExtraction(conversationId, userId, messages).catch((err) =>
-      this.logger.warn(`Memory extraction failed for ${conversationId}: ${err.message}`),
+    this.runExtraction(chatId, userId, messages).catch((err) =>
+      this.logger.warn(`Memory extraction failed for ${chatId}: ${err.message}`),
     );
   }
 
   private async runExtraction(
-    conversationId: string,
+    chatId: string,
     userId: string,
     messages: MessageRow[],
   ): Promise<void> {
@@ -90,8 +90,8 @@ export class MemoryExtractionService {
     // 1. Generate summary
     const summary = await this.callOllama(ollamaUrl, model, SUMMARY_PROMPT(formatted));
     if (summary) {
-      this.memories.saveSummary(conversationId, summary);
-      this.logger.debug(`Summary saved for conversation ${conversationId}`);
+      this.memories.saveSummary(chatId, summary);
+      this.logger.debug(`Summary saved for chat ${chatId}`);
     }
 
     // 2. Extract long-term memories
@@ -104,7 +104,7 @@ export class MemoryExtractionService {
       const match = raw.match(/\[[\s\S]*\]/);
       if (match) extracted = JSON.parse(match[0]);
     } catch {
-      this.logger.warn(`Could not parse memory JSON for ${conversationId}: ${raw.slice(0, 100)}`);
+      this.logger.warn(`Could not parse memory JSON for ${chatId}: ${raw.slice(0, 100)}`);
       return;
     }
 
@@ -115,12 +115,12 @@ export class MemoryExtractionService {
         item?.content?.trim() &&
         validTypes.includes(item.type as MemoryType)
       ) {
-        this.memories.add(userId, item.type as MemoryType, item.content, conversationId);
+        this.memories.add(userId, item.type as MemoryType, item.content, chatId);
         saved++;
       }
     }
     if (saved > 0) {
-      this.logger.debug(`Extracted ${saved} memories from conversation ${conversationId}`);
+      this.logger.debug(`Extracted ${saved} memories from chat ${chatId}`);
     }
   }
 

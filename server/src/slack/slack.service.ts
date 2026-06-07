@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleDestroy } from "@nestjs/common";
 import { App as BoltApp, LogLevel } from "@slack/bolt";
 import { SettingsService } from "../settings/settings.service";
-import { ConversationsService } from "../conversations/conversations.service";
+import { ChatsService } from "../chats/chats.service";
 import { UsersService } from "../users/users.service";
 import { AgentsService } from "../agents/agents.service";
 
@@ -27,18 +27,14 @@ export class SlackService implements OnModuleDestroy {
 
   constructor(
     private readonly settings: SettingsService,
-    private readonly convos: ConversationsService,
+    private readonly convos: ChatsService,
     private readonly users: UsersService,
     private readonly agentsSvc: AgentsService,
   ) {}
 
   setRunner(fn: (userId: string, convoId: string, content: string, model?: string) => Promise<string>) {
+    // Bots start via startAllEnabled() once the vault is ready (see AppModule).
     this.runChat = fn;
-    for (const u of this.users.listAll()) {
-      if (this.settings.get(K.enabled(u.id)) === "1") {
-        this.start(u.id).catch((e) => this.logger.error(`Slack auto-start failed for ${u.id}: ${e.message}`));
-      }
-    }
   }
 
   // ── Public API (per user) ───────────────────────────────────────────────────
@@ -69,7 +65,7 @@ export class SlackService implements OnModuleDestroy {
       const memberChannels = (result.channels ?? []).filter((c: any) => c.is_member);
       for (const ch of memberChannels) {
         const channelId = ch.id as string;
-        this.getOrCreateChatConversation(userId, channelId, `#${ch.name ?? channelId}`);
+        this.getOrCreateChat(userId, channelId, `#${ch.name ?? channelId}`);
         if (notify) {
           await app.client.chat.postMessage({
             channel: channelId,
@@ -161,18 +157,18 @@ export class SlackService implements OnModuleDestroy {
     this.settings.set(K.model(userId), "");
   }
 
-  deleteConversation(userId: string): void {
+  deleteChat(userId: string): void {
     const map = this.loadChatMap(userId);
     for (const convoId of Object.values(map)) {
       try { this.convos.delete(convoId); } catch { /* already gone */ }
     }
     this.settings.set(K.chatMap(userId), "{}");
-    // Also sweep any orphaned conversations tagged with this integration.
-    try { this.convos.deleteByIntegration(userId, "slack"); } catch { /* ignore */ }
+    // Also sweep any orphaned chats tagged with this integration.
+    try { this.convos.deleteByConnection(userId, "slack"); } catch { /* ignore */ }
   }
 
-  /** Relay a web-UI reply back to the Slack channel/DM backing a conversation. */
-  async sendToConversation(userId: string, convoId: string, text: string): Promise<void> {
+  /** Relay a web-UI reply back to the Slack channel/DM backing a chat. */
+  async sendToChat(userId: string, convoId: string, text: string): Promise<void> {
     const entry = this.apps.get(userId);
     if (!entry || !text.trim()) return;
     const map = this.loadChatMap(userId);
@@ -226,7 +222,7 @@ export class SlackService implements OnModuleDestroy {
         }
 
         const linkedAgent = this.findAgentForChannel(ownerUserId, channelId);
-        const { userId, convoId } = this.getOrCreateChatConversation(
+        const { userId, convoId } = this.getOrCreateChat(
           ownerUserId,
           channelId,
           linkedAgent ? `${linkedAgent.emoji} ${linkedAgent.name}` : chatTitle,
@@ -250,9 +246,9 @@ export class SlackService implements OnModuleDestroy {
     app.error(async (error) => this.logger.error("Slack error:", error.message));
   }
 
-  // ── Conversation management (per user) ───────────────────────────────────────
+  // ── Chat management (per user) ───────────────────────────────────────
 
-  getOrCreateChatConversation(ownerUserId: string, channelId: string, chatTitle: string, agentId?: string): { userId: string; convoId: string } {
+  getOrCreateChat(ownerUserId: string, channelId: string, chatTitle: string, agentId?: string): { userId: string; convoId: string } {
     const map = this.loadChatMap(ownerUserId);
     if (!map[channelId]) {
       const convo = this.convos.create(ownerUserId, undefined, agentId, "slack");

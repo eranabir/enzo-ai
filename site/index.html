@@ -57,7 +57,8 @@
       <!-- Pill links -->
       <div class="nav-links">
         <a href="#features">Features</a>
-        <a href="#integrations">Integrations</a>
+        <a href="#security">Security</a>
+        <a href="#connections">Connections</a>
         <a href="#install">Install</a>
         <a href="#download">Download</a>
       </div>
@@ -124,6 +125,13 @@
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
             </svg>
             No data leaves your machine
+          </span>
+          <span class="trust-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+            Encrypted at rest
           </span>
           <span class="trust-badge">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -240,6 +248,89 @@
     <div class="divider"></div>
 
     <!-- ════════════════════════════════════════ -->
+    <!-- SECURITY                                 -->
+    <!-- ════════════════════════════════════════ -->
+    <section class="section" id="security">
+      <div class="container">
+        <div class="section-header reveal">
+          <div class="section-tag">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.25 3.75 9.75 9 11 5.25-1.25 9-5.75 9-11V5l-9-4z"/></svg>
+            Security
+          </div>
+          <h2 class="section-h2">Yours alone.<br><span class="gradient-text">Encrypted at rest.</span></h2>
+          <p class="section-sub">Lock your chats behind a passphrase only you know. A stolen laptop, a copied database or a backup is just unreadable ciphertext without it.</p>
+        </div>
+
+        <div class="features-grid">
+
+          <!-- Passphrase vault — wide card -->
+          <div class="feature-card wide reveal reveal-delay-1">
+            <div class="card-inner">
+              <div>
+                <div class="card-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2"/>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                  </svg>
+                </div>
+                <p class="card-title">Passphrase-Encrypted Vault</p>
+                <p class="card-body">Your messages, titles and memories are encrypted with AES-256 using a key derived from your passphrase. The passphrase never touches the disk — turn the app off and the data is just ciphertext.</p>
+              </div>
+              <div class="card-visual" style="background: rgba(124,110,245,0.05); border:1px solid rgba(124,110,245,0.12); border-radius:12px; padding:22px; font-family:'JetBrains Mono','Fira Code',monospace; font-size:0.78rem; line-height:1.9; color:var(--text-secondary);">
+                <div style="color:var(--accent-light); margin-bottom:4px;">~ Vault</div>
+                <div>&#x250C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2510;</div>
+                <div>&#x2502; <span style="color:#a78bfa">messages</span> &nbsp; AES&#x2011;256 &#x2502;</div>
+                <div>&#x2502; <span style="color:#a78bfa">memories</span> &nbsp; AES&#x2011;256 &#x2502;</div>
+                <div>&#x2502; <span style="color:#a78bfa">key</span> &nbsp;&nbsp;&nbsp;&nbsp; in&#x2011;memory &#x2502;</div>
+                <div>&#x2502; <span style="color:#4ade80">&#x2713; locked without pass</span> &#x2502;</div>
+                <div>&#x2514;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2518;</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Only you hold the key -->
+          <div class="feature-card reveal reveal-delay-2">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="7.5" cy="15.5" r="5.5"/>
+                <path d="M11.5 11.5 21 2M16 7l3 3M14 9l3 3"/>
+              </svg>
+            </div>
+            <p class="card-title">Only You Hold the Key</p>
+            <p class="card-body">Set a passphrase, get a one-time recovery key. There's no server, no copy, no backdoor — lose both and not even we could unlock it.</p>
+          </div>
+
+          <!-- Stays on your machine -->
+          <div class="feature-card reveal reveal-delay-1">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                <path d="M9 22V12h6v10"/>
+              </svg>
+            </div>
+            <p class="card-title">Stays on Your Machine</p>
+            <p class="card-body">Everything runs locally with zero telemetry — nothing is ever sent to us. The developer can't reach what never leaves your device.</p>
+          </div>
+
+          <!-- Open source -->
+          <div class="feature-card reveal reveal-delay-2">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="16 18 22 12 16 6"/>
+                <polyline points="8 6 2 12 8 18"/>
+              </svg>
+            </div>
+            <p class="card-title">Open Source &amp; Auditable</p>
+            <p class="card-body">Read the code, build it yourself. Don't take our word for it — verify there's nothing phoning home and no hidden backdoor.</p>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- ════════════════════════════════════════ -->
     <!-- CLI                                       -->
     <!-- ════════════════════════════════════════ -->
     <section class="section" id="cli">
@@ -265,7 +356,10 @@
                 <span class="terminal-title">enzo-ai</span>
               </div>
               <div class="terminal-body">
-                <div class="term-line"><span class="term-comment"># Start an interactive chat</span></div>
+                <div class="term-line"><span class="term-comment"># First run — create your account &amp; set up</span></div>
+                <div class="term-line"><span class="term-prompt">$ </span><span class="term-cmd">enzo-ai register</span></div>
+                <div class="term-line"><span class="term-success">✓ </span><span style="color:var(--text-secondary)">Account created · encryption on · model ready</span></div>
+                <div class="term-line" style="margin-top:12px"><span class="term-comment"># Start an interactive chat</span></div>
                 <div class="term-line"><span class="term-prompt">$ </span><span class="term-cmd">enzo-ai chat</span></div>
                 <div class="term-line"><span class="term-success">You › </span><span style="color:var(--text-secondary)">Summarise my week</span></div>
                 <div class="term-line"><span style="color:var(--accent-light)">EnzoAI › </span><span style="color:var(--text-secondary)">Based on your conversations…</span></div>
@@ -289,12 +383,12 @@
     <div class="divider"></div>
 
     <!-- ════════════════════════════════════════ -->
-    <!-- INTEGRATIONS                             -->
+    <!-- CONNECTIONS                              -->
     <!-- ════════════════════════════════════════ -->
-    <section class="section" id="integrations">
+    <section class="section" id="connections">
       <div class="container">
         <div class="section-header reveal" style="margin-bottom:48px;">
-          <div class="section-tag">Integrations</div>
+          <div class="section-tag">Connections</div>
           <h2 class="section-h2">Chat where<br><span class="gradient-text">you already are.</span></h2>
           <p class="section-sub">Connect EnzoAI to your favourite messaging apps. Your AI, available everywhere — privately.</p>
         </div>
@@ -355,7 +449,7 @@
             Quick Start
           </div>
           <h2 class="section-h2 reveal reveal-delay-1">Up and running<br><span class="gradient-text">in 30 seconds.</span></h2>
-          <p class="section-sub reveal reveal-delay-2" style="margin:0 auto;">One Docker command. No configuration wizards, no cloud sign-up, no API keys needed to get started.</p>
+          <p class="section-sub reveal reveal-delay-2" style="margin:0 auto;">One Docker command, then set up from the browser or the CLI. No cloud sign-up, no API keys needed to get started.</p>
         </div>
 
         <div class="terminal-wrap reveal reveal-delay-3" style="margin-top:56px;">
@@ -381,6 +475,10 @@
               <div class="term-line"><span class="term-success">&#x2714; AI engine ready</span></div>
               <div class="term-line">&nbsp;</div>
               <div class="term-line"><span class="term-success">&#x2714; EnzoAI ready at http://localhost:1616</span>  <span class="term-comment"># open in browser</span></div>
+              <div class="term-line">&nbsp;</div>
+              <div class="term-line"><span class="term-comment"># …or set up right from the terminal</span></div>
+              <div class="term-line"><span class="term-prompt">$</span> <span class="term-cmd">enzo-ai register</span></div>
+              <div class="term-line"><span class="term-success">&#x2714; Account created — you're ready to chat</span></div>
               <div class="term-line"><span class="term-prompt">$</span> <span class="term-cursor"></span></div>
             </div>
           </div>
@@ -509,7 +607,7 @@
           <h4>Product</h4>
           <ul>
             <li><a href="#features">Features</a></li>
-            <li><a href="#integrations">Integrations</a></li>
+            <li><a href="#connections">Connections</a></li>
             <li><a href="#install">Quick Start</a></li>
             <li><a href="#download">Download</a></li>
           </ul>

@@ -52,14 +52,47 @@ export async function request<T = unknown>(
   });
 }
 
+/** Stream SSE from any POST endpoint, yielding each parsed data block. */
+export async function* streamSse(
+  path: string,
+  body: unknown,
+): AsyncIterable<Record<string, any>> {
+  const url = makeUrl(path);
+  const payload = JSON.stringify(body);
+  const headers = {
+    ...authHeader(),
+    "content-type": "application/json",
+    "content-length": String(Buffer.byteLength(payload)),
+  };
+  const lib = url.protocol === "https:" ? https : http;
+  const response = await new Promise<http.IncomingMessage>((resolve, reject) => {
+    const req = lib.request(url, { method: "POST", headers }, resolve);
+    req.on("error", reject);
+    req.write(payload);
+    req.end();
+  });
+  let buf = "";
+  for await (const chunk of response) {
+    buf += chunk.toString();
+    let idx: number;
+    while ((idx = buf.indexOf("\n\n")) >= 0) {
+      const block = buf.slice(0, idx);
+      buf = buf.slice(idx + 2);
+      const line = block.split("\n").find((l) => l.startsWith("data:"));
+      if (!line) continue;
+      try { yield JSON.parse(line.slice(5).trim()); } catch { /* skip */ }
+    }
+  }
+}
+
 /** Stream SSE from the chat endpoint, yielding each token. */
 export async function* streamChat(
-  conversationId: string,
+  chatId: string,
   content: string,
   model?: string,
 ): AsyncIterable<{ token?: string; title?: string; done?: boolean; error?: string }> {
   const url = makeUrl("/api/chat");
-  const body = JSON.stringify({ conversationId, content, model });
+  const body = JSON.stringify({ chatId, content, model });
   const headers = {
     ...authHeader(),
     "content-type": "application/json",
@@ -124,6 +157,25 @@ export const api = {
       "POST", "/api/auth/login", { username, password }
     ),
 
+  register: (body: { username: string; password: string; firstName?: string; lastName?: string }) =>
+    request<{ token: string; user: { username: string; displayName: string; role: string; isAdmin?: boolean } }>(
+      "POST", "/api/auth/register", body
+    ),
+
+  // ── Vault (encryption) ─────────────────────────────────────────────────────
+  vaultStatus: () =>
+    request<{ configured: boolean; unlocked: boolean }>("GET", "/api/vault/status"),
+
+  vaultSetup: (passphrase: string) =>
+    request<{ ok: boolean; recoveryKey: string; configured: boolean; unlocked: boolean }>(
+      "POST", "/api/vault/setup", { passphrase }
+    ),
+
+  vaultUnlock: (secret: string) =>
+    request<{ ok: boolean; configured: boolean; unlocked: boolean }>(
+      "POST", "/api/vault/unlock", { secret }
+    ),
+
   me: () =>
     request<{ user: { username: string; displayName: string; role: string; superPowers: string | null; about: string | null } }>(
       "GET", "/api/auth/me"
@@ -138,13 +190,22 @@ export const api = {
 
   status: () => request<{ ollama: boolean }>("GET", "/api/models/status"),
 
-  listConversations: () =>
+  /** Hardware analysis + model recommendation (mirrors the web setup wizard). */
+  system: () => request<{
+    info: { cpuCount: number; cpuModel: string; ramGb: number; vramGb: number | null; gpuName: string | null };
+    recommendation: {
+      modelId: string; label: string; reason: string; alreadyInstalled: boolean;
+      alternatives: { modelId: string; label: string; note: string }[];
+    };
+  }>("GET", "/api/system"),
+
+  listChats: () =>
     request<{ id: string; title: string; model: string | null; updated_at: number }[]>(
-      "GET", "/api/conversations"
+      "GET", "/api/chats"
     ),
 
-  createConversation: () =>
-    request<{ id: string; title: string }>("POST", "/api/conversations"),
+  createChat: () =>
+    request<{ id: string; title: string }>("POST", "/api/chats"),
 
   listMemories: () =>
     request<{ id: string; type: string; content: string; createdAt: number }[]>(
@@ -176,8 +237,8 @@ export const api = {
       "PATCH", `/api/admin/tools/${name}`, { enabled }
     ),
 
-  // ── Integrations ─────────────────────────────────────────────────────────
-  integrationStatus: () =>
+  // ── Connections ────────────────────────────────────────────────────────────
+  connectionStatus: () =>
     request<{ telegram: boolean; discord: boolean; slack: boolean }>(
       "GET", "/api/health/integrations"
     ),

@@ -16,7 +16,7 @@ function serialize(m: MemoryRow) {
     id: m.id,
     type: m.type,
     content: m.content,
-    sourceConversationId: m.source_conversation_id,
+    sourceChatId: m.source_chat_id,
     createdAt: m.created_at,
   };
 }

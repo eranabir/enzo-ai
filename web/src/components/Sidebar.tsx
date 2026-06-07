@@ -2,7 +2,7 @@ import { useRef, useState, useEffect } from "react";
 import { Settings, Shield, LogOut, ChevronUp, PanelLeftClose, PanelLeftOpen, Users, MoreHorizontal, Pencil, Trash2, MessagesSquare, SquarePen, Bot, Server } from "lucide-react";
 import { SiTelegram, SiDiscord } from "react-icons/si";
 import { SlackIcon } from "./ui/SlackIcon";
-import type { Conversation, User } from "../types";
+import type { Chat, User } from "../types";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -209,7 +209,7 @@ function EdgeDragHandle({ onCollapse, onExpand }: { onCollapse?: () => void; onE
 }
 
 export function Sidebar({
-  conversations,
+  chats,
   activeId,
   online,
   user,
@@ -223,7 +223,7 @@ export function Sidebar({
   onMcpOpen,
   onUserUpdated,
 }: {
-  conversations: Conversation[];
+  chats: Chat[];
   activeId: string | null;
   online: boolean | null;
   user: User;
@@ -243,7 +243,7 @@ export function Sidebar({
   const inputRef = useRef<HTMLInputElement>(null);
   const committingRef = useRef(false);
 
-  function startEdit(c: Conversation, e: React.MouseEvent) {
+  function startEdit(c: Chat, e: React.MouseEvent) {
     e.stopPropagation();
     committingRef.current = false;
     setEditingId(c.id);
@@ -310,31 +310,31 @@ export function Sidebar({
           </DropdownMenuTrigger>
           <DropdownMenuContent side="right" align="start" className="w-64 max-h-[70vh] overflow-y-auto">
             {/* Connections Chats */}
-            {conversations.filter(c => c.integration).length > 0 && (
+            {chats.filter(c => c.connection).length > 0 && (
               <>
                 <div className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted/60">
                   Connections Chats
                 </div>
-                {conversations.filter(c => c.integration).map(c => (
+                {chats.filter(c => c.connection).map(c => (
                   <DropdownMenuItem key={c.id} onClick={() => onSelect(c.id)}
                     className={c.id === activeId ? "bg-surface-2 text-fg" : ""}>
-                    {c.integration === "telegram" && <SiTelegram className="h-3 w-3 flex-shrink-0 text-[#2AABEE]" />}
-                {c.integration === "discord"  && <SiDiscord  className="h-3 w-3 flex-shrink-0 text-[#5865F2]" />}
-                {c.integration === "slack"    && <SlackIcon className="h-3 w-3 flex-shrink-0" />}
+                    {c.connection === "telegram" && <SiTelegram className="h-3 w-3 flex-shrink-0 text-[#2AABEE]" />}
+                {c.connection === "discord"  && <SiDiscord  className="h-3 w-3 flex-shrink-0 text-[#5865F2]" />}
+                {c.connection === "slack"    && <SlackIcon className="h-3 w-3 flex-shrink-0" />}
                     <span className="truncate">{c.title}</span>
                   </DropdownMenuItem>
                 ))}
-                {conversations.filter(c => !c.integration).length > 0 && <DropdownMenuSeparator />}
+                {chats.filter(c => !c.connection).length > 0 && <DropdownMenuSeparator />}
               </>
             )}
 
             {/* Local Chats */}
-            {conversations.filter(c => !c.integration).length > 0 && (
+            {chats.filter(c => !c.connection).length > 0 && (
               <>
                 <div className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted/60">
                   Local Chats
                 </div>
-                {conversations.filter(c => !c.integration).map(c => (
+                {chats.filter(c => !c.connection).map(c => (
                   <DropdownMenuItem key={c.id} onClick={() => onSelect(c.id)}
                     className={c.id === activeId ? "bg-surface-2 text-fg" : ""}>
                     <span className="truncate">{c.title}</span>
@@ -343,7 +343,7 @@ export function Sidebar({
               </>
             )}
 
-            {conversations.length === 0 && (
+            {chats.length === 0 && (
               <div className="px-3 py-4 text-center text-xs text-muted">No chats yet</div>
             )}
           </DropdownMenuContent>
@@ -423,10 +423,10 @@ export function Sidebar({
 
       <nav className="flex flex-1 flex-col overflow-y-auto">
         {(() => {
-          const local       = conversations.filter(c => !c.integration);
-          const integrations = conversations.filter(c =>  c.integration);
+          const local       = chats.filter(c => !c.connection);
+          const integrations = chats.filter(c =>  c.connection);
 
-          const renderConvo = (c: typeof conversations[0]) => (
+          const renderConvo = (c: typeof chats[0]) => (
             <div
               key={c.id}
               className={`group flex cursor-pointer items-center justify-between gap-1.5 rounded-lg px-2.5 py-2 text-muted hover:bg-surface-2 hover:text-fg ${
@@ -450,14 +450,14 @@ export function Sidebar({
                 />
               ) : (
                 <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
-                  {c.integration === "telegram" && <SiTelegram className="h-3 w-3 flex-shrink-0 text-[#2AABEE]" />}
-                {c.integration === "discord"  && <SiDiscord  className="h-3 w-3 flex-shrink-0 text-[#5865F2]" />}
-                {c.integration === "slack"    && <SlackIcon className="h-3 w-3 flex-shrink-0" />}
+                  {c.connection === "telegram" && <SiTelegram className="h-3 w-3 flex-shrink-0 text-[#2AABEE]" />}
+                {c.connection === "discord"  && <SiDiscord  className="h-3 w-3 flex-shrink-0 text-[#5865F2]" />}
+                {c.connection === "slack"    && <SlackIcon className="h-3 w-3 flex-shrink-0" />}
                   <span className="truncate text-sm">{c.title}</span>
                 </div>
               )}
 
-              {editingId !== c.id && !c.integration && (
+              {editingId !== c.id && !c.connection && (
                 <ConvoMenu
                   onRename={(e) => startEdit(c, e)}
                   onDelete={(e) => { e.stopPropagation(); onDelete(c.id); }}
@@ -489,8 +489,8 @@ export function Sidebar({
               <div className="flex flex-col gap-0.5">
                 {local.map(renderConvo)}
               </div>
-              {conversations.length === 0 && (
-                <div className="px-1.5 py-2 text-xs text-muted">No conversations yet</div>
+              {chats.length === 0 && (
+                <div className="px-1.5 py-2 text-xs text-muted">No chats yet</div>
               )}
             </>
           );

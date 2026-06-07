@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Cpu, Users as UsersIcon, Boxes, Wrench, AlertTriangle, Plug, ChevronDown } from "lucide-react";
+import { Cpu, Users as UsersIcon, Boxes, Wrench, AlertTriangle, Plug, ChevronDown, Lock } from "lucide-react";
 import { api, streamPullModel } from "../api";
 import type { ModelInfo, User } from "../types";
 
@@ -468,7 +468,7 @@ function DangerTab() {
       <div className="rounded-xl border border-danger/30 bg-danger/5 p-4">
         <h3 className="mb-1 text-sm font-bold text-danger">⚠ Reset all data</h3>
         <p className="mb-4 text-xs text-muted leading-relaxed">
-          This permanently deletes <strong className="text-fg">all users, conversations, memories, API keys, and settings</strong>.
+          This permanently deletes <strong className="text-fg">all users, chats, memories, API keys, and settings</strong>.
           The app will return to a clean first-install state. This cannot be undone.
         </p>
         <div className="flex flex-col gap-2">
@@ -661,15 +661,153 @@ function ConnectionsTab() {
   );
 }
 
+// ── Encryption tab ─────────────────────────────────────────────────────────────
+
+function EncryptionTab() {
+  const [status, setStatus] = useState<{ configured: boolean; unlocked: boolean } | null>(null);
+  const [pass, setPass] = useState("");
+  const [pass2, setPass2] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [recoveryKey, setRecoveryKey] = useState<string | null>(null);
+  const [changing, setChanging] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => { api.vault.status().then(setStatus).catch(() => {}); }, []);
+
+  async function setup() {
+    if (pass.length < 6) { setError("Passphrase must be at least 6 characters."); return; }
+    if (pass !== pass2) { setError("Passphrases don't match."); return; }
+    setBusy(true); setError(null);
+    try {
+      const res = await api.vault.setup(pass);
+      setRecoveryKey(res.recoveryKey);
+      setStatus({ configured: res.configured, unlocked: res.unlocked });
+      setPass(""); setPass2("");
+    } catch (e) { setError((e as Error).message); }
+    finally { setBusy(false); }
+  }
+
+  async function change() {
+    if (pass.length < 6) { setError("Passphrase must be at least 6 characters."); return; }
+    if (pass !== pass2) { setError("Passphrases don't match."); return; }
+    setBusy(true); setError(null);
+    try {
+      await api.vault.changePassphrase(pass);
+      setPass(""); setPass2(""); setChanging(false);
+    } catch (e) { setError((e as Error).message); }
+    finally { setBusy(false); }
+  }
+
+  const inputCls = "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-fg outline-none focus:border-accent placeholder:text-muted";
+
+  // One-time recovery key display after setup.
+  if (recoveryKey) {
+    return (
+      <Section title="Save your recovery key">
+        <div className="rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-xs text-fg">
+          This is the <b>only</b> way back into your chats if you forget your passphrase. Store it
+          somewhere safe — it will not be shown again.
+        </div>
+        <div className="mt-3 flex items-center gap-2">
+          <code className="flex-1 select-all break-all rounded-lg border border-border bg-surface-2 px-3 py-2.5 font-mono text-sm">{recoveryKey}</code>
+          <button
+            onClick={() => { navigator.clipboard?.writeText(recoveryKey).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }).catch(() => {}); }}
+            className={`flex-shrink-0 rounded-lg border px-3 py-2.5 text-xs transition-colors ${copied ? "border-ok/40 bg-ok/10 text-ok" : "border-border text-muted hover:text-fg"}`}
+          >{copied ? "Copied ✓" : "Copy"}</button>
+        </div>
+        <button
+          onClick={() => setRecoveryKey(null)}
+          className="mt-4 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-2"
+        >I've saved it</button>
+      </Section>
+    );
+  }
+
+  if (status === null) return <p className="text-xs text-muted">Loading…</p>;
+
+  // Configured — show status + management.
+  if (status.configured) {
+    return (
+      <Section title="Encryption">
+        <div className="flex items-center gap-3 rounded-xl border border-ok/30 bg-ok/10 px-4 py-3">
+          <Lock className="h-4 w-4 text-ok" />
+          <div>
+            <p className="text-sm font-semibold text-ok">Chats are encrypted</p>
+            <p className="text-[11px] text-muted">
+              {status.unlocked ? "Vault is unlocked for this session." : "Vault is locked."}
+            </p>
+          </div>
+        </div>
+
+        <p className="mt-4 mb-3 text-[11px] text-muted leading-relaxed">
+          Messages, titles and memories are encrypted at rest with your passphrase. On a headless
+          server set <code className="bg-surface-2 px-1 rounded">ENZO_PASSPHRASE</code> to auto-unlock
+          on boot.
+        </p>
+
+        {!changing ? (
+          <div className="flex gap-2">
+            <button onClick={() => { setChanging(true); setError(null); }}
+              className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-fg hover:border-accent/60">
+              Change passphrase
+            </button>
+            {status.unlocked && (
+              <button
+                onClick={async () => { await api.vault.lock().catch(() => {}); setStatus((s) => s ? { ...s, unlocked: false } : s); }}
+                className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-muted hover:text-fg hover:border-accent/60">
+                Lock now
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2 rounded-xl border border-border bg-surface-2 p-4">
+            <p className="text-xs font-semibold text-muted">New passphrase</p>
+            <input className={inputCls} type="password" placeholder="New passphrase" value={pass} onChange={(e) => setPass(e.target.value)} />
+            <input className={inputCls} type="password" placeholder="Confirm passphrase" value={pass2} onChange={(e) => setPass2(e.target.value)} />
+            {error && <p className="text-xs text-danger">{error}</p>}
+            <div className="flex gap-2">
+              <button onClick={change} disabled={busy} className="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:bg-accent-2 disabled:opacity-40">
+                {busy ? "Saving…" : "Save passphrase"}
+              </button>
+              <button onClick={() => { setChanging(false); setPass(""); setPass2(""); setError(null); }} className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted hover:text-fg">Cancel</button>
+            </div>
+          </div>
+        )}
+      </Section>
+    );
+  }
+
+  // Not configured — set up encryption.
+  return (
+    <Section title="Encryption">
+      <p className="mb-4 text-xs text-muted leading-relaxed">
+        Protect chats, titles and memories with a passphrase. They'll be encrypted at rest — a copied
+        database or backup is useless without it. You'll get a one-time recovery key.
+      </p>
+      <div className="flex flex-col gap-2 max-w-sm">
+        <input className={inputCls} type="password" placeholder="Choose a passphrase" value={pass} onChange={(e) => setPass(e.target.value)} />
+        <input className={inputCls} type="password" placeholder="Confirm passphrase" value={pass2} onChange={(e) => setPass2(e.target.value)} />
+        {error && <p className="text-xs text-danger">{error}</p>}
+        <button onClick={setup} disabled={busy || !pass || !pass2}
+          className="self-start rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-2 disabled:opacity-40">
+          {busy ? "Setting up…" : "Turn on encryption"}
+        </button>
+      </div>
+    </Section>
+  );
+}
+
 // ── Main panel ───────────────────────────────────────────────────────────────
 
-type Tab = "users" | "models" | "tools" | "connections" | "danger";
+type Tab = "users" | "models" | "tools" | "connections" | "encryption" | "danger";
 
 const TAB_ICONS: Record<Tab, React.ReactNode> = {
   users:        <UsersIcon className="h-3.5 w-3.5" />,
   models:       <Boxes className="h-3.5 w-3.5" />,
   tools:        <Wrench className="h-3.5 w-3.5" />,
   connections:  <Plug className="h-3.5 w-3.5" />,
+  encryption:   <Lock className="h-3.5 w-3.5" />,
   danger:       <AlertTriangle className="h-3.5 w-3.5" />,
 };
 
@@ -701,7 +839,7 @@ export function AdminPanel({
 
         {/* Tabs */}
         <div className="flex gap-1 border-b border-border px-4 pt-1">
-          {(["users", "models", "tools", "connections", "danger"] as Tab[]).map((t) => (
+          {(["users", "models", "tools", "connections", "encryption", "danger"] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -724,6 +862,7 @@ export function AdminPanel({
           {tab === "models"  && <ModelsTab />}
           {tab === "tools"        && <ToolsTab />}
           {tab === "connections"  && <ConnectionsTab />}
+          {tab === "encryption"   && <EncryptionTab />}
           {tab === "danger"  && <DangerTab />}
         </div>
       </div>

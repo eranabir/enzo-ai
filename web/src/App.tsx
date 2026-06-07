@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, getToken, setToken, streamChat } from "./api";
-import type { Conversation, Message, ModelInfo, User } from "./types";
+import type { Chat, Message, ModelInfo, User } from "./types";
 import { Sidebar } from "./components/Sidebar";
 import { ChatView } from "./components/ChatView";
 import { Composer, type AttachedImage } from "./components/Composer";
 import { Header } from "./components/Header";
 import { AuthScreen } from "./components/AuthScreen";
+import { UnlockScreen } from "./components/UnlockScreen";
 import { AdminPanel } from "./components/AdminPanel";
 import { AgentsPanel } from "./components/AgentsPanel";
 import { McpPanel } from "./components/McpPanel";
@@ -13,7 +14,9 @@ import { McpPanel } from "./components/McpPanel";
 export function App() {
   const [user, setUser] = useState<User | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  // null = unknown, true = vault configured but locked, false = ready/unlocked
+  const [vaultLocked, setVaultLocked] = useState<boolean | null>(null);
+  const [chats, setChats] = useState<Chat[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [models, setModels] = useState<ModelInfo[]>([]);
@@ -38,6 +41,14 @@ export function App() {
       .finally(() => setAuthChecked(true));
   }, []);
 
+  // Once signed in, find out whether encryption is on and locked.
+  useEffect(() => {
+    if (!user) { setVaultLocked(null); return; }
+    api.vault.status()
+      .then((s) => setVaultLocked(s.configured && !s.unlocked))
+      .catch(() => setVaultLocked(false)); // never hard-block on a status error
+  }, [user]);
+
   // Poll engine status so the UI reflects Ollama coming up or down.
   useEffect(() => {
     const ping = () =>
@@ -47,7 +58,7 @@ export function App() {
     return () => clearInterval(t);
   }, []);
 
-  // Load this user's conversations + the model list once signed in and the
+  // Load this user's chats + the model list once signed in and the
   // engine is reachable (handles the UI opening before Ollama has started).
   const refreshModels = useCallback(() => {
     if (!online || !user) return;
@@ -60,24 +71,24 @@ export function App() {
       .catch(() => {});
   }, [online, user]);
 
-  const refreshConversations = useCallback(() => {
+  const refreshChats = useCallback(() => {
     if (!online || !user) return;
-    api.listConversations().then(setConversations).catch(() => {});
+    api.listChats().then(setChats).catch(() => {});
   }, [online, user]);
 
   useEffect(() => {
     if (!online || !user) return;
-    refreshConversations();
+    refreshChats();
     refreshModels();
   }, [online, user]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Re-fetch when the tab regains focus — picks up server-created conversations
+  // Re-fetch when the tab regains focus — picks up server-created chats
   // (e.g. Telegram integration chat appearing after bot connects)
   useEffect(() => {
     const onVisible = () => {
       if (document.visibilityState === "visible") {
         refreshModels();
-        refreshConversations();
+        refreshChats();
       }
     };
     document.addEventListener("visibilitychange", onVisible);
@@ -86,59 +97,59 @@ export function App() {
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onVisible);
     };
-  }, [refreshModels, refreshConversations]);
+  }, [refreshModels, refreshChats]);
 
-  // Poll conversations every 15s so integration chats (Telegram, etc.) appear
+  // Poll chats every 15s so integration chats (Telegram, etc.) appear
   // without the user needing to refresh. Lightweight — only fetches the list.
   useEffect(() => {
     if (!online || !user) return;
-    const t = setInterval(refreshConversations, 15_000);
+    const t = setInterval(refreshChats, 15_000);
     return () => clearInterval(t);
-  }, [online, user, refreshConversations]);
+  }, [online, user, refreshChats]);
 
   // Poll messages every 4s when viewing an integration chat (Discord/Telegram)
   // so new messages from the bot appear automatically without refreshing.
   useEffect(() => {
     if (!activeId || !online || !user || busy) return;
-    const activeConvo = conversations.find((c) => c.id === activeId);
-    if (!activeConvo?.integration) return; // only for integration chats
+    const activeConvo = chats.find((c) => c.id === activeId);
+    if (!activeConvo?.connection) return; // only for integration chats
 
     const t = setInterval(async () => {
       try {
-        const detail = await api.getConversation(activeId);
+        const detail = await api.getChat(activeId);
         setMessages(detail.messages);
       } catch { /* ignore */ }
     }, 4_000);
     return () => clearInterval(t);
-  }, [activeId, online, user, busy, conversations]);
+  }, [activeId, online, user, busy, chats]);
 
   const logout = useCallback(async () => {
     await api.logout().catch(() => {});
     setToken(null);
     setUser(null);
-    setConversations([]);
+    setChats([]);
     setMessages([]);
     setActiveId(null);
   }, []);
 
-  const openConversation = useCallback(async (id: string) => {
+  const openChat = useCallback(async (id: string) => {
     setActiveId(id);
-    const detail = await api.getConversation(id);
+    const detail = await api.getChat(id);
     setMessages(detail.messages);
     if (detail.model) setModel(detail.model);
   }, []);
 
-  const newConversation = useCallback(async () => {
-    const c = await api.createConversation();
-    setConversations((prev) => [c, ...prev]);
+  const newChat = useCallback(async () => {
+    const c = await api.createChat();
+    setChats((prev) => [c, ...prev]);
     setActiveId(c.id);
     setMessages([]);
   }, []);
 
-  const deleteConversation = useCallback(
+  const deleteChat = useCallback(
     async (id: string) => {
-      await api.deleteConversation(id);
-      setConversations((prev) => prev.filter((c) => c.id !== id));
+      await api.deleteChat(id);
+      setChats((prev) => prev.filter((c) => c.id !== id));
       if (activeId === id) {
         setActiveId(null);
         setMessages([]);
@@ -147,13 +158,13 @@ export function App() {
     [activeId],
   );
 
-  const renameConversation = useCallback(async (id: string, title: string) => {
+  const renameChat = useCallback(async (id: string, title: string) => {
     // Optimistic update first so the UI feels instant
-    setConversations((prev) =>
+    setChats((prev) =>
       prev.map((c) => (c.id === id ? { ...c, title } : c)),
     );
     // Persist to the server
-    await fetch(`/api/conversations/${id}`, {
+    await fetch(`/api/chats/${id}`, {
       method: "PATCH",
       headers: {
         "content-type": "application/json",
@@ -162,7 +173,7 @@ export function App() {
       body: JSON.stringify({ title }),
     }).catch(() => {
       // Revert on failure
-      setConversations((prev) =>
+      setChats((prev) =>
         prev.map((c) => (c.id === id && c.title === title ? { ...c, title: c.title } : c)),
       );
     });
@@ -173,17 +184,17 @@ export function App() {
       if (busy) return;
       let convoId = activeId;
 
-      // Lazily create a conversation on first send.
+      // Lazily create a chat on first send.
       if (!convoId) {
-        const c = await api.createConversation();
-        setConversations((prev) => [c, ...prev]);
+        const c = await api.createChat();
+        setChats((prev) => [c, ...prev]);
         setActiveId(c.id);
         convoId = c.id;
       }
 
       const userMsg: Message = {
         id: crypto.randomUUID(),
-        conversation_id: convoId,
+        chat_id: convoId,
         role: "user",
         content,
         image_mime: image?.mime ?? null,
@@ -191,7 +202,7 @@ export function App() {
       };
       const assistantMsg: Message = {
         id: crypto.randomUUID(),
-        conversation_id: convoId,
+        chat_id: convoId,
         role: "assistant",
         content: "",
         created_at: Date.now() + 1,
@@ -203,7 +214,7 @@ export function App() {
       abortRef.current = controller;
 
       await streamChat(
-        { conversationId: convoId, content, model, imageBase64: image?.base64, imageMime: image?.mime },
+        { chatId: convoId, content, model, imageBase64: image?.base64, imageMime: image?.mime },
         {
           onToken: (token) =>
             setMessages((prev) =>
@@ -214,7 +225,7 @@ export function App() {
               ),
             ),
           onTitle: (title) =>
-            setConversations((prev) =>
+            setChats((prev) =>
               prev.map((c) => (c.id === convoId ? { ...c, title } : c)),
             ),
           onError: (msg) =>
@@ -237,14 +248,14 @@ export function App() {
 
   const stop = useCallback(() => abortRef.current?.abort(), []);
 
-  const activeConversation = conversations.find((c) => c.id === activeId) ?? null;
+  const activeChat = chats.find((c) => c.id === activeId) ?? null;
 
   const toggleMemory = useCallback(
     async (enabled: boolean) => {
       if (!activeId) return;
       const updated = await api.setMemory(activeId, enabled).catch(() => null);
       if (updated) {
-        setConversations((prev) =>
+        setChats((prev) =>
           prev.map((c) => (c.id === activeId ? { ...c, memory_enabled: enabled ? 1 : 0 } : c)),
         );
       }
@@ -255,6 +266,15 @@ export function App() {
   // Wait until we know whether a session exists, then gate on auth.
   if (!authChecked) return <div className="h-screen bg-bg" />;
   if (!user) return <AuthScreen onAuthed={setUser} online={online} />;
+  // Encryption gate: if the vault is configured but locked, require the passphrase.
+  if (vaultLocked === null) return <div className="h-screen bg-bg" />;
+  if (vaultLocked)
+    return (
+      <UnlockScreen
+        onUnlocked={() => { setVaultLocked(false); refreshChats(); refreshModels(); }}
+        onLogout={logout}
+      />
+    );
 
   return (
     <div className="flex h-screen">
@@ -262,8 +282,8 @@ export function App() {
       {agentsOpen && (
         <AgentsPanel
           onStartChat={async (agentId) => {
-            const c = await api.createConversation(agentId);
-            setConversations(prev => [c, ...prev]);
+            const c = await api.createChat(agentId);
+            setChats(prev => [c, ...prev]);
             setActiveId(c.id);
             setMessages([]);
           }}
@@ -275,24 +295,24 @@ export function App() {
           currentUser={user}
           onClose={() => {
             setAdminOpen(false);
-            // Refresh models + conversations — integrations may have added new chats
+            // Refresh models + chats — integrations may have added new chats
             api.models().then(({ models: m, default: def }) => {
               setModels(m);
               setModel((cur) => m.find(x => x.id === cur) ? cur : m[0]?.id || def);
             }).catch(() => {});
-            refreshConversations();
+            refreshChats();
           }}
         />
       )}
       <Sidebar
-        conversations={conversations}
+        chats={chats}
         activeId={activeId}
         online={online}
         user={user}
-        onNew={newConversation}
-        onSelect={openConversation}
-        onDelete={deleteConversation}
-        onRename={renameConversation}
+        onNew={newChat}
+        onSelect={openChat}
+        onDelete={deleteChat}
+        onRename={renameChat}
         onLogout={logout}
         onAdminOpen={() => setAdminOpen(true)}
         onAgentsOpen={() => setAgentsOpen(true)}
@@ -304,7 +324,7 @@ export function App() {
           models={models}
           model={model}
           online={online}
-          activeConversation={activeConversation}
+          activeChat={activeChat}
           onModelChange={setModel}
           onToggleMemory={toggleMemory}
         />
@@ -312,8 +332,8 @@ export function App() {
           messages={messages}
           busy={busy}
           online={online}
-          hasActiveConversation={activeId !== null}
-          onNewChat={newConversation}
+          hasActiveChat={activeId !== null}
+          onNewChat={newChat}
           onSend={(text) => send(text)}
         />
         <Composer

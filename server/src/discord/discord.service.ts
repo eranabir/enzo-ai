@@ -8,7 +8,7 @@ import {
   TextChannel,
 } from "discord.js";
 import { SettingsService } from "../settings/settings.service";
-import { ConversationsService } from "../conversations/conversations.service";
+import { ChatsService } from "../chats/chats.service";
 import { UsersService } from "../users/users.service";
 import { AgentsService } from "../agents/agents.service";
 
@@ -32,18 +32,14 @@ export class DiscordService implements OnModuleDestroy {
 
   constructor(
     private readonly settings: SettingsService,
-    private readonly convos: ConversationsService,
+    private readonly convos: ChatsService,
     private readonly users: UsersService,
     private readonly agentsSvc: AgentsService,
   ) {}
 
   setRunner(fn: (userId: string, convoId: string, content: string, model?: string) => Promise<string>) {
+    // Bots start via startAllEnabled() once the vault is ready (see AppModule).
     this.runChat = fn;
-    for (const u of this.users.listAll()) {
-      if (this.settings.get(K.enabled(u.id)) === "1") {
-        this.start(u.id).catch((e) => this.logger.error(`Discord auto-start failed for ${u.id}: ${e.message}`));
-      }
-    }
   }
 
   // ── Public API (per user) ───────────────────────────────────────────────────
@@ -174,18 +170,18 @@ export class DiscordService implements OnModuleDestroy {
     this.settings.set(K.model(userId), "");
   }
 
-  deleteConversation(userId: string): void {
+  deleteChat(userId: string): void {
     const map = this.loadChatMap(userId);
     for (const convoId of Object.values(map)) {
       try { this.convos.delete(convoId); } catch { /* already gone */ }
     }
     this.settings.set(K.chatMap(userId), "{}");
-    // Also sweep any orphaned conversations tagged with this integration.
-    try { this.convos.deleteByIntegration(userId, "discord"); } catch { /* ignore */ }
+    // Also sweep any orphaned chats tagged with this integration.
+    try { this.convos.deleteByConnection(userId, "discord"); } catch { /* ignore */ }
   }
 
-  /** Relay a web-UI reply back to the Discord channel/DM backing a conversation. */
-  async sendToConversation(userId: string, convoId: string, text: string): Promise<void> {
+  /** Relay a web-UI reply back to the Discord channel/DM backing a chat. */
+  async sendToChat(userId: string, convoId: string, text: string): Promise<void> {
     const entry = this.clients.get(userId);
     if (!entry || !text.trim()) return;
     const map = this.loadChatMap(userId);
@@ -218,7 +214,7 @@ export class DiscordService implements OnModuleDestroy {
           const textChannel = (guild.systemChannel
             ?? channels.find((ch) => ch?.isTextBased())) as TextChannel | undefined;
           if (textChannel) {
-            this.getOrCreateChatConversation(ownerUserId, textChannel.id, `#${textChannel.name}`);
+            this.getOrCreateChat(ownerUserId, textChannel.id, `#${textChannel.name}`);
           }
         } catch (e) {
           this.logger.warn(`Guild "${guild.name}": ${(e as Error).message}`);
@@ -258,7 +254,7 @@ export class DiscordService implements OnModuleDestroy {
         await (message.channel as any).sendTyping?.().catch(() => {});
 
         const linkedAgent = this.findAgentForChannel(ownerUserId, chatId);
-        const { userId, convoId } = this.getOrCreateChatConversation(
+        const { userId, convoId } = this.getOrCreateChat(
           ownerUserId,
           chatId,
           linkedAgent ? `${linkedAgent.emoji} ${linkedAgent.name}` : chatTitle,
@@ -286,9 +282,9 @@ export class DiscordService implements OnModuleDestroy {
     client.on(Events.Error, (err) => this.logger.error("Discord client error:", err.message));
   }
 
-  // ── Conversation management (per user) ───────────────────────────────────────
+  // ── Chat management (per user) ───────────────────────────────────────
 
-  getOrCreateChatConversation(ownerUserId: string, chatId: string, chatTitle: string, agentId?: string): { userId: string; convoId: string } {
+  getOrCreateChat(ownerUserId: string, chatId: string, chatTitle: string, agentId?: string): { userId: string; convoId: string } {
     const map = this.loadChatMap(ownerUserId);
     if (!map[chatId]) {
       const convo = this.convos.create(ownerUserId, undefined, agentId, "discord");
