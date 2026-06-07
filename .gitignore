@@ -24,3 +24,5 @@ data/
 .env
 .env.local
 .idea
+# Generated macOS app icon (built from icon.png by CI / create:icons)
+desktop/assets/icon.icns
