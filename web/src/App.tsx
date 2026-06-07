@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Routes, Route, Navigate, useNavigate, useLocation, useMatch } from "react-router-dom";
 import { api, getToken, setToken, streamChat } from "./api";
 import type { Chat, Message, ModelInfo, User } from "./types";
 import { Sidebar } from "./components/Sidebar";
@@ -10,6 +11,9 @@ import { UnlockScreen } from "./components/UnlockScreen";
 import { AdminPanel } from "./components/AdminPanel";
 import { AgentsPanel } from "./components/AgentsPanel";
 import { McpPanel } from "./components/McpPanel";
+import { SettingsPanel } from "./components/SettingsPanel";
+
+const PANEL_PATHS = ["/settings", "/admin", "/agents", "/mcp"];
 
 export function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -23,12 +27,33 @@ export function App() {
   const [model, setModel] = useState<string>("");
   const [online, setOnline] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
-  const [adminOpen, setAdminOpen] = useState(false);
-  const [agentsOpen, setAgentsOpen] = useState(false);
-  const [mcpOpen, setMcpOpen] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const activeIdRef = useRef<string | null>(null);
   useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
+
+  const navigate = useNavigate();
+  const location = useLocation();
+  const chatMatch = useMatch("/chat/:chatId");
+  const routeChatId = chatMatch?.params.chatId ?? null;
+  const onPanel = PANEL_PATHS.some((p) => location.pathname.startsWith(p));
+
+  // The URL drives which chat is open. Loads messages when navigating to a chat
+  // that isn't already active; clears at "/"; leaves the chat untouched while a
+  // panel (settings/admin/…) overlays it.
+  useEffect(() => {
+    if (onPanel) return;
+    if (routeChatId) {
+      if (routeChatId !== activeIdRef.current) {
+        setActiveId(routeChatId);
+        api.getChat(routeChatId)
+          .then((d) => { setMessages(d.messages); if (d.model) setModel(d.model); })
+          .catch(() => navigate("/", { replace: true }));
+      }
+    } else if (location.pathname === "/" && activeIdRef.current !== null) {
+      setActiveId(null);
+      setMessages([]);
+    }
+  }, [routeChatId, location.pathname, onPanel, navigate]);
 
   // After streaming, reload authoritative messages so client ids match the
   // server's (needed for regenerate / edit, which re-mint message ids).
@@ -140,32 +165,27 @@ export function App() {
     setChats([]);
     setMessages([]);
     setActiveId(null);
-  }, []);
+    navigate("/login", { replace: true });
+  }, [navigate]);
 
-  const openChat = useCallback(async (id: string) => {
-    setActiveId(id);
-    const detail = await api.getChat(id);
-    setMessages(detail.messages);
-    if (detail.model) setModel(detail.model);
-  }, []);
+  // Selecting a chat is just navigation; the route effect loads its messages.
+  const openChat = useCallback((id: string) => navigate(`/chat/${id}`), [navigate]);
 
   const newChat = useCallback(async () => {
     const c = await api.createChat();
     setChats((prev) => [c, ...prev]);
-    setActiveId(c.id);
+    setActiveId(c.id);     // set first so the route effect doesn't reload over us
     setMessages([]);
-  }, []);
+    navigate(`/chat/${c.id}`);
+  }, [navigate]);
 
   const deleteChat = useCallback(
     async (id: string) => {
       await api.deleteChat(id);
       setChats((prev) => prev.filter((c) => c.id !== id));
-      if (activeId === id) {
-        setActiveId(null);
-        setMessages([]);
-      }
+      if (activeId === id) navigate("/", { replace: true });
     },
-    [activeId],
+    [activeId, navigate],
   );
 
   const renameChat = useCallback(async (id: string, title: string) => {
@@ -210,6 +230,7 @@ export function App() {
         setChats((prev) => [c, ...prev]);
         setActiveId(c.id);
         convoId = c.id;
+        navigate(`/chat/${c.id}`);
       }
 
       const userMsg: Message = {
@@ -243,7 +264,7 @@ export function App() {
         syncMessages(convoId);
       });
     },
-    [activeId, busy, model],
+    [activeId, busy, model, navigate, syncMessages],
   );
 
   // Re-run the assistant reply for the user message preceding `assistantId`.
@@ -310,45 +331,46 @@ export function App() {
     [activeId],
   );
 
-  // Wait until we know whether a session exists, then gate on auth.
-  if (!authChecked) return <div className="h-screen bg-bg" />;
-  if (!user) return <AuthScreen onAuthed={setUser} online={online} />;
-  // Encryption gate: if the vault is configured but locked, require the passphrase.
-  if (vaultLocked === null) return <div className="h-screen bg-bg" />;
-  if (vaultLocked)
-    return (
-      <UnlockScreen
-        onUnlocked={() => { setVaultLocked(false); refreshChats(); refreshModels(); }}
-        onLogout={logout}
-      />
-    );
+  const closePanel = () => navigate(activeId ? `/chat/${activeId}` : "/");
 
-  return (
+  // Wait until we know whether a session exists, then route.
+  if (!authChecked) return <div className="h-screen bg-bg" />;
+
+  const workspace = (user: User) => (
     <div className="flex h-screen">
-      {mcpOpen && <McpPanel onClose={() => setMcpOpen(false)} />}
-      {agentsOpen && (
+      {onPanel && location.pathname.startsWith("/mcp") && <McpPanel onClose={closePanel} />}
+      {onPanel && location.pathname.startsWith("/agents") && (
         <AgentsPanel
           onStartChat={async (agentId) => {
             const c = await api.createChat(agentId);
-            setChats(prev => [c, ...prev]);
+            setChats((prev) => [c, ...prev]);
             setActiveId(c.id);
             setMessages([]);
+            navigate(`/chat/${c.id}`);
           }}
-          onClose={() => setAgentsOpen(false)}
+          onClose={closePanel}
         />
       )}
-      {adminOpen && user.isAdmin && (
+      {onPanel && location.pathname.startsWith("/admin") && user.isAdmin && (
         <AdminPanel
           currentUser={user}
           onClose={() => {
-            setAdminOpen(false);
             // Refresh models + chats — integrations may have added new chats
             api.models().then(({ models: m, default: def }) => {
               setModels(m);
-              setModel((cur) => m.find(x => x.id === cur) ? cur : m[0]?.id || def);
+              setModel((cur) => (m.find((x) => x.id === cur) ? cur : m[0]?.id || def));
             }).catch(() => {});
             refreshChats();
+            closePanel();
           }}
+        />
+      )}
+      {onPanel && location.pathname.startsWith("/settings") && (
+        <SettingsPanel
+          open
+          user={user}
+          onClose={closePanel}
+          onUpdated={(u) => { setUser(u); closePanel(); }}
         />
       )}
       <Sidebar
@@ -361,10 +383,10 @@ export function App() {
         onDelete={deleteChat}
         onRename={renameChat}
         onLogout={logout}
-        onAdminOpen={() => setAdminOpen(true)}
-        onAgentsOpen={() => setAgentsOpen(true)}
-        onMcpOpen={() => setMcpOpen(true)}
-        onUserUpdated={setUser}
+        onAdminOpen={() => navigate("/admin")}
+        onAgentsOpen={() => navigate("/agents")}
+        onMcpOpen={() => navigate("/mcp")}
+        onSettingsOpen={() => navigate("/settings")}
       />
       <main className="flex flex-1 flex-col min-w-0">
         <Header
@@ -388,11 +410,41 @@ export function App() {
         <Composer
           busy={busy}
           disabled={online === false}
-          canAttachImage={models.find(m => m.id === model)?.supportsVision ?? false}
+          canAttachImage={models.find((m) => m.id === model)?.supportsVision ?? false}
           onSend={send}
           onStop={stop}
         />
       </main>
     </div>
+  );
+
+  return (
+    <Routes>
+      <Route
+        path="/login"
+        element={user ? <Navigate to="/" replace /> : <AuthScreen onAuthed={setUser} online={online} />}
+      />
+      <Route
+        path="/unlock"
+        element={
+          !user ? <Navigate to="/login" replace />
+            : vaultLocked === null ? <div className="h-screen bg-bg" />
+            : !vaultLocked ? <Navigate to="/" replace />
+            : <UnlockScreen
+                onUnlocked={() => { setVaultLocked(false); refreshChats(); refreshModels(); navigate("/", { replace: true }); }}
+                onLogout={logout}
+              />
+        }
+      />
+      <Route
+        path="*"
+        element={
+          !user ? <Navigate to="/login" replace />
+            : vaultLocked === null ? <div className="h-screen bg-bg" />
+            : vaultLocked ? <Navigate to="/unlock" replace />
+            : workspace(user)
+        }
+      />
+    </Routes>
   );
 }

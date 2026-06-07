@@ -10,7 +10,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./ui/DropdownMenu";
-import { SettingsPanel } from "./SettingsPanel";
 
 
 // ── Animated "New" button ────────────────────────────────────────────────────
@@ -221,7 +220,7 @@ export function Sidebar({
   onAdminOpen,
   onAgentsOpen,
   onMcpOpen,
-  onUserUpdated,
+  onSettingsOpen,
 }: {
   chats: Chat[];
   activeId: string | null;
@@ -235,9 +234,8 @@ export function Sidebar({
   onMcpOpen: () => void;
   onLogout: () => void;
   onAdminOpen: () => void;
-  onUserUpdated: (u: User) => void;
+  onSettingsOpen: () => void;
 }) {
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -380,7 +378,7 @@ export function Sidebar({
               {subLabel && <p className="text-xs text-muted">{subLabel}</p>}
             </div>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
+            <DropdownMenuItem onClick={onSettingsOpen}>
               <Settings className="h-4 w-4 text-muted" /> Settings
             </DropdownMenuItem>
             {user.isAdmin && (
@@ -408,7 +406,7 @@ export function Sidebar({
       <EdgeDragHandle onCollapse={() => setSidebarCollapsed(true)} />
       <div className="flex items-center justify-between px-1.5 py-1">
         <div className="flex items-center gap-2 text-lg font-bold tracking-wide">
-          <span className="inline-block text-2xl leading-none -translate-y-[1px] text-accent-2">⬡</span> EnzoAI
+          <span className="inline-block text-4xl leading-none -translate-y-[4px] text-accent-2">⬡</span> EnzoAI
         </div>
         <button
           onClick={toggleCollapse}
@@ -551,7 +549,7 @@ export function Sidebar({
 
             <DropdownMenuSeparator />
 
-            <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
+            <DropdownMenuItem onClick={onSettingsOpen}>
               <Settings className="h-4 w-4 text-muted" />
               Settings
             </DropdownMenuItem>
@@ -581,17 +579,6 @@ export function Sidebar({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-
-      {/* Settings dialog */}
-      <SettingsPanel
-        open={settingsOpen}
-        user={user}
-        onClose={() => setSettingsOpen(false)}
-        onUpdated={(updated) => {
-          onUserUpdated(updated);
-          setSettingsOpen(false);
-        }}
-      />
     </aside>
   );
 }
