@@ -1,14 +1,8 @@
 import { useEffect, useState } from "react";
-import { Settings, Zap, MessageSquare, Brain, Trash2, RotateCcw, User, Plug } from "lucide-react";
+import { Zap, MessageSquare, Brain, Trash2, RotateCcw, User, Plug } from "lucide-react";
 import { api, getToken } from "../api";
 import type { Memory, User as UserType } from "../types";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "./ui/Dialog";
+import { ModalHeader, BackButton } from "./ui/ModalHeader";
 import { Label } from "./ui/Label";
 import { ConnectorCard, ConnectorSectionLabel } from "./ui/ConnectorCard";
 import { TelegramConfig, DiscordConfig, SlackConfig } from "./IntegrationsPanel";
@@ -192,18 +186,15 @@ export function SettingsPanel({ open, user, onClose, onUpdated }: Props) {
     }
   }
 
+  if (!open) return null;
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <div className="flex items-center gap-2">
-            <Settings className="h-4 w-4 text-accent-2" />
-            <DialogTitle>Settings</DialogTitle>
-          </div>
-          <DialogDescription>
-            Manage your profile and Enzo AI's memory.
-          </DialogDescription>
-        </DialogHeader>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/80 backdrop-blur-sm p-4">
+      <div className="flex h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl">
+        <ModalHeader
+          title="Settings"
+          subtitle="Manage your profile and Enzo AI's memory."
+          onClose={onClose}
+        />
 
         {/* Tab bar */}
         <div className="flex gap-1 border-b border-border px-6 pt-1">
@@ -224,6 +215,7 @@ export function SettingsPanel({ open, user, onClose, onUpdated }: Props) {
           ))}
         </div>
 
+        <div className="flex-1 overflow-y-auto">
         {/* Memory tab */}
         {tab === "memory" && (
           <div className="flex flex-col gap-4 px-6 pb-6 pt-4">
@@ -356,10 +348,7 @@ export function SettingsPanel({ open, user, onClose, onUpdated }: Props) {
         {tab === "connections" && tgOpen && (
           <div className="flex flex-col">
             <div className="flex items-center justify-between border-b border-border px-5 py-3">
-              <button
-                onClick={() => { setTgOpen(false); api.telegram.status().then((d) => setTgConnected(d.enabled || !!d.token)).catch(() => {}); }}
-                className="text-sm text-muted hover:text-fg"
-              >← Back</button>
+              <BackButton onClick={() => { setTgOpen(false); api.telegram.status().then((d) => setTgConnected(d.enabled || !!d.token)).catch(() => {}); }} />
             </div>
             <div className="flex flex-col gap-5 p-6">
               <div className="flex items-center gap-4">
@@ -380,10 +369,7 @@ export function SettingsPanel({ open, user, onClose, onUpdated }: Props) {
         {tab === "connections" && dcOpen && (
           <div className="flex flex-col">
             <div className="flex items-center justify-between border-b border-border px-5 py-3">
-              <button
-                onClick={() => { setDcOpen(false); api.discord.status().then((d) => setDcConnected(d.enabled || !!d.token)).catch(() => {}); }}
-                className="text-sm text-muted hover:text-fg"
-              >← Back</button>
+              <BackButton onClick={() => { setDcOpen(false); api.discord.status().then((d) => setDcConnected(d.enabled || !!d.token)).catch(() => {}); }} />
             </div>
             <div className="flex flex-col gap-5 p-6">
               <div className="flex items-center gap-4">
@@ -404,10 +390,7 @@ export function SettingsPanel({ open, user, onClose, onUpdated }: Props) {
         {tab === "connections" && slOpen && (
           <div className="flex flex-col">
             <div className="flex items-center justify-between border-b border-border px-5 py-3">
-              <button
-                onClick={() => { setSlOpen(false); api.slack.status().then((d) => setSlConnected(d.enabled || !!(d.botToken && d.appToken))).catch(() => {}); }}
-                className="text-sm text-muted hover:text-fg"
-              >← Back</button>
+              <BackButton onClick={() => { setSlOpen(false); api.slack.status().then((d) => setSlConnected(d.enabled || !!(d.botToken && d.appToken))).catch(() => {}); }} />
             </div>
             <div className="flex flex-col gap-5 p-6">
               <div className="flex items-center gap-4">
@@ -429,7 +412,7 @@ export function SettingsPanel({ open, user, onClose, onUpdated }: Props) {
           <div className="flex flex-col">
             {/* Back header */}
             <div className="flex items-center justify-between border-b border-border px-5 py-3">
-              <button onClick={() => setCalOpen(false)} className="text-sm text-muted hover:text-fg">← Back</button>
+              <BackButton onClick={() => setCalOpen(false)} />
             </div>
 
             <div className="p-6 flex flex-col gap-5">
@@ -512,7 +495,7 @@ export function SettingsPanel({ open, user, onClose, onUpdated }: Props) {
         {tab === "connections" && gmOpen && (
           <div className="flex flex-col">
             <div className="flex items-center justify-between border-b border-border px-5 py-3">
-              <button onClick={() => setGmOpen(false)} className="text-sm text-muted hover:text-fg">← Back</button>
+              <BackButton onClick={() => setGmOpen(false)} />
             </div>
 
             <div className="p-6 flex flex-col gap-5">
@@ -663,7 +646,8 @@ export function SettingsPanel({ open, user, onClose, onUpdated }: Props) {
           </div>
         </form>
         )}
-      </DialogContent>
-    </Dialog>
+        </div>
+      </div>
+    </div>
   );
 }
