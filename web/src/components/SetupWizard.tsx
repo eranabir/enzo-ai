@@ -158,15 +158,16 @@ export function SetupWizard({ user, onDone }: Props) {
   ) : null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/95 backdrop-blur-sm p-4">
-      {/* Progress dots */}
-      <div className="absolute top-8 left-1/2 -translate-x-1/2 flex gap-2">
-        {steps.map((s, i) => (
-          <div key={s} className={`h-1.5 rounded-full transition-all duration-300 ${i === stepIdx ? "w-8 bg-accent" : i < stepIdx ? "w-3 bg-accent/50" : "w-3 bg-border"}`} />
-        ))}
-      </div>
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-bg/95 backdrop-blur-sm">
+      <div className="flex min-h-full flex-col items-center px-4 py-10">
+        {/* Progress dots */}
+        <div className="mb-8 flex gap-2">
+          {steps.map((s, i) => (
+            <div key={s} className={`h-1.5 rounded-full transition-all duration-300 ${i === stepIdx ? "w-8 bg-accent" : i < stepIdx ? "w-3 bg-accent/50" : "w-3 bg-border"}`} />
+          ))}
+        </div>
 
-      <div className="w-full max-w-lg">
+        <div className="flex w-full max-w-lg flex-1 flex-col justify-center">
 
         {/* Step — Welcome */}
         {current === "welcome" && (
@@ -519,6 +520,7 @@ export function SetupWizard({ user, onDone }: Props) {
             </button>
           </div>
         )}
+        </div>
       </div>
     </div>
   );
