@@ -98,7 +98,7 @@ export class ChatService {
         "Tool-use rules: Only call a tool when the user asks you to perform an action or to fetch information you do not already have — e.g. run a calculation they gave you, read a file or URL they referenced, search the web, or check the current date/time. " +
         "For explaining, summarizing, writing, reviewing, or discussing code or concepts, answer directly from your own knowledge — do NOT call any tool. " +
         "If the user asks what tools or capabilities you have, just describe the ones listed above by name without calling them, and never claim tools that are not listed. " +
-        "Never write a tool or function call as part of your reply: do not output JSON such as {\"name\": ...}, and do not write read_file(...) or similar syntax. Tools are executed by the system automatically — your reply to the user must always be plain natural language, using Markdown and fenced code blocks for any code.",
+        "Never write a tool or function call as part of your reply: do not output JSON such as {\"name\": ...}, and do not write tool_name(...) call syntax. Tools are executed by the system automatically — your reply to the user must always be plain natural language, using Markdown and fenced code blocks for any code.",
       );
     } else {
       lines.push("\n\nYou have no tools enabled for this chat. If asked what tools you have, say so plainly and do not invent any.");

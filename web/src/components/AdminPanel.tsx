@@ -523,8 +523,6 @@ function ToolsTab() {
     calculator: "Evaluates math expressions",
     web_search: "Searches the web via DuckDuckGo",
     read_url: "Fetches and reads a web page",
-    read_file: "Reads a file from the local machine",
-    list_directory: "Lists files in a local directory",
     git: "Runs read-only git commands in a repo",
   };
 

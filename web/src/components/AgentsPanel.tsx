@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Pencil, Trash2, Play, Clock, Zap, Globe, Calculator, Calendar, ChevronDown, ChevronRight, FileText, FolderOpen, GitBranch } from "lucide-react";
+import { Pencil, Trash2, Play, Clock, Zap, Globe, Calculator, Calendar, ChevronDown, ChevronRight, GitBranch } from "lucide-react";
 import { SiTelegram, SiDiscord } from "react-icons/si";
 import { SlackIcon } from "./ui/SlackIcon";
 import { Plus, X } from "lucide-react";
@@ -151,8 +151,6 @@ const TOOL_ICONS: Record<ToolName, React.ReactNode> = {
   calculator:      <Calculator className="h-3.5 w-3.5" />,
   web_search:      <Globe className="h-3.5 w-3.5" />,
   read_url:        <Zap className="h-3.5 w-3.5" />,
-  read_file:       <FileText className="h-3.5 w-3.5" />,
-  list_directory:  <FolderOpen className="h-3.5 w-3.5" />,
   git:             <GitBranch className="h-3.5 w-3.5" />,
 };
 

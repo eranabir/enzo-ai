@@ -83,6 +83,8 @@ interface FeaturedConnector {
   env?: Record<string, string>;
   envLabels?: Record<string, string>;
   envRequired?: string[];
+  /** A directory path appended as the final CLI arg (e.g. filesystem root). */
+  pathArg?: { label: string; placeholder: string };
 }
 
 const FEATURED: FeaturedConnector[] = [
@@ -98,11 +100,12 @@ const FEATURED: FeaturedConnector[] = [
   {
     id: "filesystem",
     name: "Filesystem",
-    description: "Read and write files on your local machine",
+    description: "Read and write files in a folder you choose",
     icon: <FilesystemIcon size={28} />,
     bgColor: "#1c1917",
     command: "npx",
-    args: ["-y", "@modelcontextprotocol/server-filesystem", "/"],
+    args: ["-y", "@modelcontextprotocol/server-filesystem"],
+    pathArg: { label: "Allowed directory", placeholder: "/home/me/projects" },
   },
   {
     id: "github",
@@ -165,6 +168,7 @@ export function McpPanel({ onClose }: Props) {
   const [view, setView] = useState<"grid" | "featured-detail" | "custom-form">("grid");
   const [selectedFeatured, setSelectedFeatured] = useState<FeaturedConnector | null>(null);
   const [envValues, setEnvValues] = useState<Record<string, string>>({});
+  const [pathValue, setPathValue] = useState("");
   const [customForm, setCustomForm] = useState({ name: "", type: "stdio" as "stdio" | "http", command: "", args: "", url: "" });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -182,17 +186,21 @@ export function McpPanel({ onClose }: Props) {
     if (!selectedFeatured) return;
     setBusy(true); setErr(null);
     try {
+      const args = selectedFeatured.pathArg && pathValue.trim()
+        ? [...selectedFeatured.args, pathValue.trim()]
+        : selectedFeatured.args;
       const server = await api.mcp.create({
         name: selectedFeatured.name,
         type: "stdio",
         command: selectedFeatured.command,
-        args: selectedFeatured.args,
+        args,
         env: envValues,
       });
       setServers(prev => [...prev, server]);
       setView("grid");
       setSelectedFeatured(null);
       setEnvValues({});
+      setPathValue("");
     } catch (e) { setErr((e as Error).message); }
     setBusy(false);
   }
@@ -242,12 +250,13 @@ export function McpPanel({ onClose }: Props) {
   if (view === "featured-detail" && selectedFeatured) {
     const hasEnv = selectedFeatured.envRequired && selectedFeatured.envRequired.length > 0;
     const envFilled = !hasEnv || (selectedFeatured.envRequired ?? []).every(k => envValues[k]?.trim());
+    const pathFilled = !selectedFeatured.pathArg || pathValue.trim().length > 0;
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/80 backdrop-blur-sm p-4">
         <div className="flex h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl">
           <ModalHeader
             title={selectedFeatured.name}
-            onBack={() => { setView("grid"); setErr(null); }}
+            onBack={() => { setView("grid"); setErr(null); setPathValue(""); }}
             backLabel="All servers"
             onClose={onClose}
           />
@@ -266,8 +275,23 @@ export function McpPanel({ onClose }: Props) {
 
             {/* Command preview */}
             <div className="rounded-xl border border-border bg-surface-2 px-4 py-3 font-mono text-xs text-muted">
-              {selectedFeatured.command} {selectedFeatured.args.join(" ")}
+              {selectedFeatured.command} {[...selectedFeatured.args, ...(selectedFeatured.pathArg && pathValue.trim() ? [pathValue.trim()] : [])].join(" ")}
             </div>
+
+            {/* Path field */}
+            {selectedFeatured.pathArg && (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-muted">{selectedFeatured.pathArg.label}</label>
+                <input
+                  className={inputCls}
+                  type="text"
+                  placeholder={selectedFeatured.pathArg.placeholder}
+                  value={pathValue}
+                  onChange={e => setPathValue(e.target.value)}
+                />
+                <p className="text-[11px] text-muted">The server can only read and write inside this folder. Use an absolute path.</p>
+              </div>
+            )}
 
             {/* Env fields */}
             {hasEnv && (
@@ -294,7 +318,7 @@ export function McpPanel({ onClose }: Props) {
           <div className="border-t border-border px-5 py-4">
             <button
               onClick={installFeatured}
-              disabled={busy || !envFilled}
+              disabled={busy || !envFilled || !pathFilled}
               className="w-full rounded-xl bg-accent py-2.5 text-sm font-semibold text-white hover:bg-accent-2 disabled:opacity-40"
             >
               {busy ? "Adding…" : "Add connector"}
@@ -447,6 +471,7 @@ export function McpPanel({ onClose }: Props) {
                     onClick={installed ? undefined : () => {
                       setSelectedFeatured(feat);
                       setEnvValues(Object.fromEntries(Object.keys(feat.env ?? {}).map(k => [k, ""])));
+                      setPathValue("");
                       setErr(null);
                       setView("featured-detail");
                     }}

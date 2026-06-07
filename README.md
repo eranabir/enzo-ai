@@ -134,9 +134,9 @@ Available tools (admin can enable/disable each in Admin Panel → Tools):
 | `calculator` | Evaluates math expressions |
 | `web_search` | Searches the web via DuckDuckGo |
 | `read_url` | Fetches and reads a web page |
-| `read_file` | Reads a file from the local machine |
-| `list_directory` | Lists files in a directory |
 | `git` | Runs read-only git commands (status, log, diff, blame…) |
+
+> Filesystem access (read/write files, list directories) is provided by the **Filesystem MCP connector** — add it under MCP Servers and choose the folder it's allowed to access.
 
 ---
 

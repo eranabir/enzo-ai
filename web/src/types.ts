@@ -11,7 +11,7 @@ export interface Message {
 
 export type MemoryType = "fact" | "decision" | "preference" | "work_context";
 
-export type ToolName = "get_datetime" | "calculator" | "web_search" | "read_url" | "read_file" | "list_directory" | "git";
+export type ToolName = "get_datetime" | "calculator" | "web_search" | "read_url" | "git";
 
 export interface Agent {
   id: string;

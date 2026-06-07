@@ -2,7 +2,6 @@ import { Injectable, Logger, ForbiddenException } from "@nestjs/common";
 import { SettingsService } from "../settings/settings.service";
 import { CalendarService } from "../calendar/calendar.service";
 import { GmailService } from "../gmail/gmail.service";
-import { promises as fs } from "fs";
 import * as path from "path";
 import { execFile } from "child_process";
 import { promisify } from "util";
@@ -16,7 +15,7 @@ const SAFE_GIT_SUBCOMMANDS = new Set([
   "ls-tree", "rev-parse", "rev-list", "config", "stash",
 ]);
 
-export type ToolName = "get_datetime" | "calculator" | "web_search" | "read_url" | "read_file" | "list_directory" | "git" | "get_calendar_events" | "create_calendar_event" | "update_calendar_event" | "search_emails" | "read_email";
+export type ToolName = "get_datetime" | "calculator" | "web_search" | "read_url" | "git" | "get_calendar_events" | "create_calendar_event" | "update_calendar_event" | "search_emails" | "read_email";
 
 /**
  * Tools that need a connected account before they can run. Maps the tool to a
@@ -88,34 +87,6 @@ export const ALL_TOOL_DEFINITIONS: ToolDefinition[] = [
           url: { type: "string", description: "The URL to fetch" },
         },
         required: ["url"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "read_file",
-      description: "Read the text contents of a file on the local machine. Supports code, markdown, JSON, CSV, plain text, and other text-based formats.",
-      parameters: {
-        type: "object",
-        properties: {
-          path: { type: "string", description: "Absolute or relative path to the file, e.g. C:/Users/me/notes.txt or /home/me/doc.md" },
-        },
-        required: ["path"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "list_directory",
-      description: "List the files and folders inside a directory on the local machine.",
-      parameters: {
-        type: "object",
-        properties: {
-          path: { type: "string", description: "Absolute or relative path to the directory, e.g. C:/Users/me/Documents" },
-        },
-        required: ["path"],
       },
     },
   },
@@ -293,10 +264,6 @@ export class ToolsService {
           return await this.webSearch(String(args.query ?? ""));
         case "read_url":
           return await this.readUrl(String(args.url ?? ""));
-        case "read_file":
-          return await this.readFile(String(args.path ?? ""));
-        case "list_directory":
-          return await this.listDirectory(String(args.path ?? ""));
         case "get_calendar_events":
           return await this.getCalendarEvents(userId, Number(args.days ?? 7));
         case "create_calendar_event":
@@ -375,36 +342,6 @@ export class ToolsService {
       .replace(/\s{2,}/g, " ")
       .trim();
     return text.slice(0, 4000) + (text.length > 4000 ? "…[truncated]" : "");
-  }
-
-  private async readFile(filePath: string): Promise<string> {
-    if (!filePath) return "No path provided";
-    const resolved = path.resolve(filePath);
-    try {
-      const stat = await fs.stat(resolved);
-      if (stat.isDirectory()) {
-        return `${resolved} is a directory — use list_directory to browse it first.`;
-      }
-      // Guard against very large files overwhelming the context
-      const MAX_BYTES = 512_000; // 512 KB
-      if (stat.size > MAX_BYTES) {
-        return `File is too large (${(stat.size / 1024).toFixed(0)} KB). Maximum supported size is 512 KB.`;
-      }
-      const content = await fs.readFile(resolved, "utf-8");
-      const MAX_CHARS = 16_000;
-      const truncated = content.length > MAX_CHARS;
-      return (truncated ? content.slice(0, MAX_CHARS) : content)
-        + (truncated ? `\n\n…[truncated — ${(content.length - MAX_CHARS).toLocaleString()} more characters not shown]` : "");
-    } catch (err: any) {
-      if (err.code === "ENOENT") return `File not found: ${resolved}`;
-      if (err.code === "EACCES") return `Permission denied: ${resolved}`;
-      if (err.code === "EISDIR") return `${resolved} is a directory — use list_directory to browse it.`;
-      // Binary file — utf-8 decode fails
-      if (err.message?.includes("invalid") || err.code === "ERR_INVALID_ARG_VALUE") {
-        return `${resolved} appears to be a binary file and cannot be read as text.`;
-      }
-      throw err;
-    }
   }
 
   private async getCalendarEvents(userId: string | undefined, days: number): Promise<string> {
@@ -508,45 +445,4 @@ export class ToolsService {
     }
   }
 
-  private async listDirectory(dirPath: string): Promise<string> {
-    if (!dirPath) return "No path provided";
-    const resolved = path.resolve(dirPath);
-    try {
-      const entries = await fs.readdir(resolved, { withFileTypes: true });
-      if (entries.length === 0) return `Directory is empty: ${resolved}`;
-
-      const MAX_ENTRIES = 100;
-      const shown = entries.slice(0, MAX_ENTRIES);
-
-      const lines: string[] = [`Contents of ${resolved}:`, ""];
-      await Promise.all(
-        shown.map(async (entry) => {
-          if (entry.isDirectory()) {
-            lines.push(`[DIR]  ${entry.name}/`);
-          } else {
-            try {
-              const s = await fs.stat(path.join(resolved, entry.name));
-              const size =
-                s.size < 1024 ? `${s.size} B`
-                : s.size < 1024 * 1024 ? `${(s.size / 1024).toFixed(1)} KB`
-                : `${(s.size / (1024 * 1024)).toFixed(1)} MB`;
-              lines.push(`[FILE] ${entry.name} (${size})`);
-            } catch {
-              lines.push(`[FILE] ${entry.name}`);
-            }
-          }
-        }),
-      );
-
-      if (entries.length > MAX_ENTRIES) {
-        lines.push(`\n…and ${entries.length - MAX_ENTRIES} more items not shown`);
-      }
-      return lines.join("\n");
-    } catch (err: any) {
-      if (err.code === "ENOENT") return `Directory not found: ${resolved}`;
-      if (err.code === "EACCES") return `Permission denied: ${resolved}`;
-      if (err.code === "ENOTDIR") return `${resolved} is not a directory — use read_file to read it.`;
-      throw err;
-    }
-  }
 }
