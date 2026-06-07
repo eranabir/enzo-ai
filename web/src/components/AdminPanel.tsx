@@ -830,12 +830,12 @@ export function AdminPanel({
         />
 
         {/* Tabs */}
-        <div className="flex gap-1 border-b border-border px-4 pt-1">
+        <div className="flex gap-1 border-b border-border px-5 pt-1">
           {(["users", "models", "tools", "connections", "encryption", "danger"] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`flex items-center gap-1.5 rounded-t-md px-4 py-2 text-sm font-semibold capitalize transition-colors ${
+              className={`flex items-center gap-1.5 rounded-t-md px-3 py-2 text-sm font-semibold capitalize transition-colors first:-ml-3 ${
                 t === "danger" ? (tab === "danger" ? "border-b-2 border-danger text-danger" : "text-danger/60 hover:text-danger") :
                 tab === t
                   ? "border-b-2 border-accent text-fg"
