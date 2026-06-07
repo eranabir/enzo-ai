@@ -92,9 +92,14 @@ export class ChatService {
 
     // ── Describe available tools ───────────────────────────────────────────
     if (availableTools && availableTools.length > 0) {
-      lines.push("\n\nYou have access to these tools. Call a tool only when it genuinely helps with the request — otherwise just answer normally:");
+      lines.push("\n\nYou have access to these tools:");
       for (const t of availableTools) lines.push(`- ${t.name}: ${t.description}`);
-      lines.push("If the user asks what tools, capabilities, or things you can do, do NOT call any tool — simply describe the tools listed above by their names. Only invoke a tool when you actually need its result to fulfil a request. Never claim to have tools that are not in this list.");
+      lines.push(
+        "Tool-use rules: Only call a tool when the user asks you to perform an action or to fetch information you do not already have — e.g. run a calculation they gave you, read a file or URL they referenced, search the web, or check the current date/time. " +
+        "For explaining, summarizing, writing, reviewing, or discussing code or concepts, answer directly from your own knowledge — do NOT call any tool. " +
+        "If the user asks what tools or capabilities you have, just describe the ones listed above by name without calling them, and never claim tools that are not listed. " +
+        "Never write a tool or function call as part of your reply: do not output JSON such as {\"name\": ...}, and do not write read_file(...) or similar syntax. Tools are executed by the system automatically — your reply to the user must always be plain natural language, using Markdown and fenced code blocks for any code.",
+      );
     } else {
       lines.push("\n\nYou have no tools enabled for this chat. If asked what tools you have, say so plainly and do not invent any.");
     }
@@ -120,6 +125,59 @@ export class ChatService {
     }
 
     return lines.join(" ");
+  }
+
+  /**
+   * Detect tool calls that a (usually small) model emitted as plain text/JSON in
+   * its reply instead of via the structured tool_calls field. Only returns calls
+   * that reference a real available tool, so ordinary code or JSON shown in an
+   * answer is never mistaken for a tool call.
+   */
+  private parseLeakedToolCalls(
+    content: string,
+    validNames: Set<string>,
+  ): { name: string; args: any }[] {
+    if (!content) return [];
+    const out: { name: string; args: any }[] = [];
+    const seen = new Set<string>();
+    const candidates: string[] = [];
+    // Fenced code blocks: ```json { ... } ```
+    const fenceRe = /```[a-zA-Z]*\s*([\s\S]*?)```/g;
+    let m: RegExpExecArray | null;
+    while ((m = fenceRe.exec(content))) candidates.push(m[1].trim());
+    for (const c of candidates) {
+      let obj: any;
+      try { obj = JSON.parse(c); } catch { continue; }
+      if (!obj || typeof obj.name !== "string") continue;
+      const args = obj.arguments ?? obj.parameters ?? {};
+      const key = obj.name + JSON.stringify(args);
+      if (validNames.has(obj.name) && !seen.has(key)) {
+        seen.add(key);
+        out.push({ name: obj.name, args });
+      }
+    }
+    return out;
+  }
+
+  /** Remove any leaked tool-call JSON blocks from a final answer so they are never shown raw. */
+  private stripLeakedToolCalls(content: string, validNames: Set<string>): string {
+    if (!content) return content;
+    const isToolJson = (s: string): boolean => {
+      try {
+        const o = JSON.parse(s.trim());
+        return (
+          !!o &&
+          typeof o.name === "string" &&
+          validNames.has(o.name) &&
+          (o.arguments !== undefined || o.parameters !== undefined)
+        );
+      } catch {
+        return false;
+      }
+    };
+    return content
+      .replace(/```[a-zA-Z]*\s*([\s\S]*?)```/g, (full, body) => (isToolJson(body) ? "" : full))
+      .trim();
   }
 
   /** Save a base64-encoded image to disk, return the file path. */
@@ -236,6 +294,9 @@ export class ChatService {
         // Strip _mcp metadata before sending to LLM (it only needs type/function)
         const mcpDefs = mcpTools.map(({ type, function: fn }) => ({ type, function: fn }));
         const toolDefs = [...builtinDefs, ...mcpDefs];
+        const validNames = new Set<string>(
+          toolDefs.map((d: any) => d.function?.name).filter(Boolean),
+        );
         let loopMessages = [...messages];
         const MAX_TOOL_ROUNDS = 5;
 
@@ -252,20 +313,35 @@ export class ChatService {
           const data = await res.json() as any;
           const msg = data?.message;
 
-          if (!msg?.tool_calls?.length) {
-            // No more tool calls — stream the final text
-            assistant = msg?.content ?? "";
+          // Normalize tool calls from BOTH the native field and any the model
+          // leaked as text. Small local models often print a tool call as JSON
+          // in the content instead of using the structured tool_calls field;
+          // without this, those would render as raw JSON in the chat.
+          const nativeCalls = (msg?.tool_calls ?? []).map((tc: any) => ({
+            name: tc.function?.name as string,
+            args: tc.function?.arguments ?? {},
+          }));
+          const leakedCalls = nativeCalls.length
+            ? []
+            : this.parseLeakedToolCalls(msg?.content ?? "", validNames);
+          const toolCalls = nativeCalls.length ? nativeCalls : leakedCalls;
+
+          if (!toolCalls.length) {
+            // No tool calls — this is the final answer. Strip any stray
+            // tool-call JSON the model may have left behind, then stream it.
+            assistant = this.stripLeakedToolCalls(msg?.content ?? "", validNames);
             if (assistant) {
               for (const char of assistant) { yield { token: char }; }
             }
             break;
           }
 
-          // Execute each tool call — route to MCP or built-in
-          loopMessages.push({ role: "assistant", content: msg.content ?? "" });
-          for (const tc of msg.tool_calls) {
-            const toolName = tc.function?.name as string;
-            const toolArgs = tc.function?.arguments ?? {};
+          // Record the assistant turn. For leaked (text) calls we drop the raw
+          // JSON content so it is never re-fed to the model or shown to the user.
+          loopMessages.push({ role: "assistant", content: leakedCalls.length ? "" : (msg.content ?? "") });
+          for (const tc of toolCalls) {
+            const toolName = tc.name;
+            const toolArgs = tc.args ?? {};
             this.logger.debug(`Tool call: ${toolName}(${JSON.stringify(toolArgs)})`);
             yield { token: `\n\`🔧 ${toolName}\`\n` };
             let result: string;
@@ -275,6 +351,16 @@ export class ChatService {
               result = await this.toolsService.execute(toolName, toolArgs, userId);
             }
             loopMessages.push({ role: "tool", content: result } as any);
+          }
+        }
+
+        // Safety net: if the loop exhausted its rounds while still calling tools
+        // (or produced no prose), force one final tool-free answer so the user
+        // always receives a natural-language reply instead of nothing.
+        if (!assistant) {
+          for await (const token of provider.streamChat({ model, messages: loopMessages, signal })) {
+            assistant += token;
+            yield { token };
           }
         }
       } else {
