@@ -128,10 +128,50 @@ export class ChatService {
   }
 
   /**
+   * Scan text for every balanced top-level `{ ... }` JSON object, respecting
+   * string literals so braces inside strings don't throw off the depth count.
+   * Handles bare objects and objects with nested arguments alike.
+   */
+  private extractJsonObjects(text: string): string[] {
+    const objs: string[] = [];
+    let depth = 0, start = -1, inStr = false, esc = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (inStr) {
+        if (esc) esc = false;
+        else if (ch === "\\") esc = true;
+        else if (ch === '"') inStr = false;
+        continue;
+      }
+      if (ch === '"') { inStr = true; continue; }
+      if (ch === "{") { if (depth === 0) start = i; depth++; }
+      else if (ch === "}") {
+        if (depth > 0 && --depth === 0 && start >= 0) {
+          objs.push(text.slice(start, i + 1));
+          start = -1;
+        }
+      }
+    }
+    return objs;
+  }
+
+  /** True if a JSON snippet is a tool call for one of the available tools. */
+  private isToolCallJson(snippet: string, validNames: Set<string>): boolean {
+    let obj: any;
+    try { obj = JSON.parse(snippet); } catch { return false; }
+    return (
+      !!obj &&
+      typeof obj.name === "string" &&
+      validNames.has(obj.name) &&
+      (obj.arguments !== undefined || obj.parameters !== undefined)
+    );
+  }
+
+  /**
    * Detect tool calls that a (usually small) model emitted as plain text/JSON in
-   * its reply instead of via the structured tool_calls field. Only returns calls
-   * that reference a real available tool, so ordinary code or JSON shown in an
-   * answer is never mistaken for a tool call.
+   * its reply — fenced OR bare — instead of via the structured tool_calls field.
+   * Only returns calls that reference a real available tool, so ordinary code or
+   * JSON shown in an answer (e.g. {"name":"John Doe"}) is never mistaken for one.
    */
   private parseLeakedToolCalls(
     content: string,
@@ -140,43 +180,27 @@ export class ChatService {
     if (!content) return [];
     const out: { name: string; args: any }[] = [];
     const seen = new Set<string>();
-    const candidates: string[] = [];
-    // Fenced code blocks: ```json { ... } ```
-    const fenceRe = /```[a-zA-Z]*\s*([\s\S]*?)```/g;
-    let m: RegExpExecArray | null;
-    while ((m = fenceRe.exec(content))) candidates.push(m[1].trim());
-    for (const c of candidates) {
+    for (const snippet of this.extractJsonObjects(content)) {
       let obj: any;
-      try { obj = JSON.parse(c); } catch { continue; }
-      if (!obj || typeof obj.name !== "string") continue;
+      try { obj = JSON.parse(snippet); } catch { continue; }
+      if (!obj || typeof obj.name !== "string" || !validNames.has(obj.name)) continue;
       const args = obj.arguments ?? obj.parameters ?? {};
       const key = obj.name + JSON.stringify(args);
-      if (validNames.has(obj.name) && !seen.has(key)) {
-        seen.add(key);
-        out.push({ name: obj.name, args });
-      }
+      if (!seen.has(key)) { seen.add(key); out.push({ name: obj.name, args }); }
     }
     return out;
   }
 
-  /** Remove any leaked tool-call JSON blocks from a final answer so they are never shown raw. */
+  /** Remove any leaked tool-call JSON (fenced or bare) from a final answer so it is never shown raw. */
   private stripLeakedToolCalls(content: string, validNames: Set<string>): string {
     if (!content) return content;
-    const isToolJson = (s: string): boolean => {
-      try {
-        const o = JSON.parse(s.trim());
-        return (
-          !!o &&
-          typeof o.name === "string" &&
-          validNames.has(o.name) &&
-          (o.arguments !== undefined || o.parameters !== undefined)
-        );
-      } catch {
-        return false;
-      }
-    };
-    return content
-      .replace(/```[a-zA-Z]*\s*([\s\S]*?)```/g, (full, body) => (isToolJson(body) ? "" : full))
+    let out = content;
+    for (const snippet of this.extractJsonObjects(content)) {
+      if (this.isToolCallJson(snippet, validNames)) out = out.split(snippet).join("");
+    }
+    return out
+      .replace(/```[a-zA-Z]*\s*```/g, "") // empty fenced blocks left behind
+      .replace(/\n{3,}/g, "\n\n")
       .trim();
   }
 
@@ -313,22 +337,22 @@ export class ChatService {
           const data = await res.json() as any;
           const msg = data?.message;
 
-          // Normalize tool calls from BOTH the native field and any the model
-          // leaked as text. Small local models often print a tool call as JSON
-          // in the content instead of using the structured tool_calls field;
-          // without this, those would render as raw JSON in the chat.
           const nativeCalls = (msg?.tool_calls ?? []).map((tc: any) => ({
             name: tc.function?.name as string,
             args: tc.function?.arguments ?? {},
           }));
-          const leakedCalls = nativeCalls.length
-            ? []
-            : this.parseLeakedToolCalls(msg?.content ?? "", validNames);
-          const toolCalls = nativeCalls.length ? nativeCalls : leakedCalls;
 
-          if (!toolCalls.length) {
-            // No tool calls — this is the final answer. Strip any stray
-            // tool-call JSON the model may have left behind, then stream it.
+          if (!nativeCalls.length) {
+            // The model returned no structured tool call. It either answered, or
+            // (common with small local models) printed a tool call as raw JSON
+            // in the text. If it leaked a tool call, the turn is malformed —
+            // discard it and let the safety net regenerate a clean prose answer
+            // instead of showing JSON or executing a hallucinated call.
+            const leaked = this.parseLeakedToolCalls(msg?.content ?? "", validNames);
+            if (leaked.length) {
+              this.logger.debug(`Discarding ${leaked.length} tool call(s) the model leaked as text`);
+              break;
+            }
             assistant = this.stripLeakedToolCalls(msg?.content ?? "", validNames);
             if (assistant) {
               for (const char of assistant) { yield { token: char }; }
@@ -336,10 +360,9 @@ export class ChatService {
             break;
           }
 
-          // Record the assistant turn. For leaked (text) calls we drop the raw
-          // JSON content so it is never re-fed to the model or shown to the user.
-          loopMessages.push({ role: "assistant", content: leakedCalls.length ? "" : (msg.content ?? "") });
-          for (const tc of toolCalls) {
+          // Genuine (structured) tool calls — execute them and loop.
+          loopMessages.push({ role: "assistant", content: msg.content ?? "" });
+          for (const tc of nativeCalls) {
             const toolName = tc.name;
             const toolArgs = tc.args ?? {};
             this.logger.debug(`Tool call: ${toolName}(${JSON.stringify(toolArgs)})`);
@@ -354,13 +377,27 @@ export class ChatService {
           }
         }
 
-        // Safety net: if the loop exhausted its rounds while still calling tools
-        // (or produced no prose), force one final tool-free answer so the user
-        // always receives a natural-language reply instead of nothing.
+        // Safety net: if no prose was produced (the model leaked a tool call as
+        // text, or the loop exhausted its rounds still calling tools), make one
+        // final tool-free request so the user always gets a clean reply. Done
+        // non-streaming so any residual leaked JSON is stripped before sending.
         if (!assistant) {
-          for await (const token of provider.streamChat({ model, messages: loopMessages, signal })) {
-            assistant += token;
-            yield { token };
+          const cleanMessages = [
+            ...loopMessages,
+            { role: "system", content: "Reply to the user now in plain natural language. Do not call any tool and do not output any JSON — just answer the question directly, using Markdown and fenced code blocks for any code." },
+          ];
+          const res2 = await fetch("http://127.0.0.1:11434/api/chat", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ model: model.replace(/^ollama:/, ""), messages: cleanMessages, stream: false }),
+            signal,
+          });
+          if (res2.ok) {
+            const d2 = await res2.json() as any;
+            assistant = this.stripLeakedToolCalls(d2?.message?.content ?? "", validNames);
+            if (assistant) {
+              for (const char of assistant) { yield { token: char }; }
+            }
           }
         }
       } else {
