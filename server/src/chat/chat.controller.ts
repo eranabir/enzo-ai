@@ -36,6 +36,9 @@ export class ChatController {
       model?: string;
       imageBase64?: string;
       imageMime?: string;
+      // When set, delete this message and everything after it before generating
+      // — powers "regenerate" and "edit & resend" from the UI.
+      replaceFromMessageId?: string;
     },
     @Res() res: Response,
   ) {
@@ -43,6 +46,11 @@ export class ChatController {
     const content = String(body?.content ?? "").trim();
     if (!convo) throw new NotFoundException("chat not found");
     if (!content) throw new BadRequestException("content is required");
+
+    // Regenerate / edit: drop the target message and all that follow it.
+    if (body?.replaceFromMessageId) {
+      this.convos.deleteMessageAndAfter(convo.id, String(body.replaceFromMessageId));
+    }
 
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");

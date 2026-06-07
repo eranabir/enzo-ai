@@ -129,6 +129,21 @@ export class ChatsService {
     return { id, chat_id: chatId, role, content, image_mime: imageMime ?? null, created_at: t } as MessageRow;
   }
 
+  /**
+   * Delete a message and every message after it in the same chat (used to
+   * regenerate or edit-and-resend). Returns the number of rows removed.
+   */
+  deleteMessageAndAfter(chatId: string, messageId: string): number {
+    const row = this.db
+      .prepare(`SELECT created_at FROM messages WHERE id = ? AND chat_id = ?`)
+      .get(messageId, chatId) as { created_at: number } | undefined;
+    if (!row) return 0;
+    const res = this.db
+      .prepare(`DELETE FROM messages WHERE chat_id = ? AND created_at >= ?`)
+      .run(chatId, row.created_at);
+    return res.changes;
+  }
+
   /** Look up which chat a message belongs to (for auth checks). */
   getMessageChat(messageId: string): { chat_id: string } | undefined {
     return this.db

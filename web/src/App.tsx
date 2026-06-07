@@ -27,6 +27,16 @@ export function App() {
   const [agentsOpen, setAgentsOpen] = useState(false);
   const [mcpOpen, setMcpOpen] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const activeIdRef = useRef<string | null>(null);
+  useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
+
+  // After streaming, reload authoritative messages so client ids match the
+  // server's (needed for regenerate / edit, which re-mint message ids).
+  const syncMessages = useCallback((convoId: string) => {
+    api.getChat(convoId)
+      .then((d) => { if (activeIdRef.current === convoId) setMessages(d.messages); })
+      .catch(() => {});
+  }, []);
 
   // Restore an existing session on load, if any.
   useEffect(() => {
@@ -179,6 +189,16 @@ export function App() {
     });
   }, []);
 
+  // Shared SSE handlers that stream tokens into a given assistant message.
+  const streamInto = (assistantId: string, convoId: string) => ({
+    onToken: (token: string) =>
+      setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, content: m.content + token } : m))),
+    onTitle: (title: string) =>
+      setChats((prev) => prev.map((c) => (c.id === convoId ? { ...c, title } : c))),
+    onError: (msg: string) =>
+      setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, content: m.content + `\n\n⚠️ ${msg}` } : m))),
+  });
+
   const send = useCallback(
     async (content: string, image?: AttachedImage) => {
       if (busy) return;
@@ -215,35 +235,62 @@ export function App() {
 
       await streamChat(
         { chatId: convoId, content, model, imageBase64: image?.base64, imageMime: image?.mime },
-        {
-          onToken: (token) =>
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === assistantMsg.id
-                  ? { ...m, content: m.content + token }
-                  : m,
-              ),
-            ),
-          onTitle: (title) =>
-            setChats((prev) =>
-              prev.map((c) => (c.id === convoId ? { ...c, title } : c)),
-            ),
-          onError: (msg) =>
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === assistantMsg.id
-                  ? { ...m, content: m.content + `\n\n⚠️ ${msg}` }
-                  : m,
-              ),
-            ),
-        },
+        streamInto(assistantMsg.id, convoId),
         controller.signal,
       ).finally(() => {
         setBusy(false);
         abortRef.current = null;
+        syncMessages(convoId);
       });
     },
     [activeId, busy, model],
+  );
+
+  // Re-run the assistant reply for the user message preceding `assistantId`.
+  const regenerate = useCallback(
+    async (assistantId: string) => {
+      if (busy || !activeId) return;
+      const idx = messages.findIndex((m) => m.id === assistantId);
+      if (idx < 0) return;
+      let u = idx - 1;
+      while (u >= 0 && messages[u].role !== "user") u--;
+      if (u < 0) return;
+      const userMsg = messages[u];
+      const convoId = activeId;
+      const assistantMsg: Message = { id: crypto.randomUUID(), chat_id: convoId, role: "assistant", content: "", created_at: Date.now() };
+      setMessages((prev) => [...prev.slice(0, u + 1), assistantMsg]);
+      setBusy(true);
+      const controller = new AbortController();
+      abortRef.current = controller;
+      await streamChat(
+        { chatId: convoId, content: userMsg.content, model, replaceFromMessageId: userMsg.id },
+        streamInto(assistantMsg.id, convoId),
+        controller.signal,
+      ).finally(() => { setBusy(false); abortRef.current = null; syncMessages(convoId); });
+    },
+    [activeId, busy, messages, model],
+  );
+
+  // Edit a user message and resend (drops everything after it).
+  const editMessage = useCallback(
+    async (userMsgId: string, newContent: string) => {
+      if (busy || !activeId || !newContent.trim()) return;
+      const idx = messages.findIndex((m) => m.id === userMsgId);
+      if (idx < 0) return;
+      const convoId = activeId;
+      const editedUser: Message = { ...messages[idx], content: newContent };
+      const assistantMsg: Message = { id: crypto.randomUUID(), chat_id: convoId, role: "assistant", content: "", created_at: Date.now() };
+      setMessages((prev) => [...prev.slice(0, idx), editedUser, assistantMsg]);
+      setBusy(true);
+      const controller = new AbortController();
+      abortRef.current = controller;
+      await streamChat(
+        { chatId: convoId, content: newContent, model, replaceFromMessageId: userMsgId },
+        streamInto(assistantMsg.id, convoId),
+        controller.signal,
+      ).finally(() => { setBusy(false); abortRef.current = null; syncMessages(convoId); });
+    },
+    [activeId, busy, messages, model],
   );
 
   const stop = useCallback(() => abortRef.current?.abort(), []);
@@ -335,6 +382,8 @@ export function App() {
           hasActiveChat={activeId !== null}
           onNewChat={newChat}
           onSend={(text) => send(text)}
+          onRegenerate={regenerate}
+          onEditMessage={editMessage}
         />
         <Composer
           busy={busy}
