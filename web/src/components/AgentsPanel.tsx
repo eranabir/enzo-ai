@@ -139,6 +139,7 @@ function ordinal(n: number) {
 import { api } from "../api";
 import type { Agent, ModelInfo, ToolDefinition, ToolName } from "../types";
 import { ModelPicker } from "./ui/ModelPicker";
+import { ModalHeader } from "./ui/ModalHeader";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "./ui/Select";
@@ -402,19 +403,17 @@ export function AgentsPanel({ onStartChat, onClose }: Props) {
   if (view === "list") return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/80 backdrop-blur-sm p-4">
       <div className="flex h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl">
-        <div className="flex items-center justify-between border-b border-border px-5 py-4">
-          <div>
-            <h2 className="font-bold">Agents</h2>
-            <p className="text-xs text-muted">AI assistants configured for specific tasks</p>
-          </div>
-          <div className="flex gap-2">
+        <ModalHeader
+          title="Agents"
+          subtitle="AI assistants configured for specific tasks"
+          onClose={onClose}
+          actions={
             <button onClick={openCreate}
               className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-2">
               + New agent
             </button>
-            <button onClick={onClose} className="rounded-lg border border-border px-3 py-2 text-sm text-muted hover:text-fg">Close</button>
-          </div>
-        </div>
+          }
+        />
 
         <div className="flex-1 overflow-y-auto p-5">
           {agents.length === 0 ? (
@@ -468,10 +467,12 @@ export function AgentsPanel({ onStartChat, onClose }: Props) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/80 backdrop-blur-sm p-4">
       <div className="flex h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl">
-        <div className="flex items-center justify-between border-b border-border px-5 py-4">
-          <h2 className="font-bold">{editing ? `Edit — ${editing.name}` : "New agent"}</h2>
-          <button onClick={() => setView("list")} className="text-sm text-muted hover:text-fg">← Back</button>
-        </div>
+        <ModalHeader
+          title={editing ? `Edit — ${editing.name}` : "New agent"}
+          onBack={() => setView("list")}
+          backLabel="All agents"
+          onClose={onClose}
+        />
 
         <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-5">
           {err && <div className="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-xs text-danger">{err}</div>}

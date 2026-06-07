@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { X, Plus, Trash2, ToggleLeft, ToggleRight, Plug, ChevronLeft } from "lucide-react";
+import { Plus, Trash2, ToggleLeft, ToggleRight, Plug } from "lucide-react";
+import { ModalHeader } from "./ui/ModalHeader";
 import { api } from "../api";
 import type { McpServer } from "../types";
 import { ConnectorCard, ConnectorSectionLabel } from "./ui/ConnectorCard";
@@ -244,13 +245,12 @@ export function McpPanel({ onClose }: Props) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/80 backdrop-blur-sm p-4">
         <div className="flex h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl">
-          <div className="flex items-center justify-between border-b border-border px-5 py-4">
-            <button onClick={() => { setView("grid"); setErr(null); }} className="flex items-center gap-1 rounded-lg -ml-2 px-2 py-1 text-sm font-medium text-muted transition-colors hover:bg-surface-2 hover:text-fg">
-              <ChevronLeft className="h-4 w-4" /> All servers
-            </button>
-            <h2 className="font-bold">{selectedFeatured.name}</h2>
-            <button onClick={onClose} className="text-muted hover:text-fg"><X className="h-4 w-4" /></button>
-          </div>
+          <ModalHeader
+            title={selectedFeatured.name}
+            onBack={() => { setView("grid"); setErr(null); }}
+            backLabel="All servers"
+            onClose={onClose}
+          />
 
           <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
             {/* Icon + name */}
@@ -310,13 +310,12 @@ export function McpPanel({ onClose }: Props) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/80 backdrop-blur-sm p-4">
         <div className="flex h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl">
-          <div className="flex items-center justify-between border-b border-border px-5 py-4">
-            <button onClick={() => { setView("grid"); setErr(null); }} className="flex items-center gap-1 rounded-lg -ml-2 px-2 py-1 text-sm font-medium text-muted transition-colors hover:bg-surface-2 hover:text-fg">
-              <ChevronLeft className="h-4 w-4" /> All servers
-            </button>
-            <h2 className="font-bold">Custom connector</h2>
-            <button onClick={onClose} className="text-muted hover:text-fg"><X className="h-4 w-4" /></button>
-          </div>
+          <ModalHeader
+            title="Custom connector"
+            onBack={() => { setView("grid"); setErr(null); }}
+            backLabel="All servers"
+            onClose={onClose}
+          />
 
           <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
             {err && <p className="text-xs text-danger">{err}</p>}
@@ -375,15 +374,11 @@ export function McpPanel({ onClose }: Props) {
       <div className="flex h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl">
 
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-border px-5 py-4">
-          <div>
-            <h2 className="font-bold">MCP Servers</h2>
-            <p className="text-xs text-muted">Extend your agents with tools from MCP servers</p>
-          </div>
-          <button onClick={onClose} className="rounded-lg border border-border p-1.5 text-muted hover:text-fg transition-colors">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+        <ModalHeader
+          title="MCP Servers"
+          subtitle="Extend your agents with tools from MCP servers"
+          onClose={onClose}
+        />
 
         <div className="flex-1 overflow-y-auto">
 
