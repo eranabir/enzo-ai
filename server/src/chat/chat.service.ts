@@ -341,18 +341,18 @@ export class ChatService {
             name: tc.function?.name as string,
             args: tc.function?.arguments ?? {},
           }));
+          // Small local models often print a tool call as raw JSON in the text
+          // instead of using the structured tool_calls field. Recover those so
+          // the tool actually runs and the JSON never reaches the user — rather
+          // than dumping JSON into the chat or silently dropping a real request.
+          const leakedCalls = nativeCalls.length
+            ? []
+            : this.parseLeakedToolCalls(msg?.content ?? "", validNames);
+          const toolCalls = nativeCalls.length ? nativeCalls : leakedCalls;
 
-          if (!nativeCalls.length) {
-            // The model returned no structured tool call. It either answered, or
-            // (common with small local models) printed a tool call as raw JSON
-            // in the text. If it leaked a tool call, the turn is malformed —
-            // discard it and let the safety net regenerate a clean prose answer
-            // instead of showing JSON or executing a hallucinated call.
-            const leaked = this.parseLeakedToolCalls(msg?.content ?? "", validNames);
-            if (leaked.length) {
-              this.logger.debug(`Discarding ${leaked.length} tool call(s) the model leaked as text`);
-              break;
-            }
+          if (!toolCalls.length) {
+            // No tool calls — this is the final answer. Strip any stray
+            // tool-call JSON the model may have left behind, then stream it.
             assistant = this.stripLeakedToolCalls(msg?.content ?? "", validNames);
             if (assistant) {
               for (const char of assistant) { yield { token: char }; }
@@ -360,9 +360,10 @@ export class ChatService {
             break;
           }
 
-          // Genuine (structured) tool calls — execute them and loop.
-          loopMessages.push({ role: "assistant", content: msg.content ?? "" });
-          for (const tc of nativeCalls) {
+          // Record the assistant turn. For leaked (text) calls we drop the raw
+          // JSON content so it is never re-fed to the model or shown to the user.
+          loopMessages.push({ role: "assistant", content: leakedCalls.length ? "" : (msg.content ?? "") });
+          for (const tc of toolCalls) {
             const toolName = tc.name;
             const toolArgs = tc.args ?? {};
             this.logger.debug(`Tool call: ${toolName}(${JSON.stringify(toolArgs)})`);
