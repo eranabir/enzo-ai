@@ -43,6 +43,10 @@ jobs:
         with:
           node-version: '20'
           cache: 'yarn'
+      # node-gyp (rebuilds better-sqlite3) needs distutils, removed from Python 3.12.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
       - name: Cache Electron binary
         uses: actions/cache@v4
         with:
@@ -71,6 +75,10 @@ jobs:
         with:
           node-version: '20'
           cache: 'yarn'
+      # node-gyp (rebuilds better-sqlite3) needs distutils, removed from Python 3.12.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
       - name: Cache Electron binary
         uses: actions/cache@v4
         with:
@@ -121,6 +129,10 @@ jobs:
         with:
           node-version: '20'
           cache: 'yarn'
+      # node-gyp (rebuilds better-sqlite3) needs distutils, removed from Python 3.12.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
       - name: Cache Electron binary + builder tools + fpm gem
         uses: actions/cache@v4
         with:
