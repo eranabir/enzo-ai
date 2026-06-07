@@ -517,7 +517,7 @@
             </div>
             <p class="dl-name">Windows</p>
             <p class="dl-detail">.exe installer &middot; x64 &middot; Windows 10+</p>
-            <a href="https://github.com/eranabir/enzo-ai/releases/latest" class="dl-btn">
+            <a href="https://github.com/eranabir/enzo-ai/releases/latest" data-dl="win" class="dl-btn">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                 <polyline points="7 10 12 15 17 10"/>
@@ -536,7 +536,7 @@
             </div>
             <p class="dl-name">macOS</p>
             <p class="dl-detail">.dmg &middot; Apple Silicon</p>
-            <a href="https://github.com/eranabir/enzo-ai/releases/latest" class="dl-btn">
+            <a href="https://github.com/eranabir/enzo-ai/releases/latest" data-dl="mac" class="dl-btn">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                 <polyline points="7 10 12 15 17 10"/>
@@ -555,7 +555,7 @@
             </div>
             <p class="dl-name">Linux</p>
             <p class="dl-detail">.deb package &middot; Ubuntu 22.04+</p>
-            <a href="https://github.com/eranabir/enzo-ai/releases/latest" class="dl-btn">
+            <a href="https://github.com/eranabir/enzo-ai/releases/latest" data-dl="linux" class="dl-btn">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                 <polyline points="7 10 12 15 17 10"/>
@@ -679,6 +679,36 @@
         navEl.style.boxShadow  = 'none';
       }
     }, { passive: true });
+  </script>
+
+  <!-- One-click installer downloads: resolve the matching asset from the latest
+       GitHub release and go straight to it. Falls back to the releases page. -->
+  <script>
+    (function () {
+      var REPO = "eranabir/enzo-ai";
+      var PATTERNS = {
+        win:   /windows.*\.exe$/i,
+        mac:   /macos.*arm64\.dmg$/i,
+        linux: /linux.*\.deb$/i,
+      };
+      document.querySelectorAll("a[data-dl]").forEach(function (a) {
+        a.addEventListener("click", function (e) {
+          var re = PATTERNS[a.getAttribute("data-dl")];
+          if (!re) return; // unknown → let the href (releases page) handle it
+          e.preventDefault();
+          var label = a.querySelector("svg") ? a.lastChild : null;
+          fetch("https://api.github.com/repos/" + REPO + "/releases/latest", {
+            headers: { Accept: "application/vnd.github+json" },
+          })
+            .then(function (r) { if (!r.ok) throw 0; return r.json(); })
+            .then(function (rel) {
+              var asset = (rel.assets || []).find(function (x) { return re.test(x.name); });
+              window.location.href = asset ? asset.browser_download_url : a.href;
+            })
+            .catch(function () { window.location.href = a.href; });
+        });
+      });
+    })();
   </script>
 
 </body>
