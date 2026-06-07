@@ -17,10 +17,10 @@ export class AgentsController {
     private readonly tools: ToolsService,
   ) {}
 
-  /** List all tools with their live enabled/disabled status. */
+  /** List all tools with their live enabled/disabled + connection status. */
   @Get("tools")
-  listTools() {
-    return this.tools.getAllWithStatus();
+  listTools(@UserId() userId: string) {
+    return this.tools.getAllWithStatus(userId);
   }
 
   /** Manually trigger a scheduled agent right now. */

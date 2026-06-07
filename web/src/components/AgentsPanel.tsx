@@ -528,31 +528,46 @@ export function AgentsPanel({ onStartChat, onClose }: Props) {
             />
           </div>
 
-          {/* Tools — only shown when model supports it */}
-          {showTools && tools.length > 0 && (
+          {/* Tools — only shown when model supports it. Lists only available
+              tools (admin-enabled and, where required, with the account
+              connected); a tool already selected on this agent stays visible
+              even if it later becomes unavailable, so it can be deselected. */}
+          {(() => {
+            if (!showTools) return null;
+            const visibleTools = tools.filter((t) => {
+              const available = t.enabled && (t.connected ?? true);
+              return available || form.tools.includes(t.name as ToolName);
+            });
+            if (visibleTools.length === 0) return null;
+            return (
             <div className="flex flex-col gap-2">
               <label className="text-xs font-semibold text-muted">
                 Tools
                 {!form.model && <span className="ml-1 font-normal">(available when model supports function calling)</span>}
               </label>
               <div className="flex flex-wrap gap-2">
-                {tools.map(t => {
+                {visibleTools.map(t => {
                   const isSelected = form.tools.includes(t.name as ToolName);
-                  const isDisabled = !t.enabled;
+                  const isAvailable = t.enabled && (t.connected ?? true);
+                  const unavailableReason = !t.enabled
+                    ? "Disabled by administrator"
+                    : t.requiresConnection
+                      ? `Needs the ${t.requiresConnection} account connected`
+                      : "Unavailable";
                   return (
                     <button key={t.name} type="button"
-                      disabled={isDisabled}
-                      title={isDisabled ? "Disabled by administrator" : t.description}
-                      onClick={() => !isDisabled && toggleTool(t.name as ToolName)}
+                      title={isAvailable ? t.description : unavailableReason}
+                      onClick={() => toggleTool(t.name as ToolName)}
                       className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
-                        isDisabled
-                          ? "cursor-not-allowed border-border bg-surface-2 text-muted/40 line-through"
+                        !isAvailable
+                          ? "border-warning/40 bg-warning/5 text-warning"
                           : isSelected
                             ? "border-accent bg-accent/10 text-accent-2"
                             : "border-border bg-surface-2 text-muted hover:border-accent/40 hover:text-fg"
                       }`}>
                       {TOOL_ICONS[t.name as ToolName]}
                       {t.name.replace(/_/g, " ")}
+                      {!isAvailable && <span className="text-[10px]">⚠</span>}
                     </button>
                   );
                 })}
@@ -561,7 +576,8 @@ export function AgentsPanel({ onStartChat, onClose }: Props) {
                 <p className="text-[11px] text-muted">Selected tools will be available to the agent during chats.</p>
               )}
             </div>
-          )}
+            );
+          })()}
 
           {/* Schedule — collapsible */}
           <div className="rounded-xl border border-border overflow-hidden">
