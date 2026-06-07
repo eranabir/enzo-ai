@@ -165,17 +165,8 @@ jobs:
           pattern: "*-assets"   # skip internal docker *.dockerbuild artifacts
           merge-multiple: true
 
-      # Stable, version-less aliases so the landing page can link directly to the
-      # newest installer via /releases/latest/download/<stable-name>. We keep the
-      # versioned originals too (for archival / reference).
-      - name: Create stable-named installer aliases for the landing page
-        run: |
-          cd release-assets
-          shopt -s nullglob
-          for f in enzo-ai-windows-*.exe;      do cp "$f" enzo-ai-setup.exe; done
-          for f in enzo-ai-macos-*-arm64.dmg;  do cp "$f" enzo-ai.dmg;       done
-          for f in enzo-ai-linux-*.deb;        do cp "$f" enzo-ai.deb;       done
-          echo "Release assets:" && ls -la
+      - name: List release assets
+        run: cd release-assets && ls -la
 
       - name: Create GitHub Release and upload all assets
         uses: softprops/action-gh-release@v2
