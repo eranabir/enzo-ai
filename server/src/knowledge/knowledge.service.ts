@@ -89,6 +89,20 @@ export class KnowledgeService {
     this.db.prepare(`DELETE FROM knowledge_documents WHERE id = ? AND user_id = ?`).run(docId, userId);
   }
 
+  /** Return a document plus its decrypted, in-order chunk text (for viewing). */
+  getDocumentContent(docId: string, userId: string): KnowledgeDocumentRow & { content: string } {
+    this.assertUnlocked();
+    const doc = this.db
+      .prepare(`SELECT * FROM knowledge_documents WHERE id = ? AND user_id = ?`)
+      .get(docId, userId) as KnowledgeDocumentRow | undefined;
+    if (!doc) throw new Error("Document not found");
+    const rows = this.db
+      .prepare(`SELECT content FROM knowledge_chunks WHERE document_id = ? ORDER BY idx`)
+      .all(docId) as { content: string }[];
+    const content = rows.map((r) => this.vault.decryptField(r.content)).join("\n\n");
+    return { ...doc, content };
+  }
+
   /**
    * Ingest a document into a knowledge base: extract text, chunk, embed, store.
    * `sourceType` is "text" (raw/pasted/file contents) or "url" (fetched + stripped).

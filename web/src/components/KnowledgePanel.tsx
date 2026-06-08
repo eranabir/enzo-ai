@@ -142,7 +142,17 @@ function KnowledgeDetail({ kb, onClose, onBack, onStartChat }: {
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<(KnowledgeDocument & { content: string }) | null>(null);
+  const [viewLoading, setViewLoading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  async function openDoc(id: string) {
+    setViewLoading(true);
+    try {
+      setViewing(await api.knowledge.getDocument(id));
+    } catch (e) { setErr((e as Error).message); }
+    setViewLoading(false);
+  }
 
   const refresh = () => api.knowledge.listDocuments(kb.id).then(setDocs).catch(() => {});
   useEffect(() => { refresh(); /* eslint-disable-next-line */ }, [kb.id]);
@@ -171,6 +181,7 @@ function KnowledgeDetail({ kb, onClose, onBack, onStartChat }: {
   }
 
   return (
+    <>
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/80 backdrop-blur-sm p-4">
       <div className="flex h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl">
         <ModalHeader
@@ -238,10 +249,13 @@ function KnowledgeDetail({ kb, onClose, onBack, onStartChat }: {
             ) : docs.map((d) => (
               <div key={d.id} className="flex items-center gap-3 rounded-xl border border-border bg-surface-2 px-4 py-2.5">
                 {d.source_type === "url" ? <Globe className="h-4 w-4 flex-shrink-0 text-muted" /> : <FileText className="h-4 w-4 flex-shrink-0 text-muted" />}
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm text-fg">{d.title}</p>
-                  <p className="text-xs text-muted">{d.chunk_count} chunk{d.chunk_count === 1 ? "" : "s"}</p>
-                </div>
+                <button className="min-w-0 flex-1 text-left" onClick={() => openDoc(d.id)} title="View contents">
+                  <p className="truncate text-sm text-fg hover:text-accent-2">{d.title}</p>
+                  <p className="text-xs text-muted">
+                    {d.chunk_count} chunk{d.chunk_count === 1 ? "" : "s"}
+                    {d.source_ref ? ` · ${d.source_ref}` : ""}
+                  </p>
+                </button>
                 <button onClick={() => deleteDoc(d.id)} title="Remove" className="rounded-lg border border-border p-1.5 text-muted hover:text-danger">
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -251,5 +265,26 @@ function KnowledgeDetail({ kb, onClose, onBack, onStartChat }: {
         </div>
       </div>
     </div>
+
+    {/* Document content viewer */}
+    {(viewing || viewLoading) && (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-bg/80 backdrop-blur-sm p-4" onClick={() => setViewing(null)}>
+        <div className="flex h-[80vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <ModalHeader
+            title={viewing?.title ?? "Loading…"}
+            subtitle={viewing ? `${viewing.chunk_count} chunk${viewing.chunk_count === 1 ? "" : "s"}` : undefined}
+            onClose={() => setViewing(null)}
+          />
+          <div className="flex-1 overflow-y-auto p-5">
+            {viewLoading ? (
+              <p className="text-sm text-muted">Loading…</p>
+            ) : (
+              <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-fg">{viewing?.content}</pre>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

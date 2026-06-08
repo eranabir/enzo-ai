@@ -61,6 +61,15 @@ export class KnowledgeController {
     }
   }
 
+  @Get("documents/:id")
+  getDocument(@UserId() userId: string, @Param("id") id: string) {
+    try {
+      return this.knowledge.getDocumentContent(id, userId);
+    } catch (err) {
+      throw new NotFoundException((err as Error).message);
+    }
+  }
+
   @Delete("documents/:id")
   @HttpCode(204)
   deleteDocument(@UserId() userId: string, @Param("id") id: string) {

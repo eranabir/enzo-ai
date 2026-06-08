@@ -204,6 +204,9 @@ export const api = {
     addDocument: (kbId: string, body: { title?: string; sourceType: "text" | "url"; content?: string; url?: string }) =>
       fetch(`/api/knowledge/bases/${kbId}/documents`, { method: "POST", headers: headers(true), body: JSON.stringify(body) })
         .then(parse<import("./types").KnowledgeDocument>),
+    getDocument: (id: string) =>
+      fetch(`/api/knowledge/documents/${id}`, { headers: headers() })
+        .then(parse<import("./types").KnowledgeDocument & { content: string }>),
     deleteDocument: (id: string) =>
       fetch(`/api/knowledge/documents/${id}`, { method: "DELETE", headers: headers() }).then(() => {}),
   },
