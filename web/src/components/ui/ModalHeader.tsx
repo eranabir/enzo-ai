@@ -53,7 +53,7 @@ export function ModalHeader({
           type="button"
           onClick={onClose}
           aria-label="Close"
-          className="rounded-lg border border-border p-1.5 text-muted transition-colors hover:text-fg"
+          className="rounded-lg border border-border p-2 text-muted transition-colors hover:text-fg"
         >
           <X className="h-4 w-4" />
         </button>

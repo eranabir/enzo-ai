@@ -61,7 +61,7 @@ export function KnowledgePanel({ onClose, onStartChat }: Props) {
           actions={
             bases.length > 0 ? (
               <button onClick={() => setCreating(true)}
-                className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-2">
+                className="rounded-lg bg-accent px-4 py-1.5 text-sm font-semibold text-white hover:bg-accent-2">
                 + New base
               </button>
             ) : undefined
@@ -214,7 +214,7 @@ function KnowledgeDetail({ kb, onClose, onBack, onStartChat }: {
           onClose={onClose}
           actions={
             <button onClick={onStartChat}
-              className="flex items-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-white hover:bg-accent-2">
+              className="flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-white hover:bg-accent-2">
               <MessageSquare className="h-4 w-4" /> Chat
             </button>
           }
@@ -323,9 +323,9 @@ function KnowledgeDetail({ kb, onClose, onBack, onStartChat }: {
           </div>
           {editMode && (
             <div className="flex justify-end gap-2 border-t border-border px-5 py-4">
-              <button onClick={() => setEditMode(false)} className="rounded-lg border border-border px-4 py-2 text-sm text-muted hover:text-fg">Cancel</button>
+              <button onClick={() => setEditMode(false)} className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted hover:text-fg">Cancel</button>
               <button onClick={saveEdit} disabled={saving || !editContent.trim()}
-                className="rounded-lg bg-accent px-5 py-2 text-sm font-semibold text-white hover:bg-accent-2 disabled:opacity-40">
+                className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-2 disabled:opacity-40">
                 {saving ? "Saving…" : "Save & re-index"}
               </button>
             </div>
