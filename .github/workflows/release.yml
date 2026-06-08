@@ -107,9 +107,28 @@ jobs:
           iconutil -c icns icon.iconset -o icon.icns
           rm -rf icon.iconset
           echo "Generated:" && ls -la icon.icns
+      # Decode the App Store Connect API key (.p8) from a base64 secret to a file
+      # when signing secrets are configured. If they aren't, the build falls back
+      # to ad-hoc signing automatically (see electron-builder.config.js).
+      - name: Prepare Apple signing
+        env:
+          CSC_LINK_SECRET: ${{ secrets.CSC_LINK }}
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+        run: |
+          if [ -n "$CSC_LINK_SECRET" ] && [ -n "$APPLE_API_KEY_P8" ]; then
+            printf '%s' "$APPLE_API_KEY_P8" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
+            echo "Signing secrets present — Developer-ID signing + notarization."
+          else
+            echo "No signing secrets — building ad-hoc (unidentified developer)."
+          fi
       - name: Package (arm64)
         env:
-          CSC_IDENTITY_AUTO_DISCOVERY: false
+          # Empty when the secrets aren't set → config uses the ad-hoc fallback.
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_API_KEY: ${{ runner.temp }}/AuthKey.p8
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
         run: yarn workspace @enzo-ai/desktop package:mac:arm64
       - name: Save artifacts
         uses: actions/upload-artifact@v4

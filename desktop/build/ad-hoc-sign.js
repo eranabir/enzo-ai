@@ -14,8 +14,9 @@
 // signing entirely), so we plug in here via the `mac.sign` option. electron-
 // builder calls this with the sign options object; `opts.app` is the .app path.
 //
-// NOTE: when real Developer ID signing + notarization are wired up, remove the
-// `sign:` line from electron-builder.yml and restore hardenedRuntime/notarize.
+// NOTE: this hook is the FALLBACK. electron-builder.config.js only wires it in
+// when CSC_LINK is absent; when the Developer ID / notarization secrets are set,
+// the config does real signing instead and this hook is not used.
 
 const { execFileSync } = require("node:child_process");
 
