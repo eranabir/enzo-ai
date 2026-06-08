@@ -293,6 +293,7 @@ interface Props {
 export function AgentsPanel({ onStartChat, onClose }: Props) {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [tools, setTools] = useState<ToolDefinition[]>([]);
+  const [knowledgeBases, setKnowledgeBases] = useState<{ id: string; name: string }[]>([]);
   const [availableModels, setAvailableModels] = useState<ModelInfo[]>([]);
   const [defaultModelId, setDefaultModelId] = useState<string>("");
   const [connectedIntegrations, setConnectedIntegrations] = useState<typeof ALL_INTEGRATION_OPTIONS>([]);
@@ -305,6 +306,7 @@ export function AgentsPanel({ onStartChat, onClose }: Props) {
     name: "", emoji: "🤖", description: "", instructions: "",
     model: "",
     tools: [] as ToolName[],
+    knowledgeBaseId: "",
     schedulePrompt: "", scheduleEnabled: false, telegramChatIds: "",
   });
   const [busy, setBusy] = useState(false);
@@ -313,6 +315,7 @@ export function AgentsPanel({ onStartChat, onClose }: Props) {
   useEffect(() => {
     api.agents.list().then(setAgents).catch(() => {});
     api.agents.tools().then(setTools).catch(() => {});
+    api.knowledge.listBases().then((bs) => setKnowledgeBases(bs.map((b) => ({ id: b.id, name: b.name })))).catch(() => {});
     api.models().then(({ models, default: def }) => {
       setAvailableModels(models);
       setDefaultModelId(def);
@@ -329,7 +332,7 @@ export function AgentsPanel({ onStartChat, onClose }: Props) {
   function openCreate() {
     setEditing(null);
     setForm({ name: "", emoji: "🤖", description: "", instructions: "",
-               model: "", tools: [], schedulePrompt: "", scheduleEnabled: false, telegramChatIds: "" });
+               model: "", tools: [], knowledgeBaseId: "", schedulePrompt: "", scheduleEnabled: false, telegramChatIds: "" });
     setScheduleState(defaultSchedule());
     setScheduleOpen(false);
     setEmojiOpen(false);
@@ -343,6 +346,7 @@ export function AgentsPanel({ onStartChat, onClose }: Props) {
       name: agent.name, emoji: agent.emoji, description: agent.description ?? "",
       instructions: agent.instructions, model: agent.model ?? "",
       tools: agent.tools,
+      knowledgeBaseId: agent.knowledgeBaseId ?? "",
       schedulePrompt: agent.schedulePrompt ?? "",
       scheduleEnabled: agent.scheduleEnabled,
       telegramChatIds: agent.telegramChatIds ?? "",
@@ -367,6 +371,7 @@ export function AgentsPanel({ onStartChat, onClose }: Props) {
         instructions: form.instructions.trim(),
         model: form.model || undefined,
         tools: form.tools,
+        knowledgeBaseId: form.knowledgeBaseId || null,
         schedule: scheduleOpen ? toCron(scheduleState) : undefined,
         schedulePrompt: scheduleOpen && form.schedulePrompt.trim() ? form.schedulePrompt.trim() : undefined,
         scheduleEnabled: scheduleOpen ? form.scheduleEnabled : false,
@@ -528,6 +533,21 @@ export function AgentsPanel({ onStartChat, onClose }: Props) {
               defaultModelId={defaultModelId}
             />
           </div>
+
+          {/* Knowledge base — answers grounded in attached documents (RAG) */}
+          {knowledgeBases.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-muted">Knowledge base <span className="font-normal">(optional)</span></label>
+              <Select value={form.knowledgeBaseId || "none"} onValueChange={(v) => setForm(f => ({ ...f, knowledgeBaseId: v === "none" ? "" : v }))}>
+                <SelectTrigger className={inputCls}><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {knowledgeBases.map(kb => <SelectItem key={kb.id} value={kb.id}>{kb.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted">When set, the agent retrieves relevant document passages to ground its answers.</p>
+            </div>
+          )}
 
           {/* Tools — only shown when model supports it. Lists only available
               tools (admin-enabled and, where required, with the account

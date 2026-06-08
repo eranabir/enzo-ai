@@ -11,9 +11,10 @@ import { UnlockScreen } from "./components/UnlockScreen";
 import { AdminPanel } from "./components/AdminPanel";
 import { AgentsPanel } from "./components/AgentsPanel";
 import { McpPanel } from "./components/McpPanel";
+import { KnowledgePanel } from "./components/KnowledgePanel";
 import { SettingsPanel } from "./components/SettingsPanel";
 
-const PANEL_PATHS = ["/settings", "/admin", "/agents", "/mcp"];
+const PANEL_PATHS = ["/settings", "/admin", "/agents", "/mcp", "/knowledge"];
 
 export function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -339,6 +340,18 @@ export function App() {
   const workspace = (user: User) => (
     <div className="flex h-screen">
       {onPanel && location.pathname.startsWith("/mcp") && <McpPanel onClose={closePanel} />}
+      {onPanel && location.pathname.startsWith("/knowledge") && (
+        <KnowledgePanel
+          onClose={closePanel}
+          onStartChat={async (knowledgeBaseId) => {
+            const c = await api.createChat({ knowledgeBaseId });
+            setChats((prev) => [c, ...prev]);
+            setActiveId(c.id);
+            setMessages([]);
+            navigate(`/chat/${c.id}`);
+          }}
+        />
+      )}
       {onPanel && location.pathname.startsWith("/agents") && (
         <AgentsPanel
           onStartChat={async (agentId) => {
@@ -386,6 +399,7 @@ export function App() {
         onAdminOpen={() => navigate("/admin")}
         onAgentsOpen={() => navigate("/agents")}
         onMcpOpen={() => navigate("/mcp")}
+        onKnowledgeOpen={() => navigate("/knowledge")}
         onSettingsOpen={() => navigate("/settings")}
       />
       <main className="flex flex-1 flex-col min-w-0">

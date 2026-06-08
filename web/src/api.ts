@@ -88,12 +88,14 @@ export const api = {
   listChats: () =>
     fetch("/api/chats", { headers: headers() }).then(parse<Chat[]>),
 
-  createChat: (agentId?: string) =>
-    fetch("/api/chats", {
+  createChat: (opts?: string | { agentId?: string; knowledgeBaseId?: string }) => {
+    const body = typeof opts === "string" ? { agentId: opts } : (opts ?? {});
+    return fetch("/api/chats", {
       method: "POST",
       headers: headers(true),
-      body: JSON.stringify(agentId ? { agentId } : {}),
-    }).then(parse<Chat>),
+      body: JSON.stringify(body),
+    }).then(parse<Chat>);
+  },
 
   getChat: (id: string) =>
     fetch(`/api/chats/${id}`, { headers: headers() }).then(
@@ -182,6 +184,28 @@ export const api = {
     connect: (id: string) =>
       fetch(`/api/mcp/servers/${id}/connect`, { method: "POST", headers: headers() })
         .then(parse<{ ok: boolean; toolCount: number; tools: string[] }>),
+  },
+
+  knowledge: {
+    status: () =>
+      fetch("/api/knowledge/status", { headers: headers() })
+        .then(parse<{ model: string; available: boolean }>),
+    listBases: () =>
+      fetch("/api/knowledge/bases", { headers: headers() })
+        .then(parse<import("./types").KnowledgeBase[]>),
+    createBase: (body: { name: string; description?: string }) =>
+      fetch("/api/knowledge/bases", { method: "POST", headers: headers(true), body: JSON.stringify(body) })
+        .then(parse<import("./types").KnowledgeBase>),
+    deleteBase: (id: string) =>
+      fetch(`/api/knowledge/bases/${id}`, { method: "DELETE", headers: headers() }).then(() => {}),
+    listDocuments: (kbId: string) =>
+      fetch(`/api/knowledge/bases/${kbId}/documents`, { headers: headers() })
+        .then(parse<import("./types").KnowledgeDocument[]>),
+    addDocument: (kbId: string, body: { title?: string; sourceType: "text" | "url"; content?: string; url?: string }) =>
+      fetch(`/api/knowledge/bases/${kbId}/documents`, { method: "POST", headers: headers(true), body: JSON.stringify(body) })
+        .then(parse<import("./types").KnowledgeDocument>),
+    deleteDocument: (id: string) =>
+      fetch(`/api/knowledge/documents/${id}`, { method: "DELETE", headers: headers() }).then(() => {}),
   },
 
   /** Which integrations are currently connected (used by AgentsPanel). */

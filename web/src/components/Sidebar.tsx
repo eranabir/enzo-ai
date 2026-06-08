@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from "react";
-import { Settings, Shield, LogOut, ChevronUp, PanelLeftClose, PanelLeftOpen, Users, MoreHorizontal, Pencil, Trash2, MessagesSquare, SquarePen, Bot, Server } from "lucide-react";
+import { Settings, Shield, LogOut, ChevronUp, PanelLeftClose, PanelLeftOpen, Users, MoreHorizontal, Pencil, Trash2, MessagesSquare, SquarePen, Bot, Server, BookOpen } from "lucide-react";
 import { SiTelegram, SiDiscord } from "react-icons/si";
 import { SlackIcon } from "./ui/SlackIcon";
 import type { Chat, User } from "../types";
@@ -67,15 +67,17 @@ interface NewBtnProps {
   onNew: () => void;
   onAgentsOpen: () => void;
   onMcpOpen: () => void;
+  onKnowledgeOpen: () => void;
 }
 
-function NewButton({ collapsed, onNew, onAgentsOpen, onMcpOpen }: NewBtnProps) {
+function NewButton({ collapsed, onNew, onAgentsOpen, onMcpOpen, onKnowledgeOpen }: NewBtnProps) {
   useNewBtnStyles();
 
   const menuItems = (
     <>
       <DropdownMenuItem onClick={onNew}><SquarePen className="h-4 w-4 text-muted" /> New chat</DropdownMenuItem>
       <DropdownMenuItem onClick={onAgentsOpen}><Bot className="h-4 w-4 text-muted" /> Agents</DropdownMenuItem>
+      <DropdownMenuItem onClick={onKnowledgeOpen}><BookOpen className="h-4 w-4 text-muted" /> Knowledge</DropdownMenuItem>
       <DropdownMenuItem onClick={onMcpOpen}><Server className="h-4 w-4 text-muted" /> MCP Servers</DropdownMenuItem>
     </>
   );
@@ -220,6 +222,7 @@ export function Sidebar({
   onAdminOpen,
   onAgentsOpen,
   onMcpOpen,
+  onKnowledgeOpen,
   onSettingsOpen,
 }: {
   chats: Chat[];
@@ -232,6 +235,7 @@ export function Sidebar({
   onRename: (id: string, title: string) => void;
   onAgentsOpen: () => void;
   onMcpOpen: () => void;
+  onKnowledgeOpen: () => void;
   onLogout: () => void;
   onAdminOpen: () => void;
   onSettingsOpen: () => void;
@@ -294,7 +298,7 @@ export function Sidebar({
         <div className="h-px w-8 bg-border" />
 
         {/* + New dropdown */}
-        <NewButton collapsed onNew={onNew} onAgentsOpen={onAgentsOpen} onMcpOpen={onMcpOpen} />
+        <NewButton collapsed onNew={onNew} onAgentsOpen={onAgentsOpen} onMcpOpen={onMcpOpen} onKnowledgeOpen={onKnowledgeOpen} />
 
         {/* Chats popover */}
         <DropdownMenu>
@@ -417,7 +421,7 @@ export function Sidebar({
         </button>
       </div>
 
-      <NewButton onNew={onNew} onAgentsOpen={onAgentsOpen} onMcpOpen={onMcpOpen} />
+      <NewButton onNew={onNew} onAgentsOpen={onAgentsOpen} onMcpOpen={onMcpOpen} onKnowledgeOpen={onKnowledgeOpen} />
 
       <nav className="flex flex-1 flex-col overflow-y-auto">
         {(() => {

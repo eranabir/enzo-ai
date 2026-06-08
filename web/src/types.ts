@@ -25,9 +25,32 @@ export interface Agent {
   schedulePrompt: string | null;
   scheduleEnabled: boolean;
   telegramChatIds: string; // comma-separated Telegram chat IDs
+  knowledgeBaseId: string | null;
   lastRunAt: number | null;
   createdAt: number;
   updatedAt: number;
+}
+
+export interface KnowledgeBase {
+  id: string;
+  user_id: string;
+  name: string;
+  description: string | null;
+  embedding_model: string;
+  created_at: number;
+  document_count: number;
+}
+
+export interface KnowledgeDocument {
+  id: string;
+  kb_id: string;
+  title: string;
+  source_type: string;
+  source_ref: string | null;
+  status: string;
+  error: string | null;
+  chunk_count: number;
+  created_at: number;
 }
 
 export interface ToolDefinition {

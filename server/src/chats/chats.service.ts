@@ -44,15 +44,15 @@ export class ChatsService {
     );
   }
 
-  create(userId: string, model?: string, agentId?: string, connection?: string): ChatRow {
+  create(userId: string, model?: string, agentId?: string, connection?: string, knowledgeBaseId?: string): ChatRow {
     const id = randomUUID();
     const t = now();
     this.db
       .prepare(
-        `INSERT INTO chats (id, user_id, title, model, agent_id, connection, created_at, updated_at)
-         VALUES (?, ?, 'New chat', ?, ?, ?, ?, ?)`,
+        `INSERT INTO chats (id, user_id, title, model, agent_id, connection, knowledge_base_id, created_at, updated_at)
+         VALUES (?, ?, 'New chat', ?, ?, ?, ?, ?, ?)`,
       )
-      .run(id, userId, model ?? null, agentId ?? null, connection ?? null, t, t);
+      .run(id, userId, model ?? null, agentId ?? null, connection ?? null, knowledgeBaseId ?? null, t, t);
     return this.get(id, userId)!;
   }
 

@@ -17,6 +17,7 @@ export interface AgentRow {
   schedule_prompt: string | null;
   schedule_enabled: number;
   telegram_chat_ids: string | null; // comma-separated Telegram chat IDs
+  knowledge_base_id: string | null;
   last_run_at: number | null;
   created_at: number;
   updated_at: number;
@@ -33,6 +34,7 @@ export interface CreateAgentInput {
   schedulePrompt?: string;
   scheduleEnabled?: boolean;
   telegramChatIds?: string; // comma-separated
+  knowledgeBaseId?: string | null;
 }
 
 @Injectable()
@@ -69,8 +71,8 @@ export class AgentsService {
       .prepare(
         `INSERT INTO agents
           (id, user_id, name, emoji, description, instructions, model, tools,
-           schedule, schedule_prompt, schedule_enabled, telegram_chat_ids, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           schedule, schedule_prompt, schedule_enabled, telegram_chat_ids, knowledge_base_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id, userId,
@@ -84,6 +86,7 @@ export class AgentsService {
         input.schedulePrompt ?? null,
         input.scheduleEnabled ? 1 : 0,
         input.telegramChatIds?.trim() || null,
+        input.knowledgeBaseId || null,
         now, now,
       );
     return this.get(id, userId)!;
@@ -105,6 +108,7 @@ export class AgentsService {
     if (input.schedulePrompt !== undefined) col("schedule_prompt", input.schedulePrompt ?? null);
     if (input.scheduleEnabled !== undefined) col("schedule_enabled", input.scheduleEnabled ? 1 : 0);
     if (input.telegramChatIds !== undefined) col("telegram_chat_ids", input.telegramChatIds?.trim() || null);
+    if (input.knowledgeBaseId !== undefined) col("knowledge_base_id", input.knowledgeBaseId || null);
     if (!sets.length) return existing;
     col("updated_at", Date.now());
     vals.push(id, userId);
@@ -133,6 +137,7 @@ export class AgentsService {
       schedulePrompt: a.schedule_prompt,
       scheduleEnabled: !!a.schedule_enabled,
       telegramChatIds: a.telegram_chat_ids ?? "",
+      knowledgeBaseId: a.knowledge_base_id ?? null,
       lastRunAt: a.last_run_at,
       createdAt: a.created_at,
       updatedAt: a.updated_at,

@@ -154,6 +154,39 @@ export type DatabaseConnection = Database.Database;
             created_at INTEGER NOT NULL
           );
 
+          CREATE TABLE IF NOT EXISTS knowledge_bases (
+            id              TEXT PRIMARY KEY,
+            user_id         TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            name            TEXT NOT NULL,
+            description     TEXT,
+            embedding_model TEXT NOT NULL,
+            created_at      INTEGER NOT NULL
+          );
+
+          CREATE TABLE IF NOT EXISTS knowledge_documents (
+            id          TEXT PRIMARY KEY,
+            kb_id       TEXT NOT NULL REFERENCES knowledge_bases(id) ON DELETE CASCADE,
+            user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            title       TEXT NOT NULL,
+            source_type TEXT NOT NULL DEFAULT 'text',
+            source_ref  TEXT,
+            status      TEXT NOT NULL DEFAULT 'ready',
+            error       TEXT,
+            chunk_count INTEGER NOT NULL DEFAULT 0,
+            created_at  INTEGER NOT NULL
+          );
+
+          CREATE TABLE IF NOT EXISTS knowledge_chunks (
+            id          TEXT PRIMARY KEY,
+            document_id TEXT NOT NULL REFERENCES knowledge_documents(id) ON DELETE CASCADE,
+            kb_id       TEXT NOT NULL REFERENCES knowledge_bases(id) ON DELETE CASCADE,
+            user_id     TEXT NOT NULL,
+            idx         INTEGER NOT NULL,
+            content     TEXT NOT NULL,
+            embedding   BLOB NOT NULL,
+            created_at  INTEGER NOT NULL
+          );
+
           CREATE INDEX IF NOT EXISTS idx_messages_chat
             ON messages(chat_id, created_at);
           CREATE INDEX IF NOT EXISTS idx_agents_user
@@ -162,6 +195,12 @@ export type DatabaseConnection = Database.Database;
             ON memories(user_id, created_at);
           CREATE INDEX IF NOT EXISTS idx_mcp_servers_user
             ON mcp_servers(user_id, created_at);
+          CREATE INDEX IF NOT EXISTS idx_knowledge_bases_user
+            ON knowledge_bases(user_id, created_at);
+          CREATE INDEX IF NOT EXISTS idx_knowledge_documents_kb
+            ON knowledge_documents(kb_id, created_at);
+          CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_kb
+            ON knowledge_chunks(kb_id);
         `);
 
         // ── Column-add migrations (older installs) — guarded so they're no-ops on fresh DBs ──
@@ -169,6 +208,8 @@ export type DatabaseConnection = Database.Database;
         if (!colExists("chats", "memory_enabled"))  db.exec(`ALTER TABLE chats ADD COLUMN memory_enabled INTEGER NOT NULL DEFAULT 1`);
         if (!colExists("chats", "agent_id"))        db.exec(`ALTER TABLE chats ADD COLUMN agent_id TEXT`);
         if (!colExists("chats", "connection"))      db.exec(`ALTER TABLE chats ADD COLUMN connection TEXT`);
+        if (!colExists("chats", "knowledge_base_id")) db.exec(`ALTER TABLE chats ADD COLUMN knowledge_base_id TEXT`);
+        if (!colExists("agents", "knowledge_base_id")) db.exec(`ALTER TABLE agents ADD COLUMN knowledge_base_id TEXT`);
 
         const agentCols = db.prepare(`PRAGMA table_info(agents)`).all() as { name: string }[];
         if (!agentCols.some((c) => c.name === "telegram_chat_ids")) {

@@ -91,6 +91,33 @@ export class OllamaProvider implements ChatProvider {
             "llama3.2-vision", "qwen2-vl", "gemma3"].some(m => lower.includes(m));
   }
 
+  /** Whether a model is already pulled locally. */
+  async hasModel(model: string): Promise<boolean> {
+    try {
+      const models = await this.listModels();
+      const base = model.replace(/^ollama:/, "");
+      return models.some((m) => m.id === base || m.id === `${base}:latest` || m.id.split(":")[0] === base.split(":")[0]);
+    } catch {
+      return false;
+    }
+  }
+
+  /** Embed one or more texts with an embedding model (e.g. nomic-embed-text). */
+  async embed(model: string, input: string[]): Promise<number[][]> {
+    const res = await fetch(`${this.baseUrl}/api/embed`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ model: model.replace(/^ollama:/, ""), input }),
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      throw new Error(`Ollama /api/embed failed: ${res.status} ${detail}`);
+    }
+    const data = (await res.json()) as { embeddings?: number[][] };
+    if (!data.embeddings?.length) throw new Error("Ollama returned no embeddings");
+    return data.embeddings;
+  }
+
   /** Pull a model, yielding human-readable progress lines (NDJSON stream). */
   async *pullModel(
     model: string,

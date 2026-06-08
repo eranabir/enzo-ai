@@ -7,12 +7,13 @@ import { SettingsModule } from "../settings/settings.module";
 import { MemoriesModule } from "../memories/memories.module";
 import { AgentsModule } from "../agents/agents.module";
 import { McpModule } from "../mcp/mcp.module";
+import { KnowledgeModule } from "../knowledge/knowledge.module";
 import { VaultModule } from "../vault/vault.module";
 import { ChatService } from "./chat.service";
 import { ChatController } from "./chat.controller";
 
 @Module({
-  imports: [AuthModule, ChatsModule, LlmModule, UsersModule, SettingsModule, MemoriesModule, AgentsModule, McpModule, VaultModule],
+  imports: [AuthModule, ChatsModule, LlmModule, UsersModule, SettingsModule, MemoriesModule, AgentsModule, McpModule, KnowledgeModule, VaultModule],
   providers: [ChatService],
   controllers: [ChatController],
   exports: [ChatService],

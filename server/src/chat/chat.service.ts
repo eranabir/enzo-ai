@@ -10,6 +10,7 @@ import { MemoryExtractionService } from "../memories/memory-extraction.service";
 import { AgentsService } from "../agents/agents.service";
 import { ToolsService, type ToolName } from "../agents/tools.service";
 import { McpService } from "../mcp/mcp.service";
+import { KnowledgeService } from "../knowledge/knowledge.service";
 import { VaultService } from "../vault/vault.service";
 import type { ChatMessage } from "../llm/provider.types";
 import type { ChatRow } from "../database/database.types";
@@ -37,6 +38,7 @@ export class ChatService {
     private readonly agentsService: AgentsService,
     private readonly toolsService: ToolsService,
     private readonly mcpService: McpService,
+    private readonly knowledge: KnowledgeService,
     private readonly vault: VaultService,
   ) {}
 
@@ -295,9 +297,22 @@ export class ChatService {
       description: d.function.description,
     }));
 
-    const systemPrompt = this.buildSystemPrompt(
+    let systemPrompt = this.buildSystemPrompt(
       user, convo.id, memoryEnabled, agent?.instructions, availableTools,
     );
+
+    // Retrieval-augmented generation: if a knowledge base is attached to this
+    // chat (or its agent), pull the most relevant chunks for the user's message
+    // and inject them into the system prompt.
+    const kbId =
+      ((convo as any).knowledge_base_id as string | null | undefined) ||
+      (agent ? ((agent as any).knowledge_base_id as string | null | undefined) : null) ||
+      null;
+    if (kbId) {
+      const ragContext = await this.knowledge.retrieveContext(kbId, userId, content);
+      if (ragContext) systemPrompt += ragContext;
+    }
+
     const messages: ChatMessage[] = [{ role: "system", content: systemPrompt }, ...history];
 
     const provider = await this.llm.resolveProvider(model, userId);

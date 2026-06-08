@@ -26,8 +26,8 @@ export class ChatsController {
   }
 
   @Post()
-  create(@UserId() userId: string, @Body() body: { model?: string; agentId?: string }) {
-    return this.convos.create(userId, body?.model, body?.agentId);
+  create(@UserId() userId: string, @Body() body: { model?: string; agentId?: string; knowledgeBaseId?: string }) {
+    return this.convos.create(userId, body?.model, body?.agentId, undefined, body?.knowledgeBaseId);
   }
 
   @Get(":id")
