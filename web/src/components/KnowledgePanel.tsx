@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { BookOpen, Trash2, FileText, Globe, Upload, MessageSquare } from "lucide-react";
+import { BookOpen, Trash2, FileText, Globe, Upload, MessageSquare, Pencil } from "lucide-react";
 import { api } from "../api";
 import type { KnowledgeBase, KnowledgeDocument } from "../types";
 import { ModalHeader } from "./ui/ModalHeader";
@@ -144,14 +144,37 @@ function KnowledgeDetail({ kb, onClose, onBack, onStartChat }: {
   const [err, setErr] = useState<string | null>(null);
   const [viewing, setViewing] = useState<(KnowledgeDocument & { content: string }) | null>(null);
   const [viewLoading, setViewLoading] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editContent, setEditContent] = useState("");
+  const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function openDoc(id: string) {
-    setViewLoading(true);
+    setViewLoading(true); setEditMode(false);
     try {
       setViewing(await api.knowledge.getDocument(id));
     } catch (e) { setErr((e as Error).message); }
     setViewLoading(false);
+  }
+
+  function startEdit() {
+    if (!viewing) return;
+    setEditTitle(viewing.title);
+    setEditContent(viewing.content);
+    setEditMode(true);
+  }
+
+  async function saveEdit() {
+    if (!viewing) return;
+    setSaving(true); setErr(null);
+    try {
+      const updated = await api.knowledge.updateDocument(viewing.id, { title: editTitle, content: editContent });
+      setViewing(updated);
+      setEditMode(false);
+      await refresh();
+    } catch (e) { setErr((e as Error).message); }
+    setSaving(false);
   }
 
   const refresh = () => api.knowledge.listDocuments(kb.id).then(setDocs).catch(() => {});
@@ -266,22 +289,47 @@ function KnowledgeDetail({ kb, onClose, onBack, onStartChat }: {
       </div>
     </div>
 
-    {/* Document content viewer */}
+    {/* Document content viewer / editor */}
     {(viewing || viewLoading) && (
-      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-bg/80 backdrop-blur-sm p-4" onClick={() => setViewing(null)}>
+      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-bg/80 backdrop-blur-sm p-4" onClick={() => !editMode && setViewing(null)}>
         <div className="flex h-[80vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl" onClick={(e) => e.stopPropagation()}>
           <ModalHeader
-            title={viewing?.title ?? "Loading…"}
-            subtitle={viewing ? `${viewing.chunk_count} chunk${viewing.chunk_count === 1 ? "" : "s"}` : undefined}
-            onClose={() => setViewing(null)}
+            title={editMode ? "Edit document" : (viewing?.title ?? "Loading…")}
+            subtitle={!editMode && viewing ? `${viewing.chunk_count} chunk${viewing.chunk_count === 1 ? "" : "s"}` : undefined}
+            onClose={() => { setEditMode(false); setViewing(null); }}
+            actions={
+              viewing && !editMode ? (
+                <button onClick={startEdit} title="Edit"
+                  className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm text-muted hover:text-fg">
+                  <Pencil className="h-3.5 w-3.5" /> Edit
+                </button>
+              ) : undefined
+            }
           />
-          <div className="flex-1 overflow-y-auto p-5">
+          <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-3">
             {viewLoading ? (
               <p className="text-sm text-muted">Loading…</p>
+            ) : editMode ? (
+              <>
+                <input className={inputCls} value={editTitle} onChange={(e) => setEditTitle(e.target.value)} placeholder="Title" />
+                <textarea className={`${inputCls} flex-1 resize-none font-mono text-xs leading-relaxed`} rows={16}
+                  value={editContent} onChange={(e) => setEditContent(e.target.value)} />
+                {err && <p className="text-xs text-danger">{err}</p>}
+                <p className="text-[11px] text-muted">Saving re-indexes (re-embeds) the document.</p>
+              </>
             ) : (
               <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-fg">{viewing?.content}</pre>
             )}
           </div>
+          {editMode && (
+            <div className="flex justify-end gap-2 border-t border-border px-5 py-4">
+              <button onClick={() => setEditMode(false)} className="rounded-lg border border-border px-4 py-2 text-sm text-muted hover:text-fg">Cancel</button>
+              <button onClick={saveEdit} disabled={saving || !editContent.trim()}
+                className="rounded-lg bg-accent px-5 py-2 text-sm font-semibold text-white hover:bg-accent-2 disabled:opacity-40">
+                {saving ? "Saving…" : "Save & re-index"}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     )}

@@ -1,6 +1,6 @@
 import {
   BadRequestException, Body, Controller, Delete, Get, HttpCode,
-  NotFoundException, Param, Post, UseGuards,
+  NotFoundException, Param, Patch, Post, UseGuards,
 } from "@nestjs/common";
 import { AuthGuard } from "../auth/auth.guard";
 import { UserId } from "../auth/current-user.decorator";
@@ -67,6 +67,19 @@ export class KnowledgeController {
       return this.knowledge.getDocumentContent(id, userId);
     } catch (err) {
       throw new NotFoundException((err as Error).message);
+    }
+  }
+
+  @Patch("documents/:id")
+  async updateDocument(
+    @UserId() userId: string,
+    @Param("id") id: string,
+    @Body() body: { title?: string; content?: string },
+  ) {
+    try {
+      return await this.knowledge.updateDocument(id, userId, body);
+    } catch (err) {
+      throw new BadRequestException((err as Error).message);
     }
   }
 

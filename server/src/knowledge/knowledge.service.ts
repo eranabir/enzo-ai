@@ -89,6 +89,48 @@ export class KnowledgeService {
     this.db.prepare(`DELETE FROM knowledge_documents WHERE id = ? AND user_id = ?`).run(docId, userId);
   }
 
+  /** Edit a document's title and/or content. Changing content re-chunks + re-embeds. */
+  async updateDocument(
+    docId: string,
+    userId: string,
+    opts: { title?: string; content?: string },
+  ): Promise<KnowledgeDocumentRow & { content: string }> {
+    this.assertUnlocked();
+    const doc = this.db
+      .prepare(`SELECT * FROM knowledge_documents WHERE id = ? AND user_id = ?`)
+      .get(docId, userId) as KnowledgeDocumentRow | undefined;
+    if (!doc) throw new Error("Document not found");
+
+    if (opts.title !== undefined && opts.title.trim()) {
+      this.db.prepare(`UPDATE knowledge_documents SET title = ? WHERE id = ?`).run(opts.title.trim(), docId);
+    }
+
+    if (opts.content !== undefined) {
+      const text = opts.content.trim();
+      if (!text) throw new Error("Content cannot be empty");
+      const kb = this.getBase(doc.kb_id, userId);
+      if (!kb) throw new Error("Knowledge base not found");
+      const chunks = this.chunk(text);
+      await this.ensureEmbedModel(kb.embedding_model);
+      const vectors = await this.embedBatched(kb.embedding_model, chunks);
+      const now = Date.now();
+      const insertChunk = this.db.prepare(
+        `INSERT INTO knowledge_chunks (id, document_id, kb_id, user_id, idx, content, embedding, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      );
+      const tx = this.db.transaction(() => {
+        this.db.prepare(`DELETE FROM knowledge_chunks WHERE document_id = ?`).run(docId);
+        chunks.forEach((c, i) => {
+          insertChunk.run(randomUUID(), docId, doc.kb_id, userId, i, this.vault.encryptField(c), this.vectorToBlob(vectors[i]), now);
+        });
+        this.db.prepare(`UPDATE knowledge_documents SET chunk_count = ? WHERE id = ?`).run(chunks.length, docId);
+      });
+      tx();
+    }
+
+    return this.getDocumentContent(docId, userId);
+  }
+
   /** Return a document plus its decrypted, in-order chunk text (for viewing). */
   getDocumentContent(docId: string, userId: string): KnowledgeDocumentRow & { content: string } {
     this.assertUnlocked();

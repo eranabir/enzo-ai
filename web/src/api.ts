@@ -207,6 +207,9 @@ export const api = {
     getDocument: (id: string) =>
       fetch(`/api/knowledge/documents/${id}`, { headers: headers() })
         .then(parse<import("./types").KnowledgeDocument & { content: string }>),
+    updateDocument: (id: string, body: { title?: string; content?: string }) =>
+      fetch(`/api/knowledge/documents/${id}`, { method: "PATCH", headers: headers(true), body: JSON.stringify(body) })
+        .then(parse<import("./types").KnowledgeDocument & { content: string }>),
     deleteDocument: (id: string) =>
       fetch(`/api/knowledge/documents/${id}`, { method: "DELETE", headers: headers() }).then(() => {}),
   },
