@@ -113,13 +113,21 @@ jobs:
       - name: Prepare Apple signing
         env:
           CSC_LINK_SECRET: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
         run: |
+          # Print presence (lengths only — never the values) so a misconfigured
+          # secret is obvious in the log.
+          echo "Signing secret lengths (0 = missing):"
+          echo "  CSC_LINK=${#CSC_LINK_SECRET}  CSC_KEY_PASSWORD=${#CSC_KEY_PASSWORD}"
+          echo "  APPLE_API_KEY_P8=${#APPLE_API_KEY_P8}  APPLE_API_KEY_ID=${#APPLE_API_KEY_ID}  APPLE_API_ISSUER=${#APPLE_API_ISSUER}"
           if [ -n "$CSC_LINK_SECRET" ] && [ -n "$APPLE_API_KEY_P8" ]; then
             printf '%s' "$APPLE_API_KEY_P8" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
-            echo "Signing secrets present — Developer-ID signing + notarization."
+            echo "==> Signing secrets present — Developer-ID signing + notarization."
           else
-            echo "No signing secrets — building ad-hoc (unidentified developer)."
+            echo "::warning::No Apple signing secrets found — building AD-HOC. The macOS app will be reported as 'damaged'/unidentified. Add CSC_LINK, CSC_KEY_PASSWORD, APPLE_API_KEY_P8, APPLE_API_KEY_ID, APPLE_API_ISSUER as Repository secrets."
           fi
       - name: Package (arm64)
         env:
