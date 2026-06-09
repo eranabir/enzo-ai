@@ -115,6 +115,8 @@ export interface SystemInfo {
   ramGb: number;
   vramGb: number | null;
   gpuName: string | null;
+  unifiedMemory: boolean;
+  accelerator: string | null;
   detectionMethod: string;
 }
 

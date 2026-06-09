@@ -364,7 +364,7 @@ export function SetupWizard({ user, onDone }: Props) {
                             { label: "CPU", value: `${analysis.info.cpuCount}c` },
                             { label: "RAM", value: `${analysis.info.ramGb}GB` },
                             { label: "GPU", value: analysis.info.gpuName?.split(" ").slice(-2).join(" ") ?? "—" },
-                            { label: "VRAM", value: analysis.info.vramGb != null ? `${analysis.info.vramGb}GB` : "—" },
+                            { label: analysis.info.unifiedMemory ? "Accel" : "VRAM", value: analysis.info.unifiedMemory ? (analysis.info.accelerator ?? "Metal") : (analysis.info.vramGb != null ? `${analysis.info.vramGb}GB` : "—") },
                           ].map((c) => (
                             <div key={c.label} className="rounded-lg border border-border bg-bg p-2 text-center">
                               <div className="text-[9px] uppercase tracking-wide text-muted">{c.label}</div>
