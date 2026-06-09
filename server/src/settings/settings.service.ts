@@ -42,6 +42,16 @@ export class SettingsService {
     return !this.getDisabledTools().includes(name);
   }
 
+  /** Whether agent-less ("regular") chats may use tools. Default OFF — keeps
+   *  plain chats fast (true streaming, no tool-detection round). */
+  getChatToolsEnabled(): boolean {
+    return this.get("chat_tools_enabled") === "1";
+  }
+
+  setChatToolsEnabled(enabled: boolean): void {
+    this.set("chat_tools_enabled", enabled ? "1" : "0");
+  }
+
   // ── Connections (admin can globally enable/disable a connection type) ────────
   getDisabledConnections(): string[] {
     const raw = this.get("disabled_connections");

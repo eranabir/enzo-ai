@@ -296,6 +296,14 @@ export const api = {
         headers: headers(),
       }).then(parse<{ ok: boolean }>),
 
+    getSettings: () =>
+      fetch("/api/admin/settings", { headers: headers() })
+        .then(parse<{ defaultModel: string; chatToolsEnabled: boolean }>),
+
+    updateSettings: (body: { chatToolsEnabled?: boolean }) =>
+      fetch("/api/admin/settings", { method: "PATCH", headers: headers(true), body: JSON.stringify(body) })
+        .then(parse<{ defaultModel: string; chatToolsEnabled: boolean }>),
+
     listTools: () =>
       fetch("/api/admin/tools", { headers: headers() })
         .then(parse<import("./types").ToolDefinition[]>),

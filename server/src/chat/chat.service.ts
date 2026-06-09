@@ -291,7 +291,13 @@ export class ChatService {
     // system prompt (so the model can answer "what can you do?") and offer them
     // for function-calling below.
     const builtinDefs = this.toolsService.getDefinitions(agentTools);
-    const mcpTools = await this.mcpService.getToolsForUser(userId).catch(() => []);
+    // Agents always get tools; agent-less chats only when the admin enabled it
+    // (mirrors getChatToolNames). Skipping MCP here keeps plain chats on the
+    // fast streaming path instead of the non-streaming tool-detection loop.
+    const chatToolsAllowed = agent != null || this.settings.getChatToolsEnabled();
+    const mcpTools = chatToolsAllowed
+      ? await this.mcpService.getToolsForUser(userId).catch(() => [])
+      : [];
     const availableTools = [...builtinDefs, ...mcpTools].map((d) => ({
       name: d.function.name,
       description: d.function.description,

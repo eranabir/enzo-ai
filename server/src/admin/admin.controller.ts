@@ -146,7 +146,19 @@ export class AdminController {
 
   @Get("settings")
   getSettings() {
-    return { defaultModel: this.settings.getDefaultModel() };
+    return {
+      defaultModel: this.settings.getDefaultModel(),
+      chatToolsEnabled: this.settings.getChatToolsEnabled(),
+    };
+  }
+
+  @Patch("settings")
+  updateSettings(@Body() body: { chatToolsEnabled?: boolean }) {
+    if (body.chatToolsEnabled !== undefined) this.settings.setChatToolsEnabled(!!body.chatToolsEnabled);
+    return {
+      defaultModel: this.settings.getDefaultModel(),
+      chatToolsEnabled: this.settings.getChatToolsEnabled(),
+    };
   }
 
   // ---- Tool management ----

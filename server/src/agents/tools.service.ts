@@ -225,6 +225,9 @@ export class ToolsService {
    * model isn't handed tools it can't actually use).
    */
   getChatToolNames(userId?: string): ToolName[] {
+    // Agent-less chats only get tools when the admin opts in (keeps plain chats
+    // fast: no tool-detection round, true streaming). Agents always get theirs.
+    if (!this.settings.getChatToolsEnabled()) return [];
     const disabled = this.settings.getDisabledTools();
     return ALL_TOOL_DEFINITIONS
       .map((t) => t.function.name)

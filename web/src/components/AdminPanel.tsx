@@ -503,10 +503,20 @@ function ToolsTab() {
   const [tools, setTools] = useState<import("../types").ToolDefinition[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const [chatTools, setChatTools] = useState<boolean | null>(null);
 
   useEffect(() => {
     api.admin.listTools().then(setTools).catch(() => {});
+    api.admin.getSettings().then((s) => setChatTools(s.chatToolsEnabled)).catch(() => {});
   }, []);
+
+  async function toggleChatTools() {
+    const next = !chatTools;
+    setChatTools(next);
+    api.admin.updateSettings({ chatToolsEnabled: next })
+      .then((s) => setChatTools(s.chatToolsEnabled))
+      .catch(() => setChatTools(!next));
+  }
 
   async function toggle(name: string, enabled: boolean) {
     setBusy(name);
@@ -576,6 +586,25 @@ function ToolsTab() {
 
   return (
     <div className="flex flex-col gap-6">
+      <Section title="Regular chats">
+        <div className="flex items-center justify-between rounded-xl border border-border bg-surface-2 px-4 py-3">
+          <div className="flex min-w-0 flex-col gap-0.5 pr-3">
+            <span className="text-sm font-semibold text-fg">Allow tools in regular chats</span>
+            <span className="text-xs text-muted">
+              Off by default — keeps plain chats fast (replies stream instantly). Agents always use their own tools regardless. Turn on to let tool-less chats call tools, at the cost of slower first responses.
+            </span>
+          </div>
+          <button
+            disabled={chatTools === null}
+            onClick={toggleChatTools}
+            className={`relative h-6 w-11 flex-shrink-0 rounded-full border border-border transition-colors disabled:opacity-50 ${chatTools ? "bg-accent" : "bg-surface"}`}
+            title={chatTools ? "Click to disable" : "Click to enable"}
+          >
+            <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${chatTools ? "translate-x-[22px]" : "translate-x-0.5"}`} />
+          </button>
+        </div>
+      </Section>
+
       <Section title="System tools">
         <p className="mb-4 text-xs text-muted">
           Built-in tools that always work. Disabled tools can't be used by any agent.
