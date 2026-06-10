@@ -97,10 +97,11 @@ function createTray(): void {
   tray.setToolTip("Enzo AI");
   tray.setContextMenu(buildMenu("starting"));
 
-  // Left-click on macOS / Linux opens browser; on Windows right-click shows menu
+  // Clicking the tray shows the menu (with "Open Enzo AI"), never the browser
+  // directly. macOS pops the context menu automatically when one is set; on
+  // Windows/Linux a left-click needs us to show it explicitly.
   tray.on("click", () => {
-    if (ready) openBrowser();
-    else tray?.popUpContextMenu();
+    if (process.platform !== "darwin") tray?.popUpContextMenu();
   });
 }
 
