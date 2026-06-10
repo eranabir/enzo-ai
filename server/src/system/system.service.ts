@@ -128,17 +128,14 @@ export class SystemService {
   }
 
   /**
-   * How much memory we can realistically dedicate to a model on this machine.
-   *  - Dedicated GPU → its VRAM.
-   *  - Apple Silicon → ~60% of unified RAM (the rest for macOS + apps).
-   *  - CPU-only → ~50% of RAM.
-   * macOS reports very little "free" memory (it caches aggressively and reclaims
-   * on demand), so the budget is total-based; free memory is surfaced separately
-   * as a live-pressure hint rather than driving the pick.
+   * The "fast" memory budget — how much a model can use while staying on the
+   * fast path (GPU VRAM, or unified memory on Apple Silicon). Models bigger than
+   * this still RUN by offloading to system RAM (see scoreModel's capacity), just
+   * slower. Dedicated GPU → VRAM; Apple → ~60% of unified RAM; CPU → ~50% RAM.
    */
   private usableBudget(info: Omit<SystemInfo, "usableGb">): number {
     if (info.vramGb != null) return info.vramGb;
-    return Math.max(2, Math.round(info.ramGb * 0.5));
+    return Math.max(2, Math.round(info.ramGb * 0.6));
   }
 
   private detectGpu(): Pick<SystemInfo, "vramGb" | "gpuName" | "accelerator" | "detectionMethod"> {
@@ -215,27 +212,41 @@ export class SystemService {
    * OS; speed reflects the accelerator (Metal/CUDA fast, CPU slow).
    */
   private scoreModel(m: CatalogModel, info: SystemInfo, diskFreeGb: number): ScoredModel {
-    const budget = info.usableGb;
     const cpuOnly = info.vramGb == null && !info.unifiedMemory;
+    const fast = info.usableGb; // VRAM (dedicated) or ~60% unified RAM
+    // Total memory the model can occupy and still run. A dedicated GPU can
+    // OFFLOAD layers it can't hold in VRAM to system RAM, so capacity =
+    // VRAM + most of system RAM. Apple unified = a slice of RAM; CPU = RAM.
+    const capacity = info.unifiedMemory
+      ? Math.round(info.ramGb * 0.85)
+      : info.vramGb != null
+        ? info.vramGb + Math.round(info.ramGb * 0.7)
+        : Math.round(info.ramGb * 0.6);
     const downloadGb = parseFloat(m.size.replace(/[^0-9.]/g, "")) || m.memGb;
 
-    // GPU/VRAM fit: 1 if it lives entirely in the GPU budget, partial if it spills a bit, 0 on CPU.
+    // VRAM/fast fit: 1 if it lives entirely in fast memory, partial if it spills, 0 on CPU.
     let vram: number;
     if (cpuOnly) vram = 0;
-    else if (m.memGb <= budget) vram = 1;
-    else if (m.memGb <= budget * 1.5) vram = Math.max(0.25, 0.65 - 0.4 * ((m.memGb - budget) / (budget * 0.5)));
+    else if (m.memGb <= fast) vram = 1;
+    else if (m.memGb <= fast * 1.5) vram = Math.max(0.25, 0.65 - 0.4 * ((m.memGb - fast) / (fast * 0.5)));
     else vram = 0;
 
-    const ram = m.memGb <= budget ? 1 : Math.max(0, budget / m.memGb);
+    // Capacity fit: does it fit in (fast + offload) memory at all?
+    const ram = m.memGb <= capacity ? 1 : Math.max(0, capacity / m.memGb);
     const disk = diskFreeGb >= downloadGb ? 1 : 0;
-    const speed = info.accelerator === "CUDA" ? 1
-      : info.accelerator === "Metal" ? (info.ramGb >= 36 ? 1 : 0.8)
+
+    // Speed: degrades as more of the model offloads off the fast path to RAM.
+    const base = info.accelerator === "CUDA" ? 1
+      : info.accelerator === "Metal" ? (info.ramGb >= 36 ? 1 : 0.85)
       : info.vramGb != null ? 0.6
       : 0.15; // CPU
+    const onFast = info.unifiedMemory || cpuOnly ? 1 : Math.min(1, fast / m.memGb);
+    const speed = info.unifiedMemory || cpuOnly ? base : base * (0.3 + 0.7 * onFast);
+
     const score = vram * 0.4 + ram * 0.25 + disk * 0.15 + speed * 0.2;
 
     let tier: FitTier;
-    if (disk === 0 || m.memGb > budget * 1.8) tier = "too-large";
+    if (disk === 0 || m.memGb > capacity * 1.05) tier = "too-large";
     else if (score >= 0.82) tier = "ideal";
     else if (score >= 0.62) tier = "good";
     else if (score >= 0.38) tier = "marginal";
@@ -254,10 +265,14 @@ export class SystemService {
       .sort((a, b) => TIER_RANK[a.tier] - TIER_RANK[b.tier] || b.memGb - a.memGb);
     const runnable = ranked.filter((m) => m.tier !== "too-large");
 
-    // Headline pick: the largest general model that fits at least "well".
+    // Headline pick: the LARGEST general model that still fits well (ideal or
+    // good) — i.e. the most capable model that runs at a decent speed, allowing
+    // light GPU→RAM offload. (Picking the largest ideal-only would under-serve a
+    // high-RAM dedicated GPU, whose extra capacity shows up as "good".)
+    const bySizeDesc = (a: ScoredModel, b: ScoredModel) => b.memGb - a.memGb;
     const chosen =
-      ranked.find((m) => m.tag === "general" && (m.tier === "ideal" || m.tier === "good")) ??
-      runnable.find((m) => m.tag === "general") ??
+      runnable.filter((m) => m.tag === "general" && (m.tier === "ideal" || m.tier === "good")).sort(bySizeDesc)[0] ??
+      runnable.filter((m) => m.tag === "general").sort(bySizeDesc)[0] ??
       runnable[0] ?? ranked[0];
 
     // Diverse alternatives (best-scoring first): different families + use-cases,
@@ -288,6 +303,11 @@ export class SystemService {
       : chosen.tier === "marginal" ? "a marginal fit"
       : "the best your hardware can run";
     let reason = `${memType} → ~${info.usableGb} GB usable for models. ${chosen.label} needs ~${chosen.memGb} GB — ${tierWord}.`;
+    // Surface the ceiling: bigger models the machine can run via GPU→RAM offload.
+    const ceiling = runnable.reduce((a, b) => (b.memGb > a.memGb ? b : a), chosen);
+    if (!info.unifiedMemory && info.vramGb != null && ceiling.memGb > chosen.memGb) {
+      reason += ` Your ${info.ramGb} GB RAM lets you offload to run up to ${ceiling.label} (~${ceiling.memGb} GB, slower).`;
+    }
     if (info.freeGb < chosen.memGb) {
       reason += ` Only ~${info.freeGb} GB free right now — it'll still run (the OS frees cache on demand), but close heavy apps for best speed.`;
     }
