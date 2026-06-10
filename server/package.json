@@ -1,6 +1,6 @@
 {
   "name": "@enzo-ai/server",
-  "version": "0.3.15",
+  "version": "0.3.16",
   "private": true,
   "scripts": {
     "dev": "ENZO_PORT=1716 nest start --watch",
