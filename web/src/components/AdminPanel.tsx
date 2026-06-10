@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Cpu, Users as UsersIcon, Boxes, Wrench, AlertTriangle, Plug, ChevronDown, Lock } from "lucide-react";
 import { api, streamPullModel } from "../api";
-import type { ModelInfo, User } from "../types";
+import type { ModelInfo, User, SystemAnalysis } from "../types";
 import { ModalHeader } from "./ui/ModalHeader";
 
 const inputCls =
@@ -131,11 +131,6 @@ function UsersTab({ currentUserId }: { currentUserId: string }) {
 }
 
 // ── Models tab ───────────────────────────────────────────────────────────────
-
-interface SystemAnalysis {
-  info: { os: string; arch: string; cpuCount: number; cpuModel: string; ramGb: number; vramGb: number | null; gpuName: string | null; detectionMethod: string };
-  recommendation: { modelId: string; label: string; reason: string; vramRequired: number | null; alternatives: { modelId: string; label: string; note: string }[]; alreadyInstalled: boolean };
-}
 
 const PROVIDER_META: Record<string, { label: string; color: string; placeholder: string }> = {
   openai:    { label: "OpenAI",    color: "text-green-400", placeholder: "sk-..." },
@@ -315,7 +310,7 @@ function ModelsTab() {
               <div className="min-w-0">
                 <span className="text-[10px] text-accent-2 font-semibold">Recommended: </span>
                 <span className="text-sm font-bold text-fg">{analysis.recommendation.label}</span>
-                <span className="ml-1.5 font-mono text-[10px] text-muted/70">{analysis.recommendation.modelId}</span>
+                {analysis.recommendation.size && <span className="ml-1.5 rounded-full bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-muted">{analysis.recommendation.size}</span>}
                 <p className="text-[11px] text-muted mt-0.5">{analysis.recommendation.reason}</p>
               </div>
               {analysis.recommendation.alreadyInstalled ? (
@@ -339,7 +334,7 @@ function ModelsTab() {
                       <div key={alt.modelId} className="flex items-center justify-between gap-2">
                         <div className="min-w-0">
                           <span className="text-xs font-semibold text-fg">{alt.label}</span>
-                          <span className="ml-1.5 font-mono text-[10px] text-muted/70">{alt.modelId}</span>
+                          {alt.size && <span className="ml-1.5 rounded-full bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-muted">{alt.size}</span>}
                           <p className="truncate text-[10px] text-muted">{alt.note}</p>
                         </div>
                         {installed ? (

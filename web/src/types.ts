@@ -124,8 +124,9 @@ export interface ModelRecommendation {
   modelId: string;
   label: string;
   reason: string;
+  size: string | null;
   vramRequired: number | null;
-  alternatives: { modelId: string; label: string; note: string }[];
+  alternatives: { modelId: string; label: string; note: string; size: string | null }[];
   alreadyInstalled: boolean;
 }
 

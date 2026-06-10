@@ -17,12 +17,27 @@ export interface SystemInfo {
   detectionMethod: string;
 }
 
+/** Approx download size (Q4) per model, shown wherever a model is listed. */
+const MODEL_SIZES: Record<string, string> = {
+  "qwen2.5:32b": "~20 GB",
+  "qwen2.5:14b": "~9 GB",
+  "qwen2.5:7b": "~4.7 GB",
+  "qwen2.5:0.5b": "~0.4 GB",
+  "llama3.1:8b": "~4.9 GB",
+  "llama3.2:3b": "~2 GB",
+  "llama3.2:1b": "~1.3 GB",
+};
+export function modelSize(id: string): string | null {
+  return MODEL_SIZES[id] ?? null;
+}
+
 export interface ModelRecommendation {
   modelId: string;
   label: string;
   reason: string;
+  size: string | null;
   vramRequired: number | null;
-  alternatives: { modelId: string; label: string; note: string }[];
+  alternatives: { modelId: string; label: string; note: string; size: string | null }[];
   alreadyInstalled: boolean;
 }
 
@@ -161,12 +176,13 @@ export class SystemService {
     const alternatives = activeTiers
       .filter((t) => t.modelId !== chosen.modelId)
       .slice(0, 3)
-      .map((t) => ({ modelId: t.modelId, label: t.label, note: t.reason }));
+      .map((t) => ({ modelId: t.modelId, label: t.label, note: t.reason, size: MODEL_SIZES[t.modelId] ?? null }));
 
     return {
       modelId: chosen.modelId,
       label: chosen.label,
       reason: chosen.reason,
+      size: MODEL_SIZES[chosen.modelId] ?? null,
       vramRequired: "minVram" in chosen ? (chosen as { minVram: number }).minVram : null,
       alternatives,
       alreadyInstalled: installedModelIds.includes(chosen.modelId),
