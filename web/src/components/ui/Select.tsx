@@ -111,8 +111,11 @@ const SelectItem = React.forwardRef<
       </RadixSelect.ItemIndicator>
     </span>
     {/* ItemText is copied into the trigger — when label is given, only label shows there.
-        min-w-0 + truncate lets a long model name shrink so the size suffix stays visible. */}
-    <RadixSelect.ItemText className="min-w-0 flex-1 truncate">{label ?? children}</RadixSelect.ItemText>
+        Wrap it in a truncating flex child (Radix's ItemText doesn't forward className)
+        so a long model name shrinks and the size suffix stays right-aligned. */}
+    <span className="min-w-0 flex-1 truncate">
+      <RadixSelect.ItemText>{label ?? children}</RadixSelect.ItemText>
+    </span>
     {/* Badge / size suffix — only in dropdown, pushed to the right */}
     {label && children && (
       <span className="ml-auto flex flex-shrink-0 items-center gap-1.5 pl-2">{children}</span>
