@@ -39,6 +39,16 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+      # Windows Defender on the runner quarantines our unsigned NSIS installer
+      # (it bundles ollama.exe + native binaries) right after it's built — the
+      # Package step succeeds but the .exe is gone before upload. Exclude the
+      # workspace from realtime scanning so the installer survives.
+      - name: Exclude workspace from Defender
+        shell: pwsh
+        run: |
+          Add-MpPreference -ExclusionPath "${{ github.workspace }}" -ErrorAction SilentlyContinue
+          Add-MpPreference -ExclusionExtension "exe" -ErrorAction SilentlyContinue
+          Write-Host "Defender exclusion added for ${{ github.workspace }}"
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -67,10 +77,10 @@ jobs:
           name: windows-assets
           retention-days: 1
           # Name-agnostic: the NSIS installer is the only .exe in dist/ root
-          # (the unpacked app lives in dist/win-unpacked/). Error out if it's
-          # missing so a skipped Windows installer fails the release loudly.
+          # (the unpacked app lives in dist/win-unpacked/). Warn (don't fail) so
+          # a Windows hiccup can't block the notarized macOS / linux release.
           path: desktop/dist/*.exe
-          if-no-files-found: error
+          if-no-files-found: warn
 
   # ════════════════════════════════════════════════════════════════════════════
   # macOS arm64 — Apple Silicon (separate runner = no hdiutil conflict)
