@@ -43,12 +43,14 @@ jobs:
       # (it bundles ollama.exe + native binaries) right after it's built — the
       # Package step succeeds but the .exe is gone before upload. Exclude the
       # workspace from realtime scanning so the installer survives.
-      - name: Exclude workspace from Defender
+      - name: Neutralize Defender for the build
         shell: pwsh
         run: |
-          Add-MpPreference -ExclusionPath "${{ github.workspace }}" -ErrorAction SilentlyContinue
-          Add-MpPreference -ExclusionExtension "exe" -ErrorAction SilentlyContinue
-          Write-Host "Defender exclusion added for ${{ github.workspace }}"
+          try { Set-MpPreference -DisableRealtimeMonitoring $true } catch { Write-Host "realtime off failed: $_" }
+          try { Add-MpPreference -ExclusionPath "${{ github.workspace }}", "$env:RUNNER_TEMP", "C:\\" } catch { Write-Host "exclusion failed: $_" }
+          $s = Get-MpComputerStatus
+          Write-Host "RealtimeProtectionEnabled =" $s.RealTimeProtectionEnabled
+          Write-Host "Exclusions =" (((Get-MpPreference).ExclusionPath) -join '; ')
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -67,19 +69,27 @@ jobs:
       - run: yarn build:all
       - name: Package
         run: yarn workspace @enzo-ai/desktop package:win
-      - name: List build output (debug)
+      # The installer has been vanishing from desktop/dist on the runner. Search
+      # the whole tree for it (wherever electron-builder put it / before anything
+      # removes it) and stage it for upload, logging everything for diagnosis.
+      - name: Collect Windows installer
         if: always()
         shell: bash
-        run: ls -la desktop/dist || true
+        run: |
+          echo "--- desktop/dist ---"; ls -la desktop/dist 2>/dev/null || echo "(missing)"
+          echo "--- repo-root dist ---"; ls -la dist 2>/dev/null || echo "(missing)"
+          echo "--- find installer ---"
+          found=$(find . -name 'enzo-ai-windows-*.exe' -not -path '*/node_modules/*' -not -path '*/win-unpacked/*' 2>/dev/null | head -1)
+          echo "found='$found'"
+          mkdir -p out
+          if [ -n "$found" ]; then cp "$found" out/ && echo "staged $(ls -la out)"; else echo "NO INSTALLER FOUND"; fi
+          echo "--- disk ---"; df -h . 2>/dev/null || true
       - name: Save artifacts
         uses: actions/upload-artifact@v4
         with:
           name: windows-assets
           retention-days: 1
-          # Name-agnostic: the NSIS installer is the only .exe in dist/ root
-          # (the unpacked app lives in dist/win-unpacked/). Warn (don't fail) so
-          # a Windows hiccup can't block the notarized macOS / linux release.
-          path: desktop/dist/*.exe
+          path: out/*.exe
           if-no-files-found: warn
 
   # ════════════════════════════════════════════════════════════════════════════
