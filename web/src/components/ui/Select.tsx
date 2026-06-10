@@ -49,8 +49,9 @@ const SelectContent = React.forwardRef<
       ref={ref}
       position={position}
       sideOffset={4}
+      collisionPadding={8}
       className={cn(
-        "relative z-50 min-w-[8rem] overflow-hidden rounded-xl border border-border",
+        "relative z-50 min-w-[8rem] max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-border",
         "bg-surface shadow-2xl",
         // Radix animation classes
         "data-[state=open]:animate-in data-[state=closed]:animate-out",
@@ -109,13 +110,12 @@ const SelectItem = React.forwardRef<
         <Check className="h-3.5 w-3.5 text-accent-2" />
       </RadixSelect.ItemIndicator>
     </span>
-    {/* ItemText is copied into the trigger — when label is given, only label shows there */}
-    <RadixSelect.ItemText>
-      <span className="flex-1">{label ?? children}</span>
-    </RadixSelect.ItemText>
+    {/* ItemText is copied into the trigger — when label is given, only label shows there.
+        min-w-0 + truncate lets a long model name shrink so the size suffix stays visible. */}
+    <RadixSelect.ItemText className="min-w-0 flex-1 truncate">{label ?? children}</RadixSelect.ItemText>
     {/* Badge / size suffix — only in dropdown, pushed to the right */}
     {label && children && (
-      <span className="ml-auto flex flex-shrink-0 items-center gap-1.5 pl-4">{children}</span>
+      <span className="ml-auto flex flex-shrink-0 items-center gap-1.5 pl-2">{children}</span>
     )}
   </RadixSelect.Item>
 ));

@@ -77,7 +77,7 @@ export function Header({
               <SelectValue placeholder="No models installed" />
             </span>
           </SelectTrigger>
-          <SelectContent className="w-56">
+          <SelectContent className="w-64">
             {models.map((m) => {
               const isExternal = ["openai","anthropic","google"].includes(m.provider);
               const providerBadge: Record<string, string> = {

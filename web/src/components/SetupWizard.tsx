@@ -10,6 +10,17 @@ interface Props {
 type Mode = "local" | "cloud" | "both";
 type StepKey = "welcome" | "encrypt" | "models" | "done";
 
+/** Approx download size per model (Q4) — shown in the recommendation list. */
+const MODEL_SIZES: Record<string, string> = {
+  "qwen2.5:32b": "~20 GB",
+  "qwen2.5:14b": "~9 GB",
+  "qwen2.5:7b": "~4.7 GB",
+  "qwen2.5:0.5b": "~0.4 GB",
+  "llama3.1:8b": "~4.9 GB",
+  "llama3.2:3b": "~2 GB",
+  "llama3.2:1b": "~1.3 GB",
+};
+
 export function SetupWizard({ user, onDone }: Props) {
   const [stepIdx, setStepIdx] = useState(0);
   // Encryption setup is offered to the admin (first user) during onboarding.
@@ -394,11 +405,13 @@ export function SetupWizard({ user, onDone }: Props) {
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <span className="text-sm font-semibold text-fg">{opt.label}</span>
+                                    {MODEL_SIZES[opt.modelId] && (
+                                      <span className="rounded-full bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-muted">{MODEL_SIZES[opt.modelId]}</span>
+                                    )}
                                     {opt.recommended && <span className="rounded-full bg-accent/20 px-1.5 py-0.5 text-[9px] font-bold uppercase text-accent-2">Recommended</span>}
                                     {installed && <span className="text-[10px] font-semibold text-ok">Installed ✓</span>}
                                   </div>
                                   <div className="mt-0.5 text-[11px] text-muted">{opt.note}</div>
-                                  <div className="mt-0.5 font-mono text-[10px] text-muted/70">{opt.modelId}</div>
                                 </div>
                               </button>
                             );
