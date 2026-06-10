@@ -122,13 +122,28 @@ export interface SystemInfo {
   detectionMethod: string;
 }
 
+export type FitTier = "ideal" | "good" | "marginal" | "possible" | "too-large";
+
+export interface ScoredModel {
+  modelId: string;
+  label: string;
+  size: string;
+  tag: string;
+  note: string;
+  memGb: number;
+  score: number;
+  tier: FitTier;
+}
+
 export interface ModelRecommendation {
   modelId: string;
   label: string;
   reason: string;
   size: string | null;
+  tier: FitTier;
   vramRequired: number | null;
-  alternatives: { modelId: string; label: string; note: string; size: string | null }[];
+  ranked: ScoredModel[];
+  alternatives: { modelId: string; label: string; note: string; size: string | null; tier: FitTier }[];
   alreadyInstalled: boolean;
 }
 

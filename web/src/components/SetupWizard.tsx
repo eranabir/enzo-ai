@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, streamPullModel } from "../api";
 import type { SystemAnalysis, User } from "../types";
+import { TierBadge } from "./ui/TierBadge";
 
 interface Props {
   user: User;
@@ -377,7 +378,7 @@ export function SetupWizard({ user, onDone }: Props) {
                         {/* Recommended + alternative models */}
                         <div className="flex flex-col gap-2 mb-3">
                           {[
-                            { modelId: analysis.recommendation.modelId, label: analysis.recommendation.label, note: analysis.recommendation.reason, size: analysis.recommendation.size, recommended: true },
+                            { modelId: analysis.recommendation.modelId, label: analysis.recommendation.label, note: analysis.recommendation.reason, size: analysis.recommendation.size, tier: analysis.recommendation.tier, recommended: true },
                             ...analysis.recommendation.alternatives.map((a) => ({ ...a, recommended: false })),
                           ].map((opt) => {
                             const installed = models.includes(opt.modelId);
@@ -398,6 +399,7 @@ export function SetupWizard({ user, onDone }: Props) {
                                     {opt.size && (
                                       <span className="rounded-full bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-muted">{opt.size}</span>
                                     )}
+                                    {opt.tier && <TierBadge tier={opt.tier} />}
                                     {opt.recommended && <span className="rounded-full bg-accent/20 px-1.5 py-0.5 text-[9px] font-bold uppercase text-accent-2">Recommended</span>}
                                     {installed && <span className="text-[10px] font-semibold text-ok">Installed ✓</span>}
                                   </div>

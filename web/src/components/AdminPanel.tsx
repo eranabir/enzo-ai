@@ -3,6 +3,7 @@ import { Cpu, Users as UsersIcon, Boxes, Wrench, AlertTriangle, Plug, ChevronDow
 import { api, streamPullModel } from "../api";
 import type { ModelInfo, User, SystemAnalysis } from "../types";
 import { ModalHeader } from "./ui/ModalHeader";
+import { TierBadge } from "./ui/TierBadge";
 
 const inputCls =
   "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-fg outline-none focus:border-accent placeholder:text-muted";
@@ -311,6 +312,7 @@ function ModelsTab() {
                 <span className="text-[10px] text-accent-2 font-semibold">Recommended: </span>
                 <span className="text-sm font-bold text-fg">{analysis.recommendation.label}</span>
                 {analysis.recommendation.size && <span className="ml-1.5 rounded-full bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-muted">{analysis.recommendation.size}</span>}
+                <span className="ml-1.5 inline-flex align-middle"><TierBadge tier={analysis.recommendation.tier} /></span>
                 <p className="text-[11px] text-muted mt-0.5">{analysis.recommendation.reason}</p>
               </div>
               {analysis.recommendation.alreadyInstalled ? (
@@ -335,6 +337,7 @@ function ModelsTab() {
                         <div className="min-w-0">
                           <span className="text-xs font-semibold text-fg">{alt.label}</span>
                           {alt.size && <span className="ml-1.5 rounded-full bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-muted">{alt.size}</span>}
+                          <span className="ml-1.5 inline-flex align-middle"><TierBadge tier={alt.tier} /></span>
                           <p className="truncate text-[10px] text-muted">{alt.note}</p>
                         </div>
                         {installed ? (

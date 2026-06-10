@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { execSync } from "node:child_process";
+import { statfsSync } from "node:fs";
 import * as os from "node:os";
 
 export interface SystemInfo {
@@ -69,13 +70,30 @@ export function modelSize(id: string): string | null {
   return CATALOG_BY_ID.get(id)?.size ?? null;
 }
 
+export type FitTier = "ideal" | "good" | "marginal" | "possible" | "too-large";
+
+export interface ScoredModel {
+  modelId: string;
+  label: string;
+  size: string;     // download size, e.g. "~9 GB"
+  tag: ModelTag;
+  note: string;     // blurb
+  memGb: number;    // approx runtime memory need
+  score: number;    // 0–1 weighted fit score
+  tier: FitTier;
+}
+
 export interface ModelRecommendation {
   modelId: string;
   label: string;
   reason: string;
   size: string | null;
+  tier: FitTier;
   vramRequired: number | null;
-  alternatives: { modelId: string; label: string; note: string; size: string | null }[];
+  /** Every catalog model scored for THIS machine, best fit first. */
+  ranked: ScoredModel[];
+  /** Diverse subset (kept for the compact view). */
+  alternatives: { modelId: string; label: string; note: string; size: string | null; tier: FitTier }[];
   alreadyInstalled: boolean;
 }
 
@@ -180,52 +198,96 @@ export class SystemService {
     return { gpuName: null, vramGb: null, accelerator: null, detectionMethod: "none" };
   }
 
-  recommend(info: SystemInfo, installedModelIds: string[]): ModelRecommendation {
-    // On CPU-only machines, cap the budget — big models technically fit in RAM
-    // but are far too slow without GPU acceleration.
+  /** Free disk space (GB) where Ollama stores models (~/.ollama). */
+  private diskFreeGb(): number {
+    try {
+      const s = statfsSync(os.homedir());
+      return Math.round((s.bavail * s.bsize) / 1e9);
+    } catch {
+      return Infinity; // can't tell → don't let disk gate anything
+    }
+  }
+
+  /**
+   * Score a model's fit for this machine, ollama-fit style:
+   *   score = VRAM·0.40 + RAM·0.25 + Disk·0.15 + Speed·0.20
+   * then bucket into a tier. Memory budget (info.usableGb) reserves room for the
+   * OS; speed reflects the accelerator (Metal/CUDA fast, CPU slow).
+   */
+  private scoreModel(m: CatalogModel, info: SystemInfo, diskFreeGb: number): ScoredModel {
+    const budget = info.usableGb;
     const cpuOnly = info.vramGb == null && !info.unifiedMemory;
-    const budget = cpuOnly ? Math.min(info.usableGb, 5) : info.usableGb;
+    const downloadGb = parseFloat(m.size.replace(/[^0-9.]/g, "")) || m.memGb;
 
-    // Everything that runs on this machine, largest first.
-    const fitting = CATALOG.filter((m) => m.memGb <= budget).sort((a, b) => b.memGb - a.memGb);
-    const pool = fitting.length ? fitting : [[...CATALOG].sort((a, b) => a.memGb - b.memGb)[0]];
+    // GPU/VRAM fit: 1 if it lives entirely in the GPU budget, partial if it spills a bit, 0 on CPU.
+    let vram: number;
+    if (cpuOnly) vram = 0;
+    else if (m.memGb <= budget) vram = 1;
+    else if (m.memGb <= budget * 1.5) vram = Math.max(0.25, 0.65 - 0.4 * ((m.memGb - budget) / (budget * 0.5)));
+    else vram = 0;
 
-    // Primary = the largest general-purpose model that fits COMFORTABLY (within
-    // ~90% of budget, so it isn't maxing out memory). Alternatives may go right
-    // up to the full budget.
-    const comfy = pool.filter((m) => m.memGb <= budget * 0.9);
-    const chosen = comfy.find((m) => m.tag === "general") ?? comfy[0] ?? pool.find((m) => m.tag === "general") ?? pool[0];
+    const ram = m.memGb <= budget ? 1 : Math.max(0, budget / m.memGb);
+    const disk = diskFreeGb >= downloadGb ? 1 : 0;
+    const speed = info.accelerator === "CUDA" ? 1
+      : info.accelerator === "Metal" ? (info.ramGb >= 36 ? 1 : 0.8)
+      : info.vramGb != null ? 0.6
+      : 0.15; // CPU
+    const score = vram * 0.4 + ram * 0.25 + disk * 0.15 + speed * 0.2;
 
-    // Diverse alternatives: prefer different families AND use-cases (reasoning,
-    // code, vision, other general families), and guarantee a small/fast pick —
-    // so the list reflects the breadth of the library, not one repeated family.
+    let tier: FitTier;
+    if (disk === 0 || m.memGb > budget * 1.8) tier = "too-large";
+    else if (score >= 0.82) tier = "ideal";
+    else if (score >= 0.62) tier = "good";
+    else if (score >= 0.38) tier = "marginal";
+    else if (score >= 0.15) tier = "possible";
+    else tier = "too-large";
+
+    return { modelId: m.modelId, label: m.label, size: m.size, tag: m.tag, note: m.blurb, memGb: m.memGb, score: Math.round(score * 100) / 100, tier };
+  }
+
+  recommend(info: SystemInfo, installedModelIds: string[]): ModelRecommendation {
+    const diskFreeGb = this.diskFreeGb();
+    // Rank by fit tier, then by size (largest first) within a tier — so the most
+    // CAPABLE model that still fits well sits at the top, not the tiniest.
+    const TIER_RANK: Record<FitTier, number> = { ideal: 0, good: 1, marginal: 2, possible: 3, "too-large": 4 };
+    const ranked = CATALOG.map((m) => this.scoreModel(m, info, diskFreeGb))
+      .sort((a, b) => TIER_RANK[a.tier] - TIER_RANK[b.tier] || b.memGb - a.memGb);
+    const runnable = ranked.filter((m) => m.tier !== "too-large");
+
+    // Headline pick: the largest general model that fits at least "well".
+    const chosen =
+      ranked.find((m) => m.tag === "general" && (m.tier === "ideal" || m.tier === "good")) ??
+      runnable.find((m) => m.tag === "general") ??
+      runnable[0] ?? ranked[0];
+
+    // Diverse alternatives (best-scoring first): different families + use-cases,
+    // plus a guaranteed small/fast option.
     const fam = (id: string) => id.split(":")[0];
-    const rest = pool.filter((m) => m.modelId !== chosen.modelId);
-    const alts: CatalogModel[] = [];
+    const rest = runnable.filter((m) => m.modelId !== chosen.modelId);
+    const alts: ScoredModel[] = [];
     const seenFam = new Set([fam(chosen.modelId)]);
     const seenTag = new Set<ModelTag>([chosen.tag]);
     for (const m of rest) {
-      if (alts.length >= 4) break;
+      if (alts.length >= 5) break;
       if (!seenFam.has(fam(m.modelId)) || !seenTag.has(m.tag)) {
         alts.push(m); seenFam.add(fam(m.modelId)); seenTag.add(m.tag);
       }
     }
     if (!alts.some((m) => m.memGb <= 4)) {
-      const fast = rest.filter((m) => m.memGb <= 4 && !alts.includes(m)).sort((a, b) => b.memGb - a.memGb)[0];
-      if (fast) { if (alts.length >= 4) alts.pop(); alts.push(fast); }
+      const fast = rest.filter((m) => m.memGb <= 4 && !alts.includes(m))[0];
+      if (fast) { if (alts.length >= 5) alts.pop(); alts.push(fast); }
     }
-    for (const m of rest) { if (alts.length >= 4) break; if (!alts.includes(m)) alts.push(m); }
+    for (const m of rest) { if (alts.length >= 5) break; if (!alts.includes(m)) alts.push(m); }
 
     // Transparent, computed reason derived from THIS machine's numbers.
     const memType = info.vramGb != null ? `${info.vramGb} GB VRAM`
       : info.unifiedMemory ? `${info.ramGb} GB unified memory`
       : `${info.ramGb} GB RAM (CPU)`;
-    const headroom = budget - chosen.memGb;
-    const fit = headroom >= 6 ? "with comfortable headroom"
-      : headroom >= 2 ? "a solid fit"
-      : headroom >= 0 ? "the largest that fits"
-      : "the lightest available — your hardware is below its needs";
-    let reason = `${memType} → ~${budget} GB usable for models. ${chosen.label} needs ~${chosen.memGb} GB — ${fit}.`;
+    const tierWord = chosen.tier === "ideal" ? "an ideal fit"
+      : chosen.tier === "good" ? "a good fit"
+      : chosen.tier === "marginal" ? "a marginal fit"
+      : "the best your hardware can run";
+    let reason = `${memType} → ~${info.usableGb} GB usable for models. ${chosen.label} needs ~${chosen.memGb} GB — ${tierWord}.`;
     if (info.freeGb < chosen.memGb) {
       reason += ` Only ~${info.freeGb} GB free right now — it'll still run (the OS frees cache on demand), but close heavy apps for best speed.`;
     }
@@ -235,8 +297,10 @@ export class SystemService {
       label: chosen.label,
       reason,
       size: chosen.size,
+      tier: chosen.tier,
       vramRequired: chosen.memGb,
-      alternatives: alts.slice(0, 4).map((m) => ({ modelId: m.modelId, label: m.label, note: m.blurb, size: m.size })),
+      ranked,
+      alternatives: alts.slice(0, 5).map((m) => ({ modelId: m.modelId, label: m.label, note: m.note, size: m.size, tier: m.tier })),
       alreadyInstalled: installedModelIds.includes(chosen.modelId),
     };
   }
