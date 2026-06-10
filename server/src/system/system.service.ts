@@ -8,12 +8,16 @@ export interface SystemInfo {
   cpuCount: number;
   cpuModel: string;
   ramGb: number;
+  /** Memory free right now (macOS counts cache as used, so this runs low). */
+  freeGb: number;
   vramGb: number | null;
   gpuName: string | null;
   /** True on Apple Silicon: GPU shares system RAM (no separate VRAM). */
   unifiedMemory: boolean;
   /** GPU acceleration backend the model engine will use, if any. */
   accelerator: string | null;
+  /** Memory budget (GB) we can realistically give a model on this machine. */
+  usableGb: number;
   detectionMethod: string;
 }
 
@@ -41,30 +45,24 @@ export interface ModelRecommendation {
   alreadyInstalled: boolean;
 }
 
-/** Dedicated-GPU tiers (NVIDIA/AMD) — ordered best-to-smallest by VRAM. */
-const TIERS = [
-  { minVram: 24, modelId: "qwen2.5:32b",   label: "Qwen 2.5 32B",   reason: "Excellent reasoning — your GPU has the headroom for it" },
-  { minVram: 16, modelId: "qwen2.5:14b",   label: "Qwen 2.5 14B",   reason: "Top-tier quality for a 16 GB card" },
-  { minVram: 8,  modelId: "llama3.1:8b",   label: "Llama 3.1 8B",   reason: "Great balance of speed and quality for an 8 GB GPU" },
-  { minVram: 4,  modelId: "llama3.2:3b",   label: "Llama 3.2 3B",   reason: "Fast and capable — best fit for your VRAM" },
-];
+/** A model the recommender can pick, with its approx RUNTIME memory need (Q4
+ *  weights + a working context) in GB. Ladders are ordered largest → smallest;
+ *  we pick the largest whose memGb fits the machine's usable budget. */
+interface ModelRung { modelId: string; label: string; memGb: number; blurb: string }
 
-/** Apple-Silicon tiers — keyed on UNIFIED memory (shared with the OS), so the
- *  thresholds leave headroom for macOS. Metal-accelerated, so these punch above
- *  a CPU-only machine of the same RAM. */
-const APPLE_TIERS = [
-  { minRam: 48, modelId: "qwen2.5:32b",  label: "Qwen 2.5 32B",  reason: "Your Apple Silicon GPU + unified memory can drive a 32B model" },
-  { minRam: 24, modelId: "qwen2.5:14b",  label: "Qwen 2.5 14B",  reason: "Strong reasoning, runs fast on Metal with room to spare" },
-  { minRam: 16, modelId: "llama3.1:8b",  label: "Llama 3.1 8B",  reason: "Ideal for 16 GB Apple Silicon — quality without crowding macOS" },
-  { minRam: 8,  modelId: "llama3.2:3b",  label: "Llama 3.2 3B",  reason: "Fast and capable on your Mac's GPU" },
-  { minRam: 0,  modelId: "llama3.2:1b",  label: "Llama 3.2 1B",  reason: "Lightweight model for a memory-constrained Mac" },
+// GPU-class ladders (Apple Metal or dedicated VRAM) — can run bigger models.
+const GPU_LADDER: ModelRung[] = [
+  { modelId: "qwen2.5:32b", label: "Qwen 2.5 32B", memGb: 22, blurb: "Top-tier reasoning — heavy on memory" },
+  { modelId: "qwen2.5:14b", label: "Qwen 2.5 14B", memGb: 11, blurb: "Great quality-to-speed balance" },
+  { modelId: "llama3.1:8b", label: "Llama 3.1 8B", memGb: 6,  blurb: "Solid all-rounder" },
+  { modelId: "llama3.2:3b", label: "Llama 3.2 3B", memGb: 4,  blurb: "Fast and light" },
+  { modelId: "llama3.2:1b", label: "Llama 3.2 1B", memGb: 2,  blurb: "Tiny and quick" },
 ];
-
-/** CPU-only tiers (no GPU acceleration). */
-const CPU_TIERS = [
-  { minRam: 32, modelId: "llama3.2:3b",   label: "Llama 3.2 3B",   reason: "Runs on CPU — your 32 GB RAM handles it well" },
-  { minRam: 16, modelId: "llama3.2:1b",   label: "Llama 3.2 1B",   reason: "Lightweight CPU model for 16 GB RAM" },
-  { minRam: 0,  modelId: "qwen2.5:0.5b",  label: "Qwen 2.5 0.5B",  reason: "Ultra-light — best fit for constrained systems" },
+// CPU-only — keep it small; CPU inference of big models is too slow.
+const CPU_LADDER: ModelRung[] = [
+  { modelId: "llama3.2:3b",  label: "Llama 3.2 3B",  memGb: 4,   blurb: "Largest that stays usable on CPU" },
+  { modelId: "llama3.2:1b",  label: "Llama 3.2 1B",  memGb: 2,   blurb: "Lightweight CPU model" },
+  { modelId: "qwen2.5:0.5b", label: "Qwen 2.5 0.5B", memGb: 1.5, blurb: "Ultra-light for constrained systems" },
 ];
 
 @Injectable()
@@ -72,29 +70,44 @@ export class SystemService {
   /** Detect system hardware. Never throws — returns partial info on errors. */
   async getSystemInfo(): Promise<SystemInfo> {
     const cpus = os.cpus();
-    const base: Omit<SystemInfo, "vramGb" | "gpuName" | "unifiedMemory" | "accelerator" | "detectionMethod"> = {
+    const base = {
       os: `${os.type()} ${os.release()}`,
       arch: os.arch(),
       cpuCount: cpus.length,
       cpuModel: cpus[0]?.model ?? "Unknown",
       ramGb: Math.round(os.totalmem() / 1e9),
+      freeGb: Math.round(os.freemem() / 1e9),
     };
 
     // Apple Silicon: unified memory + Metal GPU (no separate VRAM to detect).
-    if (process.platform === "darwin" && os.arch() === "arm64") {
-      return {
-        ...base,
-        gpuName: base.cpuModel, // e.g. "Apple M1 Pro" — the chip is the GPU
-        vramGb: null,
-        unifiedMemory: true,
-        accelerator: "Metal",
-        detectionMethod: "apple-silicon",
-      };
-    }
+    const gpu =
+      process.platform === "darwin" && os.arch() === "arm64"
+        ? {
+            gpuName: base.cpuModel, // e.g. "Apple M1 Pro" — the chip is the GPU
+            vramGb: null,
+            unifiedMemory: true,
+            accelerator: "Metal" as string | null,
+            detectionMethod: "apple-silicon",
+          }
+        : { unifiedMemory: false, ...this.detectGpu() };
 
-    // Otherwise try to detect a dedicated GPU's VRAM.
-    const gpu = this.detectGpu();
-    return { ...base, unifiedMemory: false, ...gpu };
+    const partial = { ...base, ...gpu } as Omit<SystemInfo, "usableGb">;
+    return { ...partial, usableGb: this.usableBudget(partial) };
+  }
+
+  /**
+   * How much memory we can realistically dedicate to a model on this machine.
+   *  - Dedicated GPU → its VRAM.
+   *  - Apple Silicon → ~60% of unified RAM (the rest for macOS + apps).
+   *  - CPU-only → ~50% of RAM.
+   * macOS reports very little "free" memory (it caches aggressively and reclaims
+   * on demand), so the budget is total-based; free memory is surfaced separately
+   * as a live-pressure hint rather than driving the pick.
+   */
+  private usableBudget(info: Omit<SystemInfo, "usableGb">): number {
+    if (info.vramGb != null) return info.vramGb;
+    const frac = info.unifiedMemory ? 0.6 : 0.5;
+    return Math.max(2, Math.round(info.ramGb * frac));
   }
 
   private detectGpu(): Pick<SystemInfo, "vramGb" | "gpuName" | "accelerator" | "detectionMethod"> {
@@ -155,35 +168,43 @@ export class SystemService {
   }
 
   recommend(info: SystemInfo, installedModelIds: string[]): ModelRecommendation {
-    // Pick the tier set that matches how this machine runs models:
-    //   Apple Silicon → unified-memory tiers (Metal); dedicated GPU → VRAM tiers;
-    //   everything else → CPU tiers keyed on RAM.
-    let activeTiers: { modelId: string; label: string; reason: string }[];
-    let chosen: { modelId: string; label: string; reason: string };
+    // GPU-class (Apple Metal or dedicated VRAM) can run bigger models than CPU.
+    const ladder = info.vramGb != null || info.unifiedMemory ? GPU_LADDER : CPU_LADDER;
+    const budget = info.usableGb;
 
-    if (info.unifiedMemory) {
-      activeTiers = APPLE_TIERS;
-      chosen = APPLE_TIERS.find((t) => info.ramGb >= t.minRam)!;
-    } else if (info.vramGb != null) {
-      activeTiers = TIERS;
-      chosen = TIERS.find((t) => info.vramGb! >= t.minVram) ?? CPU_TIERS.find((t) => info.ramGb >= t.minRam)!;
-    } else {
-      activeTiers = CPU_TIERS;
-      chosen = CPU_TIERS.find((t) => info.ramGb >= t.minRam)!;
+    // Pick the largest model whose runtime memory fits the budget; if even the
+    // smallest doesn't, recommend it anyway (best effort).
+    const chosen = ladder.find((m) => m.memGb <= budget) ?? ladder[ladder.length - 1];
+
+    // Transparent, computed reason derived from THIS machine's numbers.
+    const memType = info.vramGb != null
+      ? `${info.vramGb} GB VRAM`
+      : info.unifiedMemory
+        ? `${info.ramGb} GB unified memory`
+        : `${info.ramGb} GB RAM (CPU)`;
+    const headroom = budget - chosen.memGb;
+    const fit = headroom >= 6 ? "with comfortable headroom"
+      : headroom >= 2 ? "a solid fit"
+      : headroom >= 0 ? "the largest that fits"
+      : "the lightest available — your hardware is below its needs";
+    let reason = `${memType} → ~${budget} GB usable for models. ${chosen.label} needs ~${chosen.memGb} GB — ${fit}.`;
+    // Live-pressure hint: macOS under-reports free memory, so only warn when it's
+    // genuinely lower than what the model needs.
+    if (info.freeGb < chosen.memGb) {
+      reason += ` Only ~${info.freeGb} GB free right now — it'll still run (the OS frees cache on demand), but close heavy apps for best speed.`;
     }
 
-    // Alternatives: the other models in the same tier set (smaller/larger fits).
-    const alternatives = activeTiers
-      .filter((t) => t.modelId !== chosen.modelId)
+    const alternatives = ladder
+      .filter((m) => m.modelId !== chosen.modelId)
       .slice(0, 3)
-      .map((t) => ({ modelId: t.modelId, label: t.label, note: t.reason, size: MODEL_SIZES[t.modelId] ?? null }));
+      .map((m) => ({ modelId: m.modelId, label: m.label, note: m.blurb, size: MODEL_SIZES[m.modelId] ?? null }));
 
     return {
       modelId: chosen.modelId,
       label: chosen.label,
-      reason: chosen.reason,
+      reason,
       size: MODEL_SIZES[chosen.modelId] ?? null,
-      vramRequired: "minVram" in chosen ? (chosen as { minVram: number }).minVram : null,
+      vramRequired: chosen.memGb,
       alternatives,
       alreadyInstalled: installedModelIds.includes(chosen.modelId),
     };

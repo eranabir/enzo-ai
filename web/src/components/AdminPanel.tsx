@@ -298,7 +298,7 @@ function ModelsTab() {
                 { label: "CPU", value: `${analysis.info.cpuCount}c` },
                 { label: "RAM", value: `${analysis.info.ramGb}GB` },
                 { label: "GPU", value: analysis.info.gpuName?.split(" ").slice(-2).join(" ") ?? "—" },
-                { label: "VRAM", value: analysis.info.vramGb != null ? `${analysis.info.vramGb}GB` : "—" },
+                { label: "Usable", value: `~${analysis.info.usableGb}GB` },
               ].map(({ label, value }) => (
                 <div key={label} className="rounded-lg border border-border/50 px-2 py-1.5 text-center">
                   <div className="text-[9px] text-muted">{label}</div>

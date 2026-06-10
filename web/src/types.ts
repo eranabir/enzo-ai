@@ -113,10 +113,12 @@ export interface SystemInfo {
   cpuCount: number;
   cpuModel: string;
   ramGb: number;
+  freeGb: number;
   vramGb: number | null;
   gpuName: string | null;
   unifiedMemory: boolean;
   accelerator: string | null;
+  usableGb: number;
   detectionMethod: string;
 }
 
