@@ -1,5 +1,12 @@
 // electron-builder configuration (replaces electron-builder.yml).
 //
+// MUST NOT be named electron-builder.js: cmd.exe (which yarn uses to run
+// scripts on Windows) resolves bare commands from the current directory before
+// PATH, and PATHEXT includes .JS — so `electron-builder` run inside desktop/
+// would execute this config via Windows Script Host instead of the real CLI,
+// exiting 0 without building anything. Since this name isn't auto-discovered,
+// every package.json script passes it explicitly via --config.
+//
 // macOS signing is ENV-DRIVEN so builds never fail for missing credentials:
 //
 //   • Real Developer ID signing + notarization — used when CSC_LINK is set.

@@ -14,7 +14,7 @@
 // signing entirely), so we plug in here via the `mac.sign` option. electron-
 // builder calls this with the sign options object; `opts.app` is the .app path.
 //
-// NOTE: this hook is the FALLBACK. electron-builder.js only wires it in
+// NOTE: this hook is the FALLBACK. electron-builder.config.js only wires it in
 // when CSC_LINK is absent; when the Developer ID / notarization secrets are set,
 // the config does real signing instead and this hook is not used.
 

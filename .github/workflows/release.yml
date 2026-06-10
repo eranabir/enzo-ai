@@ -39,18 +39,6 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      # Windows Defender on the runner quarantines our unsigned NSIS installer
-      # (it bundles ollama.exe + native binaries) right after it's built — the
-      # Package step succeeds but the .exe is gone before upload. Exclude the
-      # workspace from realtime scanning so the installer survives.
-      - name: Neutralize Defender for the build
-        shell: pwsh
-        run: |
-          try { Set-MpPreference -DisableRealtimeMonitoring $true } catch { Write-Host "realtime off failed: $_" }
-          try { Add-MpPreference -ExclusionPath "${{ github.workspace }}", "$env:RUNNER_TEMP", "C:\\" } catch { Write-Host "exclusion failed: $_" }
-          $s = Get-MpComputerStatus
-          Write-Host "RealtimeProtectionEnabled =" $s.RealTimeProtectionEnabled
-          Write-Host "Exclusions =" (((Get-MpPreference).ExclusionPath) -join '; ')
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -69,28 +57,13 @@ jobs:
       - run: yarn build:all
       - name: Package
         run: yarn workspace @enzo-ai/desktop package:win
-      # The installer has been vanishing from desktop/dist on the runner. Search
-      # the whole tree for it (wherever electron-builder put it / before anything
-      # removes it) and stage it for upload, logging everything for diagnosis.
-      - name: Collect Windows installer
-        if: always()
-        shell: bash
-        run: |
-          echo "--- desktop/dist ---"; ls -la desktop/dist 2>/dev/null || echo "(missing)"
-          echo "--- repo-root dist ---"; ls -la dist 2>/dev/null || echo "(missing)"
-          echo "--- find installer ---"
-          found=$(find . -name 'enzo-ai-windows-*.exe' -not -path '*/node_modules/*' -not -path '*/win-unpacked/*' 2>/dev/null | head -1)
-          echo "found='$found'"
-          mkdir -p out
-          if [ -n "$found" ]; then cp "$found" out/ && echo "staged $(ls -la out)"; else echo "NO INSTALLER FOUND"; fi
-          echo "--- disk ---"; df -h . 2>/dev/null || true
       - name: Save artifacts
         uses: actions/upload-artifact@v4
         with:
           name: windows-assets
           retention-days: 1
-          path: out/*.exe
-          if-no-files-found: warn
+          path: desktop/dist/enzo-ai-windows-*.exe
+          if-no-files-found: error
 
   # ════════════════════════════════════════════════════════════════════════════
   # macOS arm64 — Apple Silicon (separate runner = no hdiutil conflict)
@@ -137,7 +110,7 @@ jobs:
           echo "Generated:" && ls -la icon.icns
       # Decode the App Store Connect API key (.p8) from a base64 secret to a file
       # when signing secrets are configured. If they aren't, the build falls back
-      # to ad-hoc signing automatically (see electron-builder.js).
+      # to ad-hoc signing automatically (see electron-builder.config.js).
       - name: Prepare Apple signing
         env:
           CSC_LINK_SECRET: ${{ secrets.CSC_LINK }}
@@ -172,6 +145,7 @@ jobs:
           name: macos-arm64-assets
           retention-days: 1
           path: desktop/dist/enzo-ai-macos-*-arm64.dmg
+          if-no-files-found: error
 
   # ════════════════════════════════════════════════════════════════════════════
   # LINUX — .deb only (no installer; Linux users install via package manager)
@@ -215,6 +189,7 @@ jobs:
           name: linux-assets
           retention-days: 1
           path: desktop/dist/enzo-ai-linux-*.deb
+          if-no-files-found: error
 
   # ════════════════════════════════════════════════════════════════════════════
   # PUBLISH — runs only when ALL jobs above pass

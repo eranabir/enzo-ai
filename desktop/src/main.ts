@@ -199,7 +199,7 @@ function openSetupWindow(): Promise<void> {
     });
 
     // setup.html ships inside the asar (listed under `files:` in
-    // electron-builder.yml), so resolve it relative to __dirname (dist/) — the
+    // electron-builder.config.js), so resolve it relative to __dirname (dist/) — the
     // same way the preload script is loaded. process.resourcesPath would point
     // outside the asar, where the file doesn't exist.
     const setupHtml = join(__dirname, "..", "src", "setup.html");
