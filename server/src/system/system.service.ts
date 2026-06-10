@@ -21,18 +21,52 @@ export interface SystemInfo {
   detectionMethod: string;
 }
 
-/** Approx download size (Q4) per model, shown wherever a model is listed. */
-const MODEL_SIZES: Record<string, string> = {
-  "qwen2.5:32b": "~20 GB",
-  "qwen2.5:14b": "~9 GB",
-  "qwen2.5:7b": "~4.7 GB",
-  "qwen2.5:0.5b": "~0.4 GB",
-  "llama3.1:8b": "~4.9 GB",
-  "llama3.2:3b": "~2 GB",
-  "llama3.2:1b": "~1.3 GB",
-};
+type ModelTag = "general" | "reasoning" | "code" | "vision";
+
+/** A curated slice of Ollama's library across families and sizes. `memGb` is
+ *  approx RUNTIME memory (Q4 weights + a working context); `size` is the
+ *  download. The recommender picks a diverse set of these that fit the machine,
+ *  so different hardware surfaces genuinely different models. */
+interface CatalogModel { modelId: string; label: string; memGb: number; size: string; tag: ModelTag; blurb: string }
+
+const CATALOG: CatalogModel[] = [
+  // ── tiny / very fast ─────────────────────────────────────────────
+  { modelId: "qwen2.5:0.5b",        label: "Qwen 2.5 0.5B",        memGb: 1.5, size: "~0.4 GB", tag: "general",   blurb: "Ultra-light, instant replies" },
+  { modelId: "deepseek-r1:1.5b",    label: "DeepSeek-R1 1.5B",     memGb: 2,   size: "~1.1 GB", tag: "reasoning", blurb: "Tiny step-by-step reasoner" },
+  { modelId: "qwen2.5-coder:1.5b",  label: "Qwen2.5-Coder 1.5B",   memGb: 2,   size: "~1 GB",   tag: "code",      blurb: "Lightweight coding model" },
+  { modelId: "llama3.2:1b",         label: "Llama 3.2 1B",         memGb: 2,   size: "~1.3 GB", tag: "general",   blurb: "Tiny and quick" },
+  { modelId: "gemma2:2b",           label: "Gemma 2 2B",           memGb: 2.5, size: "~1.6 GB", tag: "general",   blurb: "Google's compact model" },
+  // ── 3–4B ─────────────────────────────────────────────────────────
+  { modelId: "llama3.2:3b",         label: "Llama 3.2 3B",         memGb: 4,   size: "~2 GB",   tag: "general",   blurb: "Fast, capable all-rounder" },
+  { modelId: "qwen2.5:3b",          label: "Qwen 2.5 3B",          memGb: 4,   size: "~1.9 GB", tag: "general",   blurb: "Strong small general model" },
+  { modelId: "phi3:3.8b",           label: "Phi-3 3.8B",           memGb: 4.5, size: "~2.2 GB", tag: "general",   blurb: "Microsoft's efficient model" },
+  // ── 7–9B ─────────────────────────────────────────────────────────
+  { modelId: "mistral:7b",          label: "Mistral 7B",           memGb: 6,   size: "~4.4 GB", tag: "general",   blurb: "Popular, well-rounded" },
+  { modelId: "qwen2.5:7b",          label: "Qwen 2.5 7B",          memGb: 6,   size: "~4.7 GB", tag: "general",   blurb: "Excellent quality for its size" },
+  { modelId: "qwen2.5-coder:7b",    label: "Qwen2.5-Coder 7B",     memGb: 6,   size: "~4.7 GB", tag: "code",      blurb: "Great for writing code" },
+  { modelId: "deepseek-r1:8b",      label: "DeepSeek-R1 8B",       memGb: 6.5, size: "~4.9 GB", tag: "reasoning", blurb: "Strong reasoning at 8B" },
+  { modelId: "llama3.1:8b",         label: "Llama 3.1 8B",         memGb: 6.5, size: "~4.9 GB", tag: "general",   blurb: "Meta's solid all-rounder" },
+  { modelId: "llama3.2-vision:11b", label: "Llama 3.2 Vision 11B", memGb: 9,   size: "~7.8 GB", tag: "vision",    blurb: "Understands images" },
+  { modelId: "gemma2:9b",           label: "Gemma 2 9B",           memGb: 8,   size: "~5.4 GB", tag: "general",   blurb: "High-quality Google model" },
+  // ── 12–16B ───────────────────────────────────────────────────────
+  { modelId: "mistral-nemo:12b",    label: "Mistral Nemo 12B",     memGb: 9,   size: "~7 GB",   tag: "general",   blurb: "Long-context general model" },
+  { modelId: "qwen2.5:14b",         label: "Qwen 2.5 14B",         memGb: 11,  size: "~9 GB",   tag: "general",   blurb: "Top quality-to-speed balance" },
+  { modelId: "phi4:14b",            label: "Phi-4 14B",            memGb: 11,  size: "~9 GB",   tag: "general",   blurb: "Microsoft's strong 14B" },
+  { modelId: "deepseek-r1:14b",     label: "DeepSeek-R1 14B",      memGb: 11,  size: "~9 GB",   tag: "reasoning", blurb: "Strong reasoning at 14B" },
+  { modelId: "qwen2.5-coder:14b",   label: "Qwen2.5-Coder 14B",    memGb: 11,  size: "~9 GB",   tag: "code",      blurb: "Excellent local coding model" },
+  // ── 27–32B ───────────────────────────────────────────────────────
+  { modelId: "gemma2:27b",          label: "Gemma 2 27B",          memGb: 18,  size: "~16 GB",  tag: "general",   blurb: "Large, high-quality Google model" },
+  { modelId: "qwq:32b",             label: "QwQ 32B",              memGb: 22,  size: "~20 GB",  tag: "reasoning", blurb: "Reasoning-focused 32B" },
+  { modelId: "qwen2.5:32b",         label: "Qwen 2.5 32B",         memGb: 22,  size: "~20 GB",  tag: "general",   blurb: "Top-tier reasoning, heavy" },
+  { modelId: "qwen2.5-coder:32b",   label: "Qwen2.5-Coder 32B",    memGb: 22,  size: "~20 GB",  tag: "code",      blurb: "Best local coding model" },
+  // ── 70B+ ─────────────────────────────────────────────────────────
+  { modelId: "llama3.3:70b",        label: "Llama 3.3 70B",        memGb: 43,  size: "~43 GB",  tag: "general",   blurb: "Frontier-class, very heavy" },
+  { modelId: "qwen2.5:72b",         label: "Qwen 2.5 72B",         memGb: 47,  size: "~47 GB",  tag: "general",   blurb: "Largest general model" },
+];
+
+const CATALOG_BY_ID = new Map(CATALOG.map((m) => [m.modelId, m]));
 export function modelSize(id: string): string | null {
-  return MODEL_SIZES[id] ?? null;
+  return CATALOG_BY_ID.get(id)?.size ?? null;
 }
 
 export interface ModelRecommendation {
@@ -44,26 +78,6 @@ export interface ModelRecommendation {
   alternatives: { modelId: string; label: string; note: string; size: string | null }[];
   alreadyInstalled: boolean;
 }
-
-/** A model the recommender can pick, with its approx RUNTIME memory need (Q4
- *  weights + a working context) in GB. Ladders are ordered largest → smallest;
- *  we pick the largest whose memGb fits the machine's usable budget. */
-interface ModelRung { modelId: string; label: string; memGb: number; blurb: string }
-
-// GPU-class ladders (Apple Metal or dedicated VRAM) — can run bigger models.
-const GPU_LADDER: ModelRung[] = [
-  { modelId: "qwen2.5:32b", label: "Qwen 2.5 32B", memGb: 22, blurb: "Top-tier reasoning — heavy on memory" },
-  { modelId: "qwen2.5:14b", label: "Qwen 2.5 14B", memGb: 11, blurb: "Great quality-to-speed balance" },
-  { modelId: "llama3.1:8b", label: "Llama 3.1 8B", memGb: 6,  blurb: "Solid all-rounder" },
-  { modelId: "llama3.2:3b", label: "Llama 3.2 3B", memGb: 4,  blurb: "Fast and light" },
-  { modelId: "llama3.2:1b", label: "Llama 3.2 1B", memGb: 2,  blurb: "Tiny and quick" },
-];
-// CPU-only — keep it small; CPU inference of big models is too slow.
-const CPU_LADDER: ModelRung[] = [
-  { modelId: "llama3.2:3b",  label: "Llama 3.2 3B",  memGb: 4,   blurb: "Largest that stays usable on CPU" },
-  { modelId: "llama3.2:1b",  label: "Llama 3.2 1B",  memGb: 2,   blurb: "Lightweight CPU model" },
-  { modelId: "qwen2.5:0.5b", label: "Qwen 2.5 0.5B", memGb: 1.5, blurb: "Ultra-light for constrained systems" },
-];
 
 @Injectable()
 export class SystemService {
@@ -106,8 +120,7 @@ export class SystemService {
    */
   private usableBudget(info: Omit<SystemInfo, "usableGb">): number {
     if (info.vramGb != null) return info.vramGb;
-    const frac = info.unifiedMemory ? 0.6 : 0.5;
-    return Math.max(2, Math.round(info.ramGb * frac));
+    return Math.max(2, Math.round(info.ramGb * 0.5));
   }
 
   private detectGpu(): Pick<SystemInfo, "vramGb" | "gpuName" | "accelerator" | "detectionMethod"> {
@@ -168,44 +181,62 @@ export class SystemService {
   }
 
   recommend(info: SystemInfo, installedModelIds: string[]): ModelRecommendation {
-    // GPU-class (Apple Metal or dedicated VRAM) can run bigger models than CPU.
-    const ladder = info.vramGb != null || info.unifiedMemory ? GPU_LADDER : CPU_LADDER;
-    const budget = info.usableGb;
+    // On CPU-only machines, cap the budget — big models technically fit in RAM
+    // but are far too slow without GPU acceleration.
+    const cpuOnly = info.vramGb == null && !info.unifiedMemory;
+    const budget = cpuOnly ? Math.min(info.usableGb, 5) : info.usableGb;
 
-    // Pick the largest model whose runtime memory fits the budget; if even the
-    // smallest doesn't, recommend it anyway (best effort).
-    const chosen = ladder.find((m) => m.memGb <= budget) ?? ladder[ladder.length - 1];
+    // Everything that runs on this machine, largest first.
+    const fitting = CATALOG.filter((m) => m.memGb <= budget).sort((a, b) => b.memGb - a.memGb);
+    const pool = fitting.length ? fitting : [[...CATALOG].sort((a, b) => a.memGb - b.memGb)[0]];
+
+    // Primary = the largest general-purpose model that fits COMFORTABLY (within
+    // ~90% of budget, so it isn't maxing out memory). Alternatives may go right
+    // up to the full budget.
+    const comfy = pool.filter((m) => m.memGb <= budget * 0.9);
+    const chosen = comfy.find((m) => m.tag === "general") ?? comfy[0] ?? pool.find((m) => m.tag === "general") ?? pool[0];
+
+    // Diverse alternatives: prefer different families AND use-cases (reasoning,
+    // code, vision, other general families), and guarantee a small/fast pick —
+    // so the list reflects the breadth of the library, not one repeated family.
+    const fam = (id: string) => id.split(":")[0];
+    const rest = pool.filter((m) => m.modelId !== chosen.modelId);
+    const alts: CatalogModel[] = [];
+    const seenFam = new Set([fam(chosen.modelId)]);
+    const seenTag = new Set<ModelTag>([chosen.tag]);
+    for (const m of rest) {
+      if (alts.length >= 4) break;
+      if (!seenFam.has(fam(m.modelId)) || !seenTag.has(m.tag)) {
+        alts.push(m); seenFam.add(fam(m.modelId)); seenTag.add(m.tag);
+      }
+    }
+    if (!alts.some((m) => m.memGb <= 4)) {
+      const fast = rest.filter((m) => m.memGb <= 4 && !alts.includes(m)).sort((a, b) => b.memGb - a.memGb)[0];
+      if (fast) { if (alts.length >= 4) alts.pop(); alts.push(fast); }
+    }
+    for (const m of rest) { if (alts.length >= 4) break; if (!alts.includes(m)) alts.push(m); }
 
     // Transparent, computed reason derived from THIS machine's numbers.
-    const memType = info.vramGb != null
-      ? `${info.vramGb} GB VRAM`
-      : info.unifiedMemory
-        ? `${info.ramGb} GB unified memory`
-        : `${info.ramGb} GB RAM (CPU)`;
+    const memType = info.vramGb != null ? `${info.vramGb} GB VRAM`
+      : info.unifiedMemory ? `${info.ramGb} GB unified memory`
+      : `${info.ramGb} GB RAM (CPU)`;
     const headroom = budget - chosen.memGb;
     const fit = headroom >= 6 ? "with comfortable headroom"
       : headroom >= 2 ? "a solid fit"
       : headroom >= 0 ? "the largest that fits"
       : "the lightest available — your hardware is below its needs";
     let reason = `${memType} → ~${budget} GB usable for models. ${chosen.label} needs ~${chosen.memGb} GB — ${fit}.`;
-    // Live-pressure hint: macOS under-reports free memory, so only warn when it's
-    // genuinely lower than what the model needs.
     if (info.freeGb < chosen.memGb) {
       reason += ` Only ~${info.freeGb} GB free right now — it'll still run (the OS frees cache on demand), but close heavy apps for best speed.`;
     }
-
-    const alternatives = ladder
-      .filter((m) => m.modelId !== chosen.modelId)
-      .slice(0, 3)
-      .map((m) => ({ modelId: m.modelId, label: m.label, note: m.blurb, size: MODEL_SIZES[m.modelId] ?? null }));
 
     return {
       modelId: chosen.modelId,
       label: chosen.label,
       reason,
-      size: MODEL_SIZES[chosen.modelId] ?? null,
+      size: chosen.size,
       vramRequired: chosen.memGb,
-      alternatives,
+      alternatives: alts.slice(0, 4).map((m) => ({ modelId: m.modelId, label: m.label, note: m.blurb, size: m.size })),
       alreadyInstalled: installedModelIds.includes(chosen.modelId),
     };
   }
