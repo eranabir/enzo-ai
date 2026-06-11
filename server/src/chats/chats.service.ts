@@ -110,23 +110,48 @@ export class ChatsService {
         `SELECT * FROM messages WHERE chat_id = ? ORDER BY created_at ASC`,
       )
       .all(chatId) as MessageRow[];
-    for (const r of rows) r.content = this.vault.decryptField(r.content);
+    for (const r of rows) {
+      r.content = this.vault.decryptField(r.content);
+      if (r.attachment_name) r.attachment_name = this.vault.decryptField(r.attachment_name);
+      if (r.attachment_text) r.attachment_text = this.vault.decryptField(r.attachment_text);
+    }
     return rows;
   }
 
-  addMessage(chatId: string, role: Role, content: string, imageMime?: string): MessageRow {
+  addMessage(
+    chatId: string,
+    role: Role,
+    content: string,
+    imageMime?: string,
+    attachment?: { name: string; mime: string; text: string },
+  ): MessageRow {
     const id = randomUUID();
     const t = now();
     this.db
       .prepare(
-        `INSERT INTO messages (id, chat_id, role, content, image_mime, created_at)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO messages (id, chat_id, role, content, image_mime, attachment_name, attachment_mime, attachment_text, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(id, chatId, role, this.vault.encryptField(content), imageMime ?? null, t);
+      .run(
+        id, chatId, role,
+        this.vault.encryptField(content),
+        imageMime ?? null,
+        attachment ? this.vault.encryptField(attachment.name) : null,
+        attachment?.mime ?? null,
+        attachment ? this.vault.encryptField(attachment.text) : null,
+        t,
+      );
     this.db
       .prepare(`UPDATE chats SET updated_at = ? WHERE id = ?`)
       .run(t, chatId);
-    return { id, chat_id: chatId, role, content, image_mime: imageMime ?? null, created_at: t } as MessageRow;
+    return {
+      id, chat_id: chatId, role, content,
+      image_mime: imageMime ?? null,
+      attachment_name: attachment?.name ?? null,
+      attachment_mime: attachment?.mime ?? null,
+      attachment_text: attachment?.text ?? null,
+      created_at: t,
+    } as MessageRow;
   }
 
   /**

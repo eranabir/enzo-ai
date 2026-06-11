@@ -106,6 +106,9 @@ export type DatabaseConnection = Database.Database;
             role       TEXT NOT NULL CHECK (role IN ('system','user','assistant')),
             content    TEXT NOT NULL,
             image_mime TEXT,
+            attachment_name TEXT,
+            attachment_mime TEXT,
+            attachment_text TEXT,
             created_at INTEGER NOT NULL
           );
 
@@ -223,6 +226,9 @@ export type DatabaseConnection = Database.Database;
         ).run();
 
         if (!colExists("messages", "image_mime")) db.exec(`ALTER TABLE messages ADD COLUMN image_mime TEXT`);
+        if (!colExists("messages", "attachment_name")) db.exec(`ALTER TABLE messages ADD COLUMN attachment_name TEXT`);
+        if (!colExists("messages", "attachment_mime")) db.exec(`ALTER TABLE messages ADD COLUMN attachment_mime TEXT`);
+        if (!colExists("messages", "attachment_text")) db.exec(`ALTER TABLE messages ADD COLUMN attachment_text TEXT`);
 
         const userCols = db.prepare(`PRAGMA table_info(users)`).all() as { name: string }[];
         if (!userCols.some((c) => c.name === "role")) {

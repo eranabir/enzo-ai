@@ -18,6 +18,11 @@ export interface MessageRow {
   role: Role;
   content: string;
   image_mime: string | null;
+  // Attached document (PDF / Word / Excel / text). attachment_text holds the
+  // extracted plain text inlined into the model's context.
+  attachment_name: string | null;
+  attachment_mime: string | null;
+  attachment_text: string | null;
   created_at: number;
 }
 

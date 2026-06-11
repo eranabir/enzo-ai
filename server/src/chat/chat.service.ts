@@ -16,6 +16,7 @@ import type { ChatMessage } from "../llm/provider.types";
 import type { ChatRow } from "../database/database.types";
 import type { UserRow } from "../users/users.types";
 import { config } from "../config";
+import { extractDocumentText } from "./document-extract";
 
 export interface ChatEvent {
   token?: string;
@@ -108,21 +109,18 @@ export class ChatService {
 
     if (!user || !memoryEnabled) return lines.join(" ");
 
-    // ── Inject long-term memories ──────────────────────────────────────────
-    const memories = this.memoriesService.recent(user.id, 8);
+    // ── Inject durable personal memories ONLY ──────────────────────────────
+    // Facts / preferences / decisions about the *person* — deliberately NOT
+    // summaries of other chats, which caused unrelated conversations to bleed
+    // into new ones. `work_context` is per-chat activity, so it's excluded too:
+    // each chat keeps its own conversation context, while personalization stays.
+    const memories = this.memoriesService
+      .recent(user.id, 8)
+      .filter((m) => m.type !== "work_context");
     if (memories.length > 0) {
       lines.push("\n\nWhat you remember about this person:");
       for (const m of memories) {
         lines.push(`- [${m.type}] ${m.content}`);
-      }
-    }
-
-    // ── Inject recent chat summaries ──────────────────────────────
-    const summaries = this.memoriesService.recentSummaries(user.id, convoId, 3);
-    if (summaries.length > 0) {
-      lines.push("\n\nRecent work context (from previous chats):");
-      for (const s of summaries) {
-        lines.push(`- ${s.summary}`);
       }
     }
 
@@ -234,6 +232,28 @@ export class ChatService {
     try { return await fs.readFile(filePath); } catch { return null; }
   }
 
+  /** Save an uploaded document's original bytes so the user can download it later. */
+  async saveAttachment(messageId: string, buffer: Buffer): Promise<void> {
+    const uploadsDir = path.join(config.dataDir, "uploads");
+    await fs.mkdir(uploadsDir, { recursive: true });
+    await fs.writeFile(path.join(uploadsDir, `${messageId}.attach`), buffer);
+  }
+
+  /** Load a stored document's original bytes for download, or null if missing. */
+  async getAttachmentBuffer(messageId: string): Promise<Buffer | null> {
+    const filePath = path.join(config.dataDir, "uploads", `${messageId}.attach`);
+    try { return await fs.readFile(filePath); } catch { return null; }
+  }
+
+  /** Frame an attached document's extracted text for the model, capping length. */
+  private inlineAttachment(name: string | null, text: string): string {
+    const MAX = 60_000; // ~15k tokens — keep the chat from overflowing context
+    let body = text;
+    let note = "";
+    if (body.length > MAX) { body = body.slice(0, MAX); note = "\n\n[… document truncated …]"; }
+    return `The user attached a document "${name ?? "document"}". Its full contents:\n\n"""\n${body}${note}\n"""\n\n`;
+  }
+
   async *streamReply(
     convo: ChatRow,
     userId: string,
@@ -242,6 +262,9 @@ export class ChatService {
     signal: AbortSignal,
     imageBase64?: string,
     imageMime?: string,
+    // Attached document (PDF/Word/Excel/text). Its text is extracted, stored on
+    // the message, and inlined into the model's context every turn.
+    attachment?: { base64: string; mime: string; name: string },
     // Where this message came from ("telegram"/"discord"/"slack" for inbound
     // platform messages, undefined for the web UI). Used to avoid echoing a
     // reply back to the platform that already received it via its own handler.
@@ -269,16 +292,39 @@ export class ChatService {
     const memoryEnabled = convo.memory_enabled !== 0;
     const user = this.users.findById(userId);
 
-    const userMsg = this.convos.addMessage(convo.id, "user", content, imageMime);
+    // Extract text from an attached document before persisting the message, so
+    // a parse failure surfaces to the user instead of saving a broken message.
+    let attachmentMeta: { name: string; mime: string; text: string } | undefined;
+    let attachmentBuffer: Buffer | undefined;
+    if (attachment?.base64 && attachment.name) {
+      attachmentBuffer = Buffer.from(attachment.base64, "base64");
+      try {
+        const text = await extractDocumentText(attachmentBuffer, attachment.mime, attachment.name);
+        attachmentMeta = { name: attachment.name, mime: attachment.mime, text };
+      } catch (err) {
+        yield { error: `📎 ${(err as Error).message}` };
+        yield { done: true };
+        return;
+      }
+    }
+
+    const userMsg = this.convos.addMessage(convo.id, "user", content, imageMime, attachmentMeta);
     if (imageBase64 && imageMime) {
       await this.saveImage(userMsg.id, imageBase64, imageMime);
     }
+    if (attachmentBuffer) {
+      await this.saveAttachment(userMsg.id, attachmentBuffer);
+    }
 
     const allMessages = this.convos.listMessages(convo.id);
-    // Build history; for messages with images, load data from disk so providers can use it
+    // Build history; inline attached-document text and load image data from disk
+    // so providers can use them.
     const history: ChatMessage[] = await Promise.all(
       allMessages.map(async (m) => {
-        const base: ChatMessage = { role: m.role as any, content: m.content };
+        const text = m.attachment_text
+          ? this.inlineAttachment(m.attachment_name, m.attachment_text) + m.content
+          : m.content;
+        const base: ChatMessage = { role: m.role as any, content: text };
         if (m.image_mime) {
           const data = await this.loadImage(m.id, m.image_mime);
           if (data) { base.imageData = data; base.imageMime = m.image_mime; }
@@ -470,7 +516,7 @@ export class ChatService {
     if (!convo) throw new Error(`Chat ${convoId} not found for user ${userId}`);
     const controller = new AbortController();
     let reply = "";
-    for await (const event of this.streamReply(convo, userId, content, model, controller.signal, undefined, undefined, origin)) {
+    for await (const event of this.streamReply(convo, userId, content, model, controller.signal, undefined, undefined, undefined, origin)) {
       if (event.token) reply += event.token;
       if (event.error) throw new Error(event.error);
     }

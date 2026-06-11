@@ -1,10 +1,30 @@
 import { useRef, useState } from "react";
-import { ArrowUp, Square, Paperclip, X } from "lucide-react"; // image upload support
+import { ArrowUp, Square, Paperclip, X, FileText } from "lucide-react"; // image + document upload
 
 export interface AttachedImage {
   base64: string;   // without data-URI prefix
   mime: string;     // e.g. "image/jpeg"
   preview: string;  // data-URI for <img> preview
+}
+
+export interface AttachedDocument {
+  base64: string;   // raw file bytes (no data-URI prefix)
+  mime: string;     // e.g. "application/pdf"
+  name: string;     // original filename
+  size: number;     // bytes
+}
+
+// Documents the chat can read (extracted to text server-side). Images are added
+// only when the model is vision-capable (handled via canAttachImage).
+const DOCUMENT_ACCEPT =
+  ".txt,.md,.markdown,.csv,.tsv,.json,.jsonl,.log,.xml,.yaml,.yml,.html,.htm," +
+  ".css,.ts,.tsx,.js,.jsx,.py,.rb,.go,.rs,.java,.c,.h,.cpp,.cc,.cs,.php,.sh," +
+  ".sql,.toml,.ini,.pdf,.doc,.docx,.xls,.xlsx";
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
 export function Composer({
@@ -17,37 +37,56 @@ export function Composer({
   busy: boolean;
   disabled: boolean;
   canAttachImage?: boolean;
-  onSend: (text: string, image?: AttachedImage) => void;
+  onSend: (text: string, image?: AttachedImage, doc?: AttachedDocument) => void;
   onStop: () => void;
 }) {
   const [text, setText] = useState("");
   const [focused, setFocused] = useState(false);
   const [image, setImage] = useState<AttachedImage | null>(null);
+  const [doc, setDoc] = useState<AttachedDocument | null>(null);
+  const [err, setErr] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const submit = () => {
     const t = text.trim();
-    if ((!t && !image) || busy) return;
-    onSend(t || " ", image ?? undefined);
+    if ((!t && !image && !doc) || busy) return;
+    onSend(t || " ", image ?? undefined, doc ?? undefined);
     setText("");
     setImage(null);
+    setDoc(null);
   };
 
-  const canSend = (!!text.trim() || !!image) && !busy;
+  const canSend = (!!text.trim() || !!image || !!doc) && !busy;
+
+  const accept = (canAttachImage ? "image/*," : "") + DOCUMENT_ACCEPT;
+
+  const MAX_BYTES = 20 * 1024 * 1024; // 20 MB — base64 stays under the server's 30 MB body limit
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = ""; // reset early so the same file can be re-selected
     if (!file) return;
+    if (file.size > MAX_BYTES) {
+      setErr(`"${file.name}" is ${formatSize(file.size)} — files must be under 20 MB.`);
+      return;
+    }
+    setErr(null);
+    const isImage = file.type.startsWith("image/");
     const reader = new FileReader();
     reader.onload = () => {
       const dataUrl = reader.result as string;
       const [header, base64] = dataUrl.split(",");
-      const mime = header.match(/data:([^;]+)/)?.[1] ?? "image/jpeg";
-      setImage({ base64, mime, preview: dataUrl });
+      const mime = header.match(/data:([^;]+)/)?.[1] ?? file.type;
+      if (isImage && canAttachImage) {
+        setImage({ base64, mime: mime || "image/jpeg", preview: dataUrl });
+        setDoc(null);
+      } else {
+        // Documents (and any non-image) go through server-side text extraction.
+        setDoc({ base64, mime: mime || file.type || "application/octet-stream", name: file.name, size: file.size });
+        setImage(null);
+      }
     };
     reader.readAsDataURL(file);
-    // Reset so the same file can be re-selected
-    e.target.value = "";
   };
 
   return (
@@ -72,6 +111,32 @@ export function Composer({
         </div>
       )}
 
+      {/* Document attachment chip */}
+      {doc && (
+        <div className="mb-2 inline-flex max-w-full items-center gap-2 rounded-xl border border-border bg-surface-2 px-3 py-2 text-sm shadow">
+          <FileText className="h-4 w-4 flex-shrink-0 text-accent" />
+          <span className="min-w-0 flex-1 truncate text-fg" title={doc.name}>{doc.name}</span>
+          <span className="flex-shrink-0 text-xs text-muted">{formatSize(doc.size)}</span>
+          <button
+            onClick={() => setDoc(null)}
+            className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-muted hover:text-fg"
+            title="Remove document"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </div>
+      )}
+
+      {/* Attachment error (e.g. too large / unsupported) */}
+      {err && (
+        <div className="mb-2 flex items-center gap-2 rounded-xl border border-danger/40 bg-danger/10 px-3 py-2 text-xs text-danger">
+          <span className="min-w-0 flex-1">{err}</span>
+          <button onClick={() => setErr(null)} className="flex-shrink-0 hover:text-fg" title="Dismiss">
+            <X className="h-3 w-3" />
+          </button>
+        </div>
+      )}
+
       {/* Unified input container */}
       <div
         className={`relative flex items-end rounded-2xl border bg-surface-2 transition-all duration-200 ${
@@ -84,12 +149,13 @@ export function Composer({
         <input
           ref={fileRef}
           type="file"
-          accept="image/*"
+          accept={accept}
           className="hidden"
           onChange={handleFile}
         />
 
         <textarea
+          dir="auto"
           className="max-h-[200px] min-h-[52px] flex-1 resize-none bg-transparent px-4 py-3.5 text-sm leading-relaxed text-fg outline-none placeholder:text-muted/60"
           placeholder={disabled ? "Start Ollama to begin chatting…" : "Message Enzo AI…"}
           value={text}
@@ -112,12 +178,12 @@ export function Composer({
 
         {/* Action buttons: attach + send/stop */}
         <div className="flex flex-shrink-0 items-end gap-1 p-2">
-          {canAttachImage && !busy && (
+          {!busy && (
             <button
               type="button"
               disabled={disabled}
               onClick={() => fileRef.current?.click()}
-              title="Attach image"
+              title={canAttachImage ? "Attach a document or image" : "Attach a document (PDF, Word, Excel, text)"}
               className="flex h-9 w-9 items-center justify-center rounded-xl text-muted transition-colors hover:bg-surface hover:text-fg disabled:opacity-40"
             >
               <Paperclip className="h-4 w-4" />

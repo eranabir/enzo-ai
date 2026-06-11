@@ -32,20 +32,28 @@ export class OllamaProvider implements ChatProvider {
 
     // Fetch capabilities for each model in parallel (Ollama v0.3+ returns a
     // `capabilities` array from /api/show; older versions fall back to a
-    // name-based heuristic).
+    // name-based heuristic). One /api/show call per model derives all caps.
     return Promise.all(
-      models.map(async (m) => ({
-        id: m.name,
-        provider: this.id,
-        label: m.size ? `${(m.size / 1e9).toFixed(1)} GB` : undefined,
-        supportsTools: await this.checkToolSupport(m.name),
-        supportsVision: await this.checkVisionSupport(m.name),
-      })),
+      models.map(async (m) => {
+        const caps = await this.capabilities(m.name);
+        return {
+          id: m.name,
+          provider: this.id,
+          label: m.size ? `${(m.size / 1e9).toFixed(1)} GB` : undefined,
+          supportsTools: caps.tools,
+          supportsVision: caps.vision,
+          supportsChat: caps.chat,
+        };
+      }),
     );
   }
 
-  /** Ask Ollama whether this model supports tool/function calling. */
-  private async checkToolSupport(modelName: string): Promise<boolean> {
+  /**
+   * Derive a model's tool / vision / chat capabilities from a single /api/show
+   * call. `completion` (text generation) marks a chat model; embedding-only
+   * models (e.g. nomic-embed-text) report only `embedding` and so are not chat.
+   */
+  private async capabilities(modelName: string): Promise<{ tools: boolean; vision: boolean; chat: boolean }> {
     try {
       const res = await fetch(`${this.baseUrl}/api/show`, {
         method: "POST",
@@ -56,39 +64,23 @@ export class OllamaProvider implements ChatProvider {
       if (res.ok) {
         const info = (await res.json()) as { capabilities?: string[] };
         if (Array.isArray(info.capabilities)) {
-          return info.capabilities.includes("tools");
+          const caps = info.capabilities;
+          return {
+            tools: caps.includes("tools"),
+            vision: caps.includes("vision"),
+            chat: caps.includes("completion") || caps.includes("insert"),
+          };
         }
       }
-    } catch { /* fall through */ }
-    // Older Ollama without capabilities field — use known model families
-    return this.nameBasedToolsGuess(modelName);
-  }
-
-  private nameBasedToolsGuess(name: string): boolean {
-    const lower = name.toLowerCase();
-    return ["llama3.1", "llama3.2", "qwen2", "mistral", "mixtral",
-            "command-r", "firefunction"].some(m => lower.includes(m));
-  }
-
-  private async checkVisionSupport(modelName: string): Promise<boolean> {
-    try {
-      const res = await fetch(`${this.baseUrl}/api/show`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: modelName }),
-        signal: AbortSignal.timeout(3000),
-      });
-      if (res.ok) {
-        const info = (await res.json()) as { capabilities?: string[] };
-        if (Array.isArray(info.capabilities)) {
-          return info.capabilities.includes("vision");
-        }
-      }
-    } catch { /* fall through */ }
-    // Name-based fallback for known vision models
+    } catch { /* fall through to name-based heuristics */ }
     const lower = modelName.toLowerCase();
-    return ["llava", "llava-llama", "bakllava", "moondream", "minicpm-v",
-            "llama3.2-vision", "qwen2-vl", "gemma3"].some(m => lower.includes(m));
+    return {
+      tools: ["llama3.1", "llama3.2", "qwen2", "qwen2.5", "qwen3", "mistral", "mixtral",
+              "command-r", "firefunction"].some((m) => lower.includes(m)) && !lower.includes("embed"),
+      vision: ["llava", "llava-llama", "bakllava", "moondream", "minicpm-v",
+               "llama3.2-vision", "qwen2-vl", "gemma3"].some((m) => lower.includes(m)),
+      chat: !lower.includes("embed"),
+    };
   }
 
   /** Whether a model is already pulled locally. */

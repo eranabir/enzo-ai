@@ -416,7 +416,7 @@ export async function streamPullModel(
  * Uses fetch (not EventSource) so we can POST the body + auth header.
  */
 export async function streamChat(
-  body: { chatId: string; content: string; model?: string; imageBase64?: string; imageMime?: string; replaceFromMessageId?: string },
+  body: { chatId: string; content: string; model?: string; imageBase64?: string; imageMime?: string; attachmentBase64?: string; attachmentMime?: string; attachmentName?: string; replaceFromMessageId?: string },
   handlers: ChatHandlers,
   signal?: AbortSignal,
 ): Promise<void> {

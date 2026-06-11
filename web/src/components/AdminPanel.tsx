@@ -237,6 +237,11 @@ function ModelsTab() {
   }
 
   const localModels = models.filter(m => m.provider === "ollama");
+  // Chat models vs. embedding/utility models (e.g. nomic-embed-text). The latter
+  // can't hold a conversation, so they're listed separately and never offered as
+  // a default chat model.
+  const chatModels = localModels.filter(m => m.supportsChat !== false);
+  const utilityModels = localModels.filter(m => m.supportsChat === false);
 
   return (
     <div className="flex flex-col gap-6">
@@ -251,14 +256,20 @@ function ModelsTab() {
         </div>
         {err && <p className="mb-2 text-xs text-danger">{err}</p>}
 
-        {/* Installed models */}
+        {/* Installed chat models */}
         <div className="flex flex-col gap-1.5 mb-3">
-          {localModels.length === 0 ? (
-            <p className="text-xs text-muted py-2">No local models installed. Pull one below.</p>
-          ) : localModels.map((m) => (
+          {chatModels.length === 0 ? (
+            <p className="text-xs text-muted py-2">No local chat models installed. Pull one below.</p>
+          ) : chatModels.map((m) => (
             <div key={m.id} className="flex items-center gap-2 rounded-lg border border-border bg-surface-2 px-3 py-2">
               <span className="flex-1 truncate text-sm font-medium">{m.id}</span>
               {m.label && <span className="text-xs text-muted">{m.label}</span>}
+              {m.supportsTools && (
+                <span className="rounded-md bg-accent/15 px-1.5 py-0.5 text-[9px] font-bold uppercase text-accent-2" title="Supports tools / function calling">Tools</span>
+              )}
+              {m.supportsVision && (
+                <span className="rounded-md bg-surface px-1.5 py-0.5 text-[9px] font-bold uppercase text-muted" title="Can read images">Vision</span>
+              )}
               {m.id === defaultModel && (
                 <span className="rounded-full bg-ok/20 px-1.5 py-0.5 text-[9px] font-bold uppercase text-ok">Default</span>
               )}
@@ -271,6 +282,29 @@ function ModelsTab() {
             </div>
           ))}
         </div>
+
+        {/* Embedding / utility models — not chat-capable, kept separate */}
+        {utilityModels.length > 0 && (
+          <div className="mb-3">
+            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">
+              Embedding models
+            </p>
+            <div className="flex flex-col gap-1.5">
+              {utilityModels.map((m) => (
+                <div key={m.id} className="flex items-center gap-2 rounded-lg border border-border/60 bg-surface-2/50 px-3 py-2">
+                  <span className="flex-1 truncate text-sm font-medium text-muted">{m.id}</span>
+                  {m.label && <span className="text-xs text-muted">{m.label}</span>}
+                  <span className="rounded-md bg-surface px-1.5 py-0.5 text-[9px] font-bold uppercase text-muted" title="Turns documents into vectors for Knowledge Base search">Embedding</span>
+                  <button onClick={() => doDelete(m.id)} disabled={busy}
+                    className="text-xs text-muted hover:text-danger">Remove</button>
+                </div>
+              ))}
+            </div>
+            <p className="mt-1.5 text-[11px] text-muted">
+              Used by Knowledge Bases to search your documents — not for chatting. Safe to remove if you don't use Knowledge Bases.
+            </p>
+          </div>
+        )}
 
         {/* Pull */}
         <div className="flex gap-2 mb-1">

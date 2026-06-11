@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Copy, Check, Pencil, RefreshCw } from "lucide-react";
+import { Copy, Check, Pencil, RefreshCw, FileText, Download } from "lucide-react";
 import type { Message } from "../types";
+import { getToken } from "../api";
 import { Markdown } from "./Markdown";
 
 const SUGGESTIONS = [
@@ -129,13 +130,40 @@ function MessageBubble({ m, busy, onRegenerate, onEditMessage }: {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(m.content);
 
-  function copy() {
-    navigator.clipboard?.writeText(m.content)
-      .then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); })
-      .catch(() => {});
+  async function copy() {
+    const text = m.content;
+    let ok = false;
+    // Try the async Clipboard API first…
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        ok = true;
+      }
+    } catch { /* API present but blocked (sandboxed iframe / permission) — fall through */ }
+    // …then fall back to execCommand, which works where the API is absent or denied.
+    if (!ok) {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+      } catch { /* ignore */ }
+    }
+    if (ok) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    }
   }
 
   const showActions = !editing && (m.role === "user" || !!m.content);
+  // Media URLs are loaded directly by the browser, so they carry the session
+  // token as a query param instead of the x-enzo-ai-token header.
+  const mediaToken = encodeURIComponent(getToken() ?? "");
 
   return (
     <div className="group mx-auto max-w-[780px] px-6 py-3.5">
@@ -145,15 +173,29 @@ function MessageBubble({ m, busy, onRegenerate, onEditMessage }: {
 
       {m.image_mime && (
         <div className="mb-2">
-          <img src={`/api/chat/image/${m.id}`} alt="attached image"
+          <img src={`/api/chat/image/${m.id}?token=${mediaToken}`} alt="attached image"
             className="max-h-64 max-w-sm rounded-xl border border-border object-cover shadow" loading="lazy" />
         </div>
+      )}
+
+      {m.attachment_name && (
+        <a
+          href={`/api/chat/attachment/${m.id}?token=${mediaToken}`}
+          download={m.attachment_name}
+          className="group/att mb-2 inline-flex max-w-full items-center gap-2 rounded-xl border border-border bg-surface-2 px-3 py-2 text-sm shadow transition-colors hover:border-accent/60"
+          title={`Download ${m.attachment_name}`}
+        >
+          <FileText className="h-4 w-4 flex-shrink-0 text-accent" />
+          <span className="min-w-0 flex-1 truncate text-fg">{m.attachment_name}</span>
+          <Download className="h-3.5 w-3.5 flex-shrink-0 text-muted group-hover/att:text-fg" />
+        </a>
       )}
 
       {editing && m.role === "user" ? (
         <div className="flex flex-col gap-2">
           <textarea
             autoFocus
+            dir="auto"
             rows={Math.min(8, Math.max(2, draft.split("\n").length))}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
@@ -172,11 +214,11 @@ function MessageBubble({ m, busy, onRegenerate, onEditMessage }: {
           </div>
         </div>
       ) : m.role === "user" ? (
-        <div className="inline-block whitespace-pre-wrap break-words rounded-[10px] bg-user px-3.5 py-2.5 leading-relaxed">
+        <div dir="auto" className="inline-block whitespace-pre-wrap break-words rounded-[10px] bg-user px-3.5 py-2.5 leading-relaxed">
           {m.content}
         </div>
       ) : (
-        <div className="break-words leading-relaxed">
+        <div dir="auto" className="break-words leading-relaxed">
           {m.content ? <Markdown content={m.content} /> : (busy ? <span className="animate-blink text-accent-2">▋</span> : "")}
         </div>
       )}

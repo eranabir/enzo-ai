@@ -6,6 +6,8 @@ export interface Message {
   role: Role;
   content: string;
   image_mime?: string | null;
+  attachment_name?: string | null;
+  attachment_mime?: string | null;
   created_at: number;
 }
 
@@ -104,6 +106,8 @@ export interface ModelInfo {
   label?: string;
   supportsTools?: boolean;
   supportsVision?: boolean;
+  /** False for embedding-only models (hidden from chat/agent pickers). */
+  supportsChat?: boolean;
 }
 
 /** Hardware info + recommended model returned by GET /api/system. */

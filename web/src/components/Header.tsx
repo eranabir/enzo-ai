@@ -1,4 +1,4 @@
-import { Brain, Cpu } from "lucide-react";
+import { Brain, Cpu, Wrench, Eye } from "lucide-react";
 import type { Chat, ModelInfo } from "../types";
 import {
   Select,
@@ -34,7 +34,7 @@ export function Header({
     <header className="flex items-center justify-between border-b border-border bg-bg px-5 py-2.5">
       <div className="min-w-0 max-w-[280px]">
         {activeChat
-          ? <p className="truncate text-sm font-semibold text-fg">{activeChat.title}</p>
+          ? <p dir="auto" className="truncate text-sm font-semibold text-fg">{activeChat.title}</p>
           : <p className="text-sm font-semibold text-muted"></p>
         }
       </div>
@@ -100,6 +100,16 @@ export function Header({
                   {/* Suffix shown only in the dropdown, not in the trigger */}
                   {sizeHint && (
                     <span className="text-xs text-muted">{sizeHint}</span>
+                  )}
+                  {m.supportsTools && (
+                    <span className="inline-flex items-center gap-1 rounded-md bg-accent/15 px-1.5 py-0.5 text-[10px] font-semibold text-accent-2" title="Supports tools / function calling">
+                      <Wrench className="h-2.5 w-2.5" /> Tools
+                    </span>
+                  )}
+                  {m.supportsVision && (
+                    <span className="inline-flex items-center gap-1 rounded-md bg-surface-2 px-1.5 py-0.5 text-[10px] font-semibold text-muted" title="Can read images">
+                      <Eye className="h-2.5 w-2.5" /> Vision
+                    </span>
                   )}
                   {providerLabel[m.provider] && (
                     <span className={`text-[10px] font-semibold uppercase tracking-wide ${providerBadge[m.provider]}`}>

@@ -4,7 +4,8 @@ import { api, getToken, setToken, streamChat } from "./api";
 import type { Chat, Message, ModelInfo, User } from "./types";
 import { Sidebar } from "./components/Sidebar";
 import { ChatView } from "./components/ChatView";
-import { Composer, type AttachedImage } from "./components/Composer";
+import { Composer, type AttachedImage, type AttachedDocument } from "./components/Composer";
+import { ModelNudge } from "./components/ModelNudge";
 import { Header } from "./components/Header";
 import { AuthScreen } from "./components/AuthScreen";
 import { UnlockScreen } from "./components/UnlockScreen";
@@ -101,8 +102,11 @@ export function App() {
     api
       .models()
       .then(({ models, default: def }) => {
-        setModels(models);
-        setModel((m) => m || models[0]?.id || def);
+        // Hide embedding-only models (e.g. nomic-embed-text) — they can't chat.
+        const chatModels = models.filter((m) => m.supportsChat !== false);
+        setModels(chatModels);
+        // Prefer the server default; only fall back to the first chat model.
+        setModel((m) => m || def || chatModels[0]?.id || "");
       })
       .catch(() => {});
   }, [online, user]);
@@ -221,7 +225,7 @@ export function App() {
   });
 
   const send = useCallback(
-    async (content: string, image?: AttachedImage) => {
+    async (content: string, image?: AttachedImage, doc?: AttachedDocument) => {
       if (busy) return;
       let convoId = activeId;
 
@@ -240,6 +244,8 @@ export function App() {
         role: "user",
         content,
         image_mime: image?.mime ?? null,
+        attachment_name: doc?.name ?? null,
+        attachment_mime: doc?.mime ?? null,
         created_at: Date.now(),
       };
       const assistantMsg: Message = {
@@ -256,7 +262,11 @@ export function App() {
       abortRef.current = controller;
 
       await streamChat(
-        { chatId: convoId, content, model, imageBase64: image?.base64, imageMime: image?.mime },
+        {
+          chatId: convoId, content, model,
+          imageBase64: image?.base64, imageMime: image?.mime,
+          attachmentBase64: doc?.base64, attachmentMime: doc?.mime, attachmentName: doc?.name,
+        },
         streamInto(assistantMsg.id, convoId),
         controller.signal,
       ).finally(() => {
@@ -370,8 +380,9 @@ export function App() {
           onClose={() => {
             // Refresh models + chats — integrations may have added new chats
             api.models().then(({ models: m, default: def }) => {
-              setModels(m);
-              setModel((cur) => (m.find((x) => x.id === cur) ? cur : m[0]?.id || def));
+              const chatModels = m.filter((x) => x.supportsChat !== false);
+              setModels(chatModels);
+              setModel((cur) => (chatModels.find((x) => x.id === cur) ? cur : def || chatModels[0]?.id || ""));
             }).catch(() => {});
             refreshChats();
             closePanel();
@@ -411,6 +422,7 @@ export function App() {
           onModelChange={setModel}
           onToggleMemory={toggleMemory}
         />
+        <ModelNudge model={model} models={models} onManageModels={() => navigate("/admin")} />
         <ChatView
           messages={messages}
           busy={busy}

@@ -323,7 +323,7 @@ export function Sidebar({
                     {c.connection === "telegram" && <SiTelegram className="h-3 w-3 flex-shrink-0 text-[#2AABEE]" />}
                 {c.connection === "discord"  && <SiDiscord  className="h-3 w-3 flex-shrink-0 text-[#5865F2]" />}
                 {c.connection === "slack"    && <SlackIcon className="h-3 w-3 flex-shrink-0" />}
-                    <span className="truncate">{c.title}</span>
+                    <span dir="auto" className="truncate">{c.title}</span>
                   </DropdownMenuItem>
                 ))}
                 {chats.filter(c => !c.connection).length > 0 && <DropdownMenuSeparator />}
@@ -339,7 +339,7 @@ export function Sidebar({
                 {chats.filter(c => !c.connection).map(c => (
                   <DropdownMenuItem key={c.id} onClick={() => onSelect(c.id)}
                     className={c.id === activeId ? "bg-surface-2 text-fg" : ""}>
-                    <span className="truncate">{c.title}</span>
+                    <span dir="auto" className="truncate">{c.title}</span>
                   </DropdownMenuItem>
                 ))}
               </>
@@ -455,7 +455,7 @@ export function Sidebar({
                   {c.connection === "telegram" && <SiTelegram className="h-3 w-3 flex-shrink-0 text-[#2AABEE]" />}
                 {c.connection === "discord"  && <SiDiscord  className="h-3 w-3 flex-shrink-0 text-[#5865F2]" />}
                 {c.connection === "slack"    && <SlackIcon className="h-3 w-3 flex-shrink-0" />}
-                  <span className="truncate text-sm">{c.title}</span>
+                  <span dir="auto" className="truncate text-sm">{c.title}</span>
                 </div>
               )}
 

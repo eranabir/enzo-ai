@@ -37,7 +37,7 @@ function CodeBlock({ children }: { children: React.ReactNode }) {
 /** Render assistant markdown: GFM + syntax-highlighted code, links open safely. */
 export function Markdown({ content }: { content: string }) {
   return (
-    <div className="md-body">
+    <div dir="auto" className="md-body">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeHighlight]}

@@ -8,6 +8,7 @@
  * - value="" means "use system default"
  */
 import { useEffect, useState } from "react";
+import { Wrench } from "lucide-react";
 import { api } from "../../api";
 import type { ModelInfo } from "../../types";
 import {
@@ -47,7 +48,8 @@ export function ModelPicker({ value, onChange, models: propModels, defaultModelI
   useEffect(() => {
     if (propModels && propDefault !== undefined) return;
     api.models().then(({ models: m, default: def }) => {
-      if (!propModels)  setModels(m);
+      // Embedding-only models can't run an agent — hide them.
+      if (!propModels)  setModels(m.filter((x) => x.supportsChat !== false));
       if (!propDefault) setDefault(def);
     }).catch(() => {});
   }, [propModels, propDefault]);
@@ -76,7 +78,8 @@ export function ModelPicker({ value, onChange, models: propModels, defaultModelI
         {models.length > 0 && <SelectSeparator />}
 
         {providers.map((pid) => {
-          const pm = models.filter((m) => m.provider === pid);
+          // Only chat-capable models — embedding models can't run an agent.
+          const pm = models.filter((m) => m.provider === pid && m.supportsChat !== false);
           if (!pm.length) return null;
           return (
             <SelectGroup key={pid}>
@@ -89,6 +92,11 @@ export function ModelPicker({ value, onChange, models: propModels, defaultModelI
                     <span className="font-medium">{name}</span>
                     {m.label && pid === "ollama" && (
                       <span className="ml-1.5 text-xs text-muted">{m.label}</span>
+                    )}
+                    {m.supportsTools && (
+                      <span className="inline-flex items-center gap-1 rounded-md bg-accent/15 px-1.5 py-0.5 text-[10px] font-semibold text-accent-2" title="Supports tools / function calling">
+                        <Wrench className="h-2.5 w-2.5" /> Tools
+                      </span>
                     )}
                     {badge && (
                       <span className={`text-[10px] font-bold uppercase ${badge}`}>

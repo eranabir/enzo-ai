@@ -19,6 +19,12 @@ export interface ModelInfo {
   supportsTools: boolean;
   /** Whether the model can understand image inputs. */
   supportsVision: boolean;
+  /**
+   * Whether the model can hold a chat (text generation). False for
+   * embedding-only models like nomic-embed-text, which must be hidden from the
+   * chat/agent pickers. Omitted (undefined) is treated as chat-capable.
+   */
+  supportsChat?: boolean;
 }
 
 export interface ChatOptions {

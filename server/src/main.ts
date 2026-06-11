@@ -8,7 +8,14 @@ import { AppModule } from "./app.module";
 import { config } from "./config";
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, { cors: true });
+  // Disable Nest's default body parser so we can raise the size limit — chat
+  // messages can carry a base64-encoded document or image attachment, which the
+  // 100 KB Express default would reject ("request entity too large").
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { cors: true, bodyParser: false });
+  const express = require("express");
+  const BODY_LIMIT = "30mb";
+  app.use(express.json({ limit: BODY_LIMIT }));
+  app.use(express.urlencoded({ extended: true, limit: BODY_LIMIT }));
   app.setGlobalPrefix("api");
 
   const webDir = process.env.ENZO_WEB_DIR ?? "";
