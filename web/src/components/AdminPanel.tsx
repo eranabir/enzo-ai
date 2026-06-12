@@ -17,6 +17,31 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+function fmtGb(bytes: number): string {
+  return `${(bytes / 1e9).toFixed(1)} GB`;
+}
+
+/** Inline model-download progress bar (determinate when byte totals are known). */
+function PullBar({ status, progress }: { status: string; progress: { completed: number; total: number } | null }) {
+  const pct = progress && progress.total > 0
+    ? Math.min(100, Math.round((progress.completed / progress.total) * 100))
+    : null;
+  return (
+    <div className="mt-2 w-full">
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-bg">
+        <div
+          className={`h-full rounded-full bg-accent transition-all duration-300 ${pct == null ? "w-full animate-pulse" : ""}`}
+          style={pct != null ? { width: `${pct}%` } : undefined}
+        />
+      </div>
+      <p className="mt-1 truncate text-[10px] text-muted">
+        {progress ? `${fmtGb(progress.completed)} / ${fmtGb(progress.total)} · ` : ""}
+        {pct != null ? `${pct}%` : status}
+      </p>
+    </div>
+  );
+}
+
 // ── Users tab ───────────────────────────────────────────────────────────────
 
 function UsersTab({ currentUserId }: { currentUserId: string }) {
@@ -151,6 +176,8 @@ function ModelsTab() {
   const [pullName, setPullName] = useState("");
   const [pullStatus, setPullStatus] = useState("");
   const [pulling, setPulling] = useState(false);
+  const [pullingModel, setPullingModel] = useState<string | null>(null);
+  const [pullProgress, setPullProgress] = useState<{ completed: number; total: number } | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -222,17 +249,21 @@ function ModelsTab() {
     }
   }
 
-  async function doPull() {
-    const model = pullName.trim();
-    if (!model) return;
+  async function doPull(modelArg?: string) {
+    const model = (modelArg ?? pullName).trim();
+    if (!model || pulling) return;
+    setPullName(model);            // reflect what's downloading in the input
     setPulling(true);
-    setPullStatus("Starting…");
+    setPullingModel(model);
+    setPullProgress(null);
+    setPullStatus(`Downloading ${model}…`);
     setErr(null);
+    const reset = () => { setPulling(false); setPullingModel(null); setPullProgress(null); setPullStatus(""); };
     await streamPullModel(
       model,
-      (s) => setPullStatus(s),
-      () => { setPulling(false); setPullStatus(""); setPullName(""); load(); },
-      (e) => { setPulling(false); setPullStatus(""); setErr(e); },
+      (s, progress) => { setPullStatus(s); setPullProgress(progress ?? null); },
+      () => { reset(); setPullName(""); load(); },   // load() moves it into the installed list
+      (e) => { reset(); setErr(e); },
     );
   }
 
@@ -242,14 +273,19 @@ function ModelsTab() {
   // a default chat model.
   const chatModels = localModels.filter(m => m.supportsChat !== false);
   const utilityModels = localModels.filter(m => m.supportsChat === false);
+  // Is the active download for a model shown in the analyze box? If so its
+  // progress bar renders inside that item rather than under the manual pull input.
+  const inAnalysis = (id: string) =>
+    !!analysis && (analysis.recommendation.modelId === id || analysis.recommendation.alternatives.some((a) => a.modelId === id));
+  const pullingFromAnalyze = !!pullingModel && inAnalysis(pullingModel);
 
   return (
     <div className="flex flex-col gap-6">
 
-      {/* ── LOCAL AI ────────────────────────────────── */}
+      {/* ── LOCAL MODELS ────────────────────────────── */}
       <div>
         <div className="mb-3 flex items-center gap-2">
-          <span className="text-xs font-bold uppercase tracking-widest text-muted">🖥 Local AI</span>
+          <span className="text-xs font-bold uppercase tracking-widest text-muted">🖥 Local models</span>
           <span className={`text-[10px] font-semibold ${ollamaOnline ? "text-ok" : "text-danger"}`}>
             ● {ollamaOnline ? "Ollama running" : "Ollama offline"}
           </span>
@@ -306,25 +342,33 @@ function ModelsTab() {
           </div>
         )}
 
-        {/* Pull */}
+        {/* Pull (manual) */}
         <div className="flex gap-2 mb-1">
           <input className={inputCls} placeholder="Pull model — e.g. llama3.1:8b"
             value={pullName} onChange={(e) => setPullName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && !pulling && doPull()} disabled={pulling} />
-          <button onClick={doPull} disabled={pulling || !pullName.trim()}
+          <button onClick={() => doPull()} disabled={pulling || !pullName.trim()}
             className="flex-shrink-0 rounded-lg bg-accent px-3.5 py-2 text-sm font-semibold text-white hover:bg-accent-2 disabled:opacity-40">
-            {pulling ? "…" : "Pull"}
+            {pulling && !pullingFromAnalyze ? "…" : "Pull"}
           </button>
         </div>
-        {pullStatus && <p className="text-xs text-muted truncate mb-2">{pullStatus}</p>}
-        <p className="text-[11px] text-muted mb-3">Browse at <span className="text-accent-2">ollama.com/library</span></p>
+        {pulling && !pullingFromAnalyze && <PullBar status={pullStatus} progress={pullProgress} />}
+        <p className="mt-2 text-[11px] text-muted">Browse at <span className="text-accent-2">ollama.com/library</span></p>
+      </div>
 
-        {/* System analysis — compact */}
+      <div className="border-t border-border" />
+
+      {/* ── ANALYZE ─────────────────────────────────── */}
+      <div>
+        <div className="mb-3 flex items-center gap-2">
+          <span className="text-xs font-bold uppercase tracking-widest text-muted">🔍 Analyze</span>
+          <span className="text-[10px] text-muted">— best models for your hardware</span>
+        </div>
         {!analysis ? (
           <button onClick={analyzeSystem} disabled={analyzing}
-            className="flex items-center gap-1.5 text-xs text-accent-2 hover:underline disabled:opacity-40">
+            className="flex items-center gap-1.5 rounded-lg border border-accent/30 bg-accent/5 px-3 py-2 text-xs font-semibold text-accent-2 hover:bg-accent/10 disabled:opacity-40">
             <Cpu className="h-3.5 w-3.5" />
-            {analyzing ? "Analyzing…" : "Analyze hardware for best model"}
+            {analyzing ? "Analyzing…" : "Analyze my hardware"}
           </button>
         ) : (
           <div className="rounded-xl border border-accent/30 bg-accent/5 p-3">
@@ -341,23 +385,33 @@ function ModelsTab() {
                 </div>
               ))}
             </div>
-            <div className="flex items-center justify-between gap-2">
-              <div className="min-w-0">
-                <span className="text-[10px] text-accent-2 font-semibold">Recommended: </span>
-                <span className="text-sm font-bold text-fg">{analysis.recommendation.label}</span>
-                {analysis.recommendation.size && <span className="ml-1.5 rounded-full bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-muted">{analysis.recommendation.size}</span>}
-                <span className="ml-1.5 inline-flex align-middle"><TierBadge tier={analysis.recommendation.tier} /></span>
-                <p className="text-[11px] text-muted mt-0.5">{analysis.recommendation.reason}</p>
-              </div>
-              {analysis.recommendation.alreadyInstalled ? (
-                <span className="flex-shrink-0 text-[10px] font-semibold text-ok">Installed ✓</span>
-              ) : (
-                <button onClick={() => setPullName(analysis.recommendation.modelId)}
-                  className="flex-shrink-0 rounded-lg bg-accent px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-accent-2">
-                  Pull
-                </button>
-              )}
-            </div>
+            {(() => {
+              const rec = analysis.recommendation;
+              const recInstalled = models.some((m) => m.id === rec.modelId);
+              const isPulling = pullingModel === rec.modelId;
+              return (
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <span className="text-sm font-bold text-fg">{rec.label}</span>
+                      {rec.size && <span className="ml-1.5 rounded-full bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-muted">{rec.size}</span>}
+                      <span className="ml-1.5 rounded-md bg-accent/20 px-1.5 py-0.5 text-[9px] font-bold uppercase text-accent-2">★ Recommended</span>
+                      <span className="ml-1.5 inline-flex align-middle"><TierBadge tier={rec.tier} /></span>
+                      <p className="text-[11px] text-muted mt-0.5">{rec.reason}</p>
+                    </div>
+                    {recInstalled ? (
+                      <span className="flex-shrink-0 text-[10px] font-semibold text-ok">Installed ✓</span>
+                    ) : !isPulling ? (
+                      <button onClick={() => doPull(rec.modelId)} disabled={pulling}
+                        className="flex-shrink-0 rounded-lg bg-accent px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-accent-2 disabled:opacity-40">
+                        Pull
+                      </button>
+                    ) : null}
+                  </div>
+                  {isPulling && <PullBar status={pullStatus} progress={pullProgress} />}
+                </div>
+              );
+            })()}
 
             {/* Alternatives for other hardware tiers */}
             {analysis.recommendation.alternatives.length > 0 && (
@@ -366,22 +420,26 @@ function ModelsTab() {
                 <div className="flex flex-col gap-2">
                   {analysis.recommendation.alternatives.map((alt) => {
                     const installed = models.some((m) => m.id === alt.modelId);
+                    const isPulling = pullingModel === alt.modelId;
                     return (
-                      <div key={alt.modelId} className="flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <span className="text-xs font-semibold text-fg">{alt.label}</span>
-                          {alt.size && <span className="ml-1.5 rounded-full bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-muted">{alt.size}</span>}
-                          <span className="ml-1.5 inline-flex align-middle"><TierBadge tier={alt.tier} /></span>
-                          <p className="truncate text-[10px] text-muted">{alt.note}</p>
+                      <div key={alt.modelId}>
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <span className="text-xs font-semibold text-fg">{alt.label}</span>
+                            {alt.size && <span className="ml-1.5 rounded-full bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-muted">{alt.size}</span>}
+                            <span className="ml-1.5 inline-flex align-middle"><TierBadge tier={alt.tier} /></span>
+                            <p className="truncate text-[10px] text-muted">{alt.note}</p>
+                          </div>
+                          {installed ? (
+                            <span className="flex-shrink-0 text-[10px] font-semibold text-ok">Installed ✓</span>
+                          ) : !isPulling ? (
+                            <button onClick={() => doPull(alt.modelId)} disabled={pulling}
+                              className="flex-shrink-0 rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold text-fg hover:border-accent/40 disabled:opacity-40">
+                              Pull
+                            </button>
+                          ) : null}
                         </div>
-                        {installed ? (
-                          <span className="flex-shrink-0 text-[10px] font-semibold text-ok">Installed ✓</span>
-                        ) : (
-                          <button onClick={() => setPullName(alt.modelId)}
-                            className="flex-shrink-0 rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold text-fg hover:border-accent/40">
-                            Pull
-                          </button>
-                        )}
+                        {isPulling && <PullBar status={pullStatus} progress={pullProgress} />}
                       </div>
                     );
                   })}
@@ -396,11 +454,11 @@ function ModelsTab() {
 
       <div className="border-t border-border" />
 
-      {/* ── EXTERNAL AI ─────────────────────────────── */}
+      {/* ── EXTERNAL MODELS ─────────────────────────── */}
       <div>
         <div className="mb-3 flex items-center gap-2">
-          <span className="text-xs font-bold uppercase tracking-widest text-muted">☁ External AI</span>
-          <span className="text-[10px] text-muted">— keys stored encrypted on this machine</span>
+          <span className="text-xs font-bold uppercase tracking-widest text-muted">☁ External models</span>
+          <span className="text-[10px] text-muted">— API keys stored encrypted on this machine</span>
         </div>
 
         <div className="flex flex-col gap-3">
@@ -874,11 +932,13 @@ const TAB_ICONS: Record<Tab, React.ReactNode> = {
 export function AdminPanel({
   currentUser,
   onClose,
+  initialTab = "users",
 }: {
   currentUser: User;
   onClose: () => void;
+  initialTab?: Tab;
 }) {
-  const [tab, setTab] = useState<Tab>("users");
+  const [tab, setTab] = useState<Tab>(initialTab);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/80 p-4 backdrop-blur-sm">

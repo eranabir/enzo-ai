@@ -27,6 +27,9 @@ export function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [model, setModel] = useState<string>("");
+  const [defaultModel, setDefaultModel] = useState<string>("");
+  const defaultModelRef = useRef<string>("");
+  useEffect(() => { defaultModelRef.current = defaultModel; }, [defaultModel]);
   const [online, setOnline] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -48,7 +51,12 @@ export function App() {
       if (routeChatId !== activeIdRef.current) {
         setActiveId(routeChatId);
         api.getChat(routeChatId)
-          .then((d) => { setMessages(d.messages); if (d.model) setModel(d.model); })
+          .then((d) => {
+            setMessages(d.messages);
+            // A chat keeps its own model; a fresh chat (no model yet) shows the
+            // current system default so new chats reflect the latest default.
+            setModel(d.model || defaultModelRef.current || "");
+          })
           .catch(() => navigate("/", { replace: true }));
       }
     } else if (location.pathname === "/" && activeIdRef.current !== null) {
@@ -105,8 +113,13 @@ export function App() {
         // Hide embedding-only models (e.g. nomic-embed-text) — they can't chat.
         const chatModels = models.filter((m) => m.supportsChat !== false);
         setModels(chatModels);
-        // Prefer the server default; only fall back to the first chat model.
-        setModel((m) => m || def || chatModels[0]?.id || "");
+        // The default must be an INSTALLED model — the saved default can point at
+        // a since-removed model, which would leave the picker blank.
+        const effectiveDefault = chatModels.some((x) => x.id === def) ? def : (chatModels[0]?.id || "");
+        setDefaultModel(effectiveDefault);
+        // Keep the current pick if it's still installed; otherwise fall back to
+        // the (possibly newly-changed) default.
+        setModel((m) => (chatModels.some((x) => x.id === m) ? m : effectiveDefault));
       })
       .catch(() => {});
   }, [online, user]);
@@ -181,8 +194,9 @@ export function App() {
     setChats((prev) => [c, ...prev]);
     setActiveId(c.id);     // set first so the route effect doesn't reload over us
     setMessages([]);
+    if (defaultModel) setModel(defaultModel);  // new chats start on the system default
     navigate(`/chat/${c.id}`);
-  }, [navigate]);
+  }, [navigate, defaultModel]);
 
   const deleteChat = useCallback(
     async (id: string) => {
@@ -377,12 +391,21 @@ export function App() {
       {onPanel && location.pathname.startsWith("/admin") && user.isAdmin && (
         <AdminPanel
           currentUser={user}
+          initialTab={location.pathname === "/admin/models" ? "models" : "users"}
           onClose={() => {
-            // Refresh models + chats — integrations may have added new chats
+            // Refresh models + chats — admin may have changed the default,
+            // removed a model, or integrations may have added new chats.
             api.models().then(({ models: m, default: def }) => {
               const chatModels = m.filter((x) => x.supportsChat !== false);
               setModels(chatModels);
-              setModel((cur) => (chatModels.find((x) => x.id === cur) ? cur : def || chatModels[0]?.id || ""));
+              const effectiveDefault = chatModels.some((x) => x.id === def) ? def : (chatModels[0]?.id || "");
+              setDefaultModel(effectiveDefault);
+              // If the open chat is a brand-new one (no messages yet), reflect the
+              // (possibly changed) default; otherwise keep its model if still valid.
+              setModel((cur) => {
+                if (messages.length === 0) return effectiveDefault;
+                return chatModels.some((x) => x.id === cur) ? cur : effectiveDefault;
+              });
             }).catch(() => {});
             refreshChats();
             closePanel();
@@ -422,7 +445,7 @@ export function App() {
           onModelChange={setModel}
           onToggleMemory={toggleMemory}
         />
-        <ModelNudge model={model} models={models} onManageModels={() => navigate("/admin")} />
+        <ModelNudge model={model} models={models} onManageModels={() => navigate("/admin/models")} />
         <ChatView
           messages={messages}
           busy={busy}
