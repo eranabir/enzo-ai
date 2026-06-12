@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useConfirm } from "./ui/ConfirmProvider";
 import { Pencil, Trash2, Play, Clock, Zap, Globe, Calculator, Calendar, ChevronDown, ChevronRight, GitBranch } from "lucide-react";
 import { SiTelegram, SiDiscord } from "react-icons/si";
 import { SlackIcon } from "./ui/SlackIcon";
@@ -291,6 +292,7 @@ interface Props {
 }
 
 export function AgentsPanel({ onStartChat, onClose }: Props) {
+  const confirm = useConfirm();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [tools, setTools] = useState<ToolDefinition[]>([]);
   const [knowledgeBases, setKnowledgeBases] = useState<{ id: string; name: string }[]>([]);
@@ -391,7 +393,7 @@ export function AgentsPanel({ onStartChat, onClose }: Props) {
   }
 
   async function remove(id: string) {
-    if (!confirm("Delete this agent?")) return;
+    if (!(await confirm({ title: "Delete agent?", description: "This agent will be permanently deleted.", confirmText: "Delete", danger: true }))) return;
     await api.agents.delete(id).catch(() => {});
     setAgents(prev => prev.filter(a => a.id !== id));
   }

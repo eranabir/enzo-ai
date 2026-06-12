@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import { useConfirm } from "./ui/ConfirmProvider";
 import { ModelPicker } from "./ui/ModelPicker";
 
 const inputCls = "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-fg outline-none focus:border-accent placeholder:text-muted";
@@ -29,6 +30,7 @@ function TokenField({ hasValue, value, onChange, placeholder }: {
 // ── Telegram config ─────────────────────────────────────────────────────────────
 
 export function TelegramConfig() {
+  const confirm = useConfirm();
   const [token, setToken] = useState("");
   const [allowedIds, setAllowed] = useState("");
   const [model, setModel] = useState("");
@@ -60,7 +62,7 @@ export function TelegramConfig() {
   }
 
   async function remove() {
-    if (!confirm("Remove this Telegram connection? This deletes the saved bot token and all chats it created.")) return;
+    if (!(await confirm({ title: "Remove Telegram connection?", description: "The saved bot token and all chats it created will be deleted.", confirmText: "Remove", danger: true }))) return;
     setBusy(true); setError(null);
     try {
       await api.telegram.disconnect();
@@ -108,6 +110,7 @@ export function TelegramConfig() {
 // ── Discord config ──────────────────────────────────────────────────────────────
 
 export function DiscordConfig() {
+  const confirm = useConfirm();
   const [token, setToken] = useState("");
   const [allowedIds, setAllowed] = useState("");
   const [model, setModel] = useState("");
@@ -139,7 +142,7 @@ export function DiscordConfig() {
   }
 
   async function remove() {
-    if (!confirm("Remove this Discord connection? This deletes the saved bot token and all chats it created.")) return;
+    if (!(await confirm({ title: "Remove Discord connection?", description: "The saved bot token and all chats it created will be deleted.", confirmText: "Remove", danger: true }))) return;
     setBusy(true); setError(null);
     try {
       await api.discord.disconnect();
@@ -193,6 +196,7 @@ export function DiscordConfig() {
 // ── Slack config ────────────────────────────────────────────────────────────────
 
 export function SlackConfig() {
+  const confirm = useConfirm();
   const [botToken, setBotToken] = useState("");
   const [appToken, setAppToken] = useState("");
   const [allowedIds, setAllowed] = useState("");
@@ -227,7 +231,7 @@ export function SlackConfig() {
   }
 
   async function remove() {
-    if (!confirm("Remove this Slack connection? This deletes the saved tokens and all chats it created.")) return;
+    if (!(await confirm({ title: "Remove Slack connection?", description: "The saved tokens and all chats it created will be deleted.", confirmText: "Remove", danger: true }))) return;
     setBusy(true); setError(null);
     try {
       await api.slack.disconnect();

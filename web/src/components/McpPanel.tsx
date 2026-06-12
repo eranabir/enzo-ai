@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useConfirm } from "./ui/ConfirmProvider";
 import { Plus, Trash2, ToggleLeft, ToggleRight, Plug } from "lucide-react";
 import { ModalHeader } from "./ui/ModalHeader";
 import { api } from "../api";
@@ -164,6 +165,7 @@ interface Props {
 }
 
 export function McpPanel({ onClose }: Props) {
+  const confirm = useConfirm();
   const [servers, setServers] = useState<McpServer[]>([]);
   const [view, setView] = useState<"grid" | "featured-detail" | "custom-form">("grid");
   const [selectedFeatured, setSelectedFeatured] = useState<FeaturedConnector | null>(null);
@@ -231,7 +233,7 @@ export function McpPanel({ onClose }: Props) {
   }
 
   async function remove(id: string) {
-    if (!confirm("Remove this connector?")) return;
+    if (!(await confirm({ title: "Remove connector?", description: "This MCP connector will be removed.", confirmText: "Remove", danger: true }))) return;
     await api.mcp.delete(id).catch(() => {});
     setServers(prev => prev.filter(s => s.id !== id));
   }

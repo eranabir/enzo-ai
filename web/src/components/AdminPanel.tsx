@@ -4,6 +4,7 @@ import { api, streamPullModel } from "../api";
 import type { ModelInfo, User, SystemAnalysis } from "../types";
 import { ModalHeader } from "./ui/ModalHeader";
 import { TierBadge } from "./ui/TierBadge";
+import { useConfirm } from "./ui/ConfirmProvider";
 
 const inputCls =
   "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-fg outline-none focus:border-accent placeholder:text-muted";
@@ -45,6 +46,7 @@ function PullBar({ status, progress }: { status: string; progress: { completed: 
 // ── Users tab ───────────────────────────────────────────────────────────────
 
 function UsersTab({ currentUserId }: { currentUserId: string }) {
+  const confirm = useConfirm();
   const [users, setUsers] = useState<User[]>([]);
   const [resetting, setResetting] = useState<string | null>(null);
   const [newPw, setNewPw] = useState("");
@@ -56,7 +58,12 @@ function UsersTab({ currentUserId }: { currentUserId: string }) {
   }, []);
 
   async function doDelete(u: User) {
-    if (!confirm(`Delete ${u.displayName} and all their chats? This cannot be undone.`)) return;
+    if (!(await confirm({
+      title: "Delete user?",
+      description: `${u.displayName} and all their chats will be permanently deleted. This cannot be undone.`,
+      confirmText: "Delete user",
+      danger: true,
+    }))) return;
     setBusy(true);
     try {
       await api.admin.deleteUser(u.id);
@@ -165,6 +172,7 @@ const PROVIDER_META: Record<string, { label: string; color: string; placeholder:
 };
 
 function ModelsTab() {
+  const confirm = useConfirm();
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [defaultModel, setDefaultModel] = useState("");
   const [ollamaOnline, setOllamaOnline] = useState(true);
@@ -236,7 +244,12 @@ function ModelsTab() {
   }
 
   async function doDelete(name: string) {
-    if (!confirm(`Remove model "${name}" from Ollama?`)) return;
+    if (!(await confirm({
+      title: "Remove model?",
+      description: `"${name}" will be deleted from this machine. You can pull it again later.`,
+      confirmText: "Remove",
+      danger: true,
+    }))) return;
     setBusy(true);
     try {
       await api.admin.deleteModel(name);

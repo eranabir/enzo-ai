@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useConfirm } from "./ui/ConfirmProvider";
 import { Zap, MessageSquare, Brain, Trash2, RotateCcw, User, Plug } from "lucide-react";
 import { api, getToken } from "../api";
 import type { Memory, User as UserType } from "../types";
@@ -32,6 +33,7 @@ function toForm(u: UserType) {
 }
 
 export function SettingsPanel({ open, user, onClose, onUpdated }: Props) {
+  const confirm = useConfirm();
   const [form, setForm] = useState(() => toForm(user));
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -143,7 +145,7 @@ export function SettingsPanel({ open, user, onClose, onUpdated }: Props) {
   }
 
   async function clearAllMemories() {
-    if (!confirm("Clear all your memories? This cannot be undone.")) return;
+    if (!(await confirm({ title: "Clear all memories?", description: "Everything Enzo remembers about you will be permanently deleted. This cannot be undone.", confirmText: "Clear all", danger: true }))) return;
     setMemoriesBusy(true);
     await api.memories.clearAll().catch(() => {});
     setMemories([]);

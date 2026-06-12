@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useConfirm } from "./ui/ConfirmProvider";
 import { BookOpen, Trash2, FileText, Globe, Upload, MessageSquare, Pencil } from "lucide-react";
 import { api } from "../api";
 import type { KnowledgeBase, KnowledgeDocument } from "../types";
@@ -12,6 +13,7 @@ interface Props {
 }
 
 export function KnowledgePanel({ onClose, onStartChat }: Props) {
+  const confirm = useConfirm();
   const [bases, setBases] = useState<KnowledgeBase[]>([]);
   const [embed, setEmbed] = useState<{ model: string; available: boolean } | null>(null);
   const [view, setView] = useState<"list" | "detail">("list");
@@ -33,7 +35,7 @@ export function KnowledgePanel({ onClose, onStartChat }: Props) {
   }
 
   async function deleteBase(id: string) {
-    if (!confirm("Delete this knowledge base and all its documents?")) return;
+    if (!(await confirm({ title: "Delete knowledge base?", description: "This knowledge base and all its documents will be permanently deleted.", confirmText: "Delete", danger: true }))) return;
     await api.knowledge.deleteBase(id).catch(() => {});
     setBases((prev) => prev.filter((b) => b.id !== id));
   }
