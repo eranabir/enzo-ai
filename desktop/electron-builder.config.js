@@ -46,7 +46,7 @@ const mac = {
 module.exports = {
   appId: "com.enzo-ai.app",
   productName: "Enzo AI",
-  copyright: "© 2025 Enzo AI",
+  copyright: "© 2026 Eran Abir",
   electronVersion: "34.5.8",
 
   // NOTE: electron-builder's output also lands in dist/ (mac-arm64/, *.dmg, …).
@@ -70,6 +70,8 @@ module.exports = {
     { from: "../node_modules/file-uri-to-path", to: "node_modules/file-uri-to-path", filter: ["**/*"] },
     { from: "../web/dist", to: "web/dist", filter: ["**/*"] },
     { from: "resources/ollama", to: "ollama", filter: ["**/*"] },
+    { from: "../LICENSE", to: "LICENSE" },
+    { from: "../THIRD_PARTY_NOTICES.md", to: "THIRD_PARTY_NOTICES.md" },
   ],
 
   npmRebuild: true,

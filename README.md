@@ -1,6 +1,6 @@
 # ⬡ EnzoAI
 
-**Your private, local-first AI assistant.** EnzoAI runs entirely on your own machine — conversations, memory and API keys never leave your device.
+**Your private, local-first AI assistant.** EnzoAI runs on your own machine — conversations, memory and API keys stay on your device by default. Nothing is ever sent to us. Data only leaves your machine if *you* choose to connect an external provider (OpenAI, Anthropic, Google) or integration (Telegram, Discord, Slack).
 
 [![Release](https://img.shields.io/github/v/release/eranabir/enzo-ai)](https://github.com/eranabir/enzo-ai/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -284,4 +284,6 @@ All data lives in `%APPDATA%/Enzo AI/` (desktop) or `/app/data` (Docker). No tel
 
 ## License
 
-MIT © 2025 Enzo AI
+MIT © 2026 Eran Abir — see [LICENSE](LICENSE).
+
+Bundled third-party components (including the Ollama binary) are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

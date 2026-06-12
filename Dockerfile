@@ -58,6 +58,9 @@ COPY --from=builder /build/node_modules/better-sqlite3 ./node_modules/better-sql
 COPY --from=builder /build/node_modules/bindings ./node_modules/bindings
 COPY --from=builder /build/node_modules/file-uri-to-path ./node_modules/file-uri-to-path
 
+# License + third-party notices (Ollama is redistributed in this image)
+COPY LICENSE THIRD_PARTY_NOTICES.md /app/
+
 # Startup script
 COPY docker-start.sh /docker-start.sh
 RUN chmod +x /docker-start.sh
