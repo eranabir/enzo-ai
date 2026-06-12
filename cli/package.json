@@ -1,6 +1,6 @@
 {
   "name": "@enzo-ai/cli",
-  "version": "0.3.20",
+  "version": "1.0.0",
   "private": true,
   "description": "Enzo AI command-line client",
   "bin": {
