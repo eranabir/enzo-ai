@@ -1,16 +1,26 @@
 name: Deploy Landing Page
 
-# Publishes the site/ landing page to GitHub Pages whenever it changes —
-# no full release required. Releases stamp the version + deploy via release.yml;
-# this handles everyday landing-page updates.
+# Publishes the site/ landing page to GitHub Pages.
+#
+# Version-badge stamping only happens after a release actually succeeds —
+# triggered by the Release workflow's own completion, not by the version-bump
+# commit landing on master. A push that only bumps package.json can't deploy
+# a "vX.Y now available" badge before the installers it promises actually
+# exist (previously this ran on every master push touching package.json,
+# regardless of whether the multi-platform release build behind it passed).
+#
+# Everyday site/ edits unrelated to a release still deploy immediately via
+# the plain push trigger below (using whatever version is already committed).
 
 on:
   push:
     branches: [master]
     paths:
       - 'site/**'
-      - 'package.json'          # release commits bump this → re-stamp + redeploy
       - '.github/workflows/pages.yml'
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -25,12 +35,18 @@ concurrency:
 
 jobs:
   deploy:
+    # For workflow_run: only deploy if the Release run it's reacting to actually succeeded.
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # workflow_run checks out the trigger workflow's own ref by default,
+          # not the commit the Release run actually built — pin explicitly.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - name: Stamp current version into the landing page badge
         run: |
           MINOR=$(node -p "require('./package.json').version.split('.').slice(0,2).join('.')")
