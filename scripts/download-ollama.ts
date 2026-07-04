@@ -104,7 +104,9 @@ function extract(archive: string): void {
         // robocopy's exit code is a bitmask; 0-7 all mean success, only 8+ is a real failure
         if (((e as { status?: number }).status ?? 0) >= 8) throw e;
       }
-      execSync(`rmdir /S /Q "${tmp}"`, { shell: "cmd.exe" });
+      // /MOVE already deletes tmp's contents (and usually tmp itself) as it
+      // goes, so it may already be gone here — only clean up if it survived.
+      if (existsSync(tmp)) execSync(`rmdir /S /Q "${tmp}"`, { shell: "cmd.exe" });
       if (!existsSync(OUT_FILE)) throw new Error("ollama.exe not found inside zip");
       break;
     }
