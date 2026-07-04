@@ -82,7 +82,7 @@ export function AuthScreen({
 
   const [reg, setReg] = useState({
     username: "", password: "",
-    firstName: "", lastName: "",
+    firstName: "", lastName: "", idDoc: "",
     superPowers: "", about: "", assistantStyle: "", pin: "",
   });
 
@@ -319,6 +319,12 @@ export function AuthScreen({
                 <Label htmlFor="reg-user">Username <span className="font-normal text-muted/70">— used to sign in</span></Label>
                 <input id="reg-user" className={inputCls} placeholder="jane"
                   value={reg.username} onChange={(e) => setReg({ ...reg, username: e.target.value })} />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="reg-id-doc">תעודת זהות / דרכון</Label>
+                <input id="reg-id-doc" className={inputCls} dir="rtl" placeholder="מספר תעודת זהות או דרכון"
+                  value={reg.idDoc} onChange={(e) => setReg({ ...reg, idDoc: e.target.value })} />
               </div>
 
               <div className="grid grid-cols-2 gap-3">

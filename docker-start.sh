@@ -4,7 +4,7 @@
 
 set -e
 
-OLLAMA_BIN="/usr/local/bin/ollama"
+OLLAMA_BIN="/usr/bin/ollama"
 INTERNAL_OLLAMA_URL="http://127.0.0.1:11434"
 
 # If an external Ollama URL is provided, skip the bundled one

@@ -94,11 +94,18 @@ function extract(archive: string): void {
       execSync(
         `powershell -Command "Expand-Archive -Path '${archive}' -DestinationPath '${tmp}' -Force"`,
       );
-      // Find ollama.exe anywhere in the extracted tree
-      const found = findFile(tmp, "ollama.exe");
-      if (!found) throw new Error("ollama.exe not found inside zip");
-      execSync(`move /Y "${found}" "${OUT_FILE}"`, { shell: "cmd.exe" });
+      // The zip's top-level layout (ollama.exe + lib/ollama/** runner
+      // binaries and backend DLLs) must be preserved as-is under OUT_DIR —
+      // ollama.exe alone can list/pull models but cannot actually run
+      // inference without lib/ollama/llama-server.exe alongside it.
+      try {
+        execSync(`robocopy "${tmp}" "${OUT_DIR}" /E /MOVE`, { shell: "cmd.exe" });
+      } catch (e) {
+        // robocopy's exit code is a bitmask; 0-7 all mean success, only 8+ is a real failure
+        if (((e as { status?: number }).status ?? 0) >= 8) throw e;
+      }
       execSync(`rmdir /S /Q "${tmp}"`, { shell: "cmd.exe" });
+      if (!existsSync(OUT_FILE)) throw new Error("ollama.exe not found inside zip");
       break;
     }
     case "darwin":

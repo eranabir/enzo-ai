@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { ArrowUp, Square, Paperclip, X, FileText } from "lucide-react"; // image + document upload
 
 export interface AttachedImage {
@@ -27,19 +27,20 @@ function formatSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-export function Composer({
-  busy,
-  disabled,
-  canAttachImage,
-  onSend,
-  onStop,
-}: {
+export interface ComposerHandle {
+  /** Attach a file exactly as if it had been picked from the file dialog — used by the page-level drag-and-drop zone. */
+  attachFile: (file: File) => void;
+}
+
+interface ComposerProps {
   busy: boolean;
   disabled: boolean;
   canAttachImage?: boolean;
   onSend: (text: string, image?: AttachedImage, doc?: AttachedDocument) => void;
   onStop: () => void;
-}) {
+}
+
+export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer({ busy, disabled, canAttachImage, onSend, onStop }, ref) {
   const [text, setText] = useState("");
   const [focused, setFocused] = useState(false);
   const [image, setImage] = useState<AttachedImage | null>(null);
@@ -62,10 +63,8 @@ export function Composer({
 
   const MAX_BYTES = 20 * 1024 * 1024; // 20 MB — base64 stays under the server's 30 MB body limit
 
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = ""; // reset early so the same file can be re-selected
-    if (!file) return;
+  const processFile = (file: File) => {
+    if (disabled) return;
     if (file.size > MAX_BYTES) {
       setErr(`"${file.name}" is ${formatSize(file.size)} — files must be under 20 MB.`);
       return;
@@ -87,6 +86,24 @@ export function Composer({
       }
     };
     reader.readAsDataURL(file);
+  };
+
+  useImperativeHandle(ref, () => ({ attachFile: processFile }));
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // reset early so the same file can be re-selected
+    if (file) processFile(file);
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const file = [...(e.clipboardData?.items ?? [])]
+      .find((item) => item.kind === "file")
+      ?.getAsFile();
+    if (file) {
+      e.preventDefault();
+      processFile(file);
+    }
   };
 
   return (
@@ -168,6 +185,7 @@ export function Composer({
           }}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
+          onPaste={handlePaste}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
@@ -219,4 +237,4 @@ export function Composer({
       </p>
     </div>
   );
-}
+});

@@ -1,6 +1,6 @@
 {
   "name": "enzo-ai",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "description": "Enzo AI - a self-hosted, local-first AI chat experience",
   "workspaces": [
@@ -23,6 +23,7 @@
     "build:all": "yarn build && yarn workspace @enzo-ai/desktop build",
     "create:icons": "npx tsx scripts/create-icons.ts",
     "download:ollama": "npx tsx scripts/download-ollama.ts",
+    "smoke:test": "npx tsx scripts/smoke-test.ts",
     "fix:sqlite": "node -e \"process.chdir('node_modules/better-sqlite3'); require('child_process').execSync('node ../../prebuild-install/bin.js', {stdio:'inherit'})\"",
     "dist:win": "yarn build && yarn build:desktop && yarn workspace @enzo-ai/desktop dist:win && yarn fix:sqlite",
     "dist:mac": "yarn build && yarn build:desktop && yarn workspace @enzo-ai/desktop dist:mac && yarn fix:sqlite",

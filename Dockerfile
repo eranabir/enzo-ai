@@ -1,9 +1,12 @@
 # ── Stage 1: Build ────────────────────────────────────────────────────────────
-FROM node:20-alpine AS builder
+# Debian-slim (glibc), not Alpine (musl) — the bundled Ollama binary below is
+# glibc-linked, and better-sqlite3's native module must be compiled against the
+# same libc as the runtime stage it ends up in, so both stages use the same base.
+FROM node:20-bookworm-slim AS builder
 
 WORKDIR /build
 
-RUN apk add --no-cache python3 make g++
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ && rm -rf /var/lib/apt/lists/*
 
 # Copy workspace manifests — good layer caching
 COPY package.json yarn.lock ./
@@ -33,14 +36,25 @@ FROM ollama/ollama:latest AS ollama
 
 
 # ── Stage 3: Runtime ──────────────────────────────────────────────────────────
-FROM node:20-alpine
+FROM node:20-bookworm-slim
 
 WORKDIR /app
 
-RUN apk add --no-cache tini wget
+# ca-certificates is required for the bundled Ollama binary (a Go program) to
+# verify TLS when pulling models from the registry — node:*-slim doesn't ship
+# it, and unlike Node's fetch (which bundles its own CA list), Go's TLS client
+# reads the OS trust store, so without this package every model pull fails
+# with "x509: certificate signed by unknown authority".
+RUN apt-get update && apt-get install -y --no-install-recommends tini wget ca-certificates && rm -rf /var/lib/apt/lists/*
 
-# Ollama binary from official image (correct arch, always up to date)
-COPY --from=ollama /usr/bin/ollama /usr/local/bin/ollama
+# Ollama binary from official image (correct arch, always up to date). Kept at
+# the same /usr/bin/ollama path as upstream — Ollama locates its runner
+# relative to the binary's own directory, so the binary and /usr/lib/ollama
+# (the actual inference engines: llama-server + backend .so files per CPU/GPU)
+# must keep the same relative layout as the official image or the daemon
+# starts and lists models fine but every chat request fails.
+COPY --from=ollama /usr/bin/ollama /usr/bin/ollama
+COPY --from=ollama /usr/lib/ollama /usr/lib/ollama
 
 # NestJS server bundle
 COPY --from=builder /build/server/dist/bundle/index.js ./server.js
@@ -76,5 +90,5 @@ ENV ENZO_PORT=1616
 ENV ENZO_DATA_DIR=/app/data
 ENV ENZO_WEB_DIR=/app/web/dist
 
-ENTRYPOINT ["/sbin/tini", "--"]
+ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["/docker-start.sh"]

@@ -4,7 +4,7 @@ import { api, getToken, setToken, streamChat } from "./api";
 import type { Chat, Message, ModelInfo, User } from "./types";
 import { Sidebar } from "./components/Sidebar";
 import { ChatView } from "./components/ChatView";
-import { Composer, type AttachedImage, type AttachedDocument } from "./components/Composer";
+import { Composer, type AttachedImage, type AttachedDocument, type ComposerHandle } from "./components/Composer";
 import { ModelNudge } from "./components/ModelNudge";
 import { Header } from "./components/Header";
 import { AuthScreen } from "./components/AuthScreen";
@@ -35,6 +35,35 @@ export function App() {
   const abortRef = useRef<AbortController | null>(null);
   const activeIdRef = useRef<string | null>(null);
   useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
+  const composerRef = useRef<ComposerHandle>(null);
+  const [dragActive, setDragActive] = useState(false);
+  const dragDepth = useRef(0);
+
+  const hasFiles = (e: React.DragEvent) => e.dataTransfer.types.includes("Files");
+
+  const onChatDragEnter = (e: React.DragEvent) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    dragDepth.current++;
+    setDragActive(true);
+  };
+  const onChatDragLeave = (e: React.DragEvent) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) setDragActive(false);
+  };
+  const onChatDragOver = (e: React.DragEvent) => {
+    if (hasFiles(e)) e.preventDefault();
+  };
+  const onChatDrop = (e: React.DragEvent) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    dragDepth.current = 0;
+    setDragActive(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) composerRef.current?.attachFile(file);
+  };
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -436,7 +465,20 @@ export function App() {
         onKnowledgeOpen={() => navigate("/knowledge")}
         onSettingsOpen={() => navigate("/settings")}
       />
-      <main className="flex flex-1 flex-col min-w-0">
+      <main
+        className="relative flex flex-1 flex-col min-w-0"
+        onDragEnter={onChatDragEnter}
+        onDragLeave={onChatDragLeave}
+        onDragOver={onChatDragOver}
+        onDrop={onChatDrop}
+      >
+        {dragActive && (
+          <div className="pointer-events-none absolute inset-2 z-50 flex items-center justify-center rounded-2xl border-2 border-dashed border-accent bg-accent/10 backdrop-blur-sm">
+            <p className="rounded-xl bg-surface px-5 py-3 text-sm font-semibold text-fg shadow-lg">
+              Drop image to attach
+            </p>
+          </div>
+        )}
         <Header
           models={models}
           model={model}
@@ -457,6 +499,7 @@ export function App() {
           onEditMessage={editMessage}
         />
         <Composer
+          ref={composerRef}
           busy={busy}
           disabled={online === false}
           canAttachImage={models.find((m) => m.id === model)?.supportsVision ?? false}

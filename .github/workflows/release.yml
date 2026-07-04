@@ -55,6 +55,8 @@ jobs:
       - run: yarn install --frozen-lockfile --network-timeout 100000
       - run: yarn download:ollama
       - run: yarn build:all
+      - name: Smoke test (real model chat, end to end)
+        run: yarn smoke:test
       - name: Package
         run: yarn workspace @enzo-ai/desktop package:win
       - name: Save artifacts
@@ -88,6 +90,8 @@ jobs:
       - run: yarn install --frozen-lockfile --network-timeout 100000
       - run: yarn download:ollama
       - run: yarn build:all
+      - name: Smoke test (real model chat, end to end)
+        run: yarn smoke:test
       # Build the macOS .app icon from the project logo (icon.png). electron-builder
       # expects assets/icon.icns; iconutil (macOS-only) produces it. Without this the
       # app falls back to the default Electron icon.
@@ -179,6 +183,8 @@ jobs:
         run: yarn install --frozen-lockfile --network-timeout 100000
       - run: yarn download:ollama
       - run: yarn build:all
+      - name: Smoke test (real model chat, end to end)
+        run: yarn smoke:test
       - name: Package
         env:
           USE_SYSTEM_FPM: true
@@ -256,14 +262,63 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build and push platform image
+      - name: Build platform image (loaded locally, not pushed yet)
         uses: docker/build-push-action@v6
         with:
           context: .
-          push: true
+          push: false
+          load: true
           platforms: ${{ matrix.platform }}
           # Push a temporary per-arch tag; merged into final tags by docker-manifest job
           tags: ghcr.io/${{ github.repository_owner }}/enzo-ai:${{ matrix.tag-suffix }}
+
+      - name: Smoke test image (real model chat, end to end)
+        # Guards against the exact bug that shipped once already: the image
+        # copied /usr/bin/ollama but not /usr/lib/ollama (the llama-server
+        # runner + backend libs), so the daemon started and listed models
+        # fine but every chat request failed. This runs the real image,
+        # pulls a small model, and completes one real chat round trip.
+        run: |
+          set -e
+          IMAGE="ghcr.io/${{ github.repository_owner }}/enzo-ai:${{ matrix.tag-suffix }}"
+          docker run -d --name enzo-smoke -p 18080:1616 -p 18434:11434 "$IMAGE"
+          trap 'docker logs enzo-smoke || true; docker rm -f enzo-smoke || true' EXIT
+
+          echo "waiting for server..."
+          for i in $(seq 1 60); do
+            curl -sf http://127.0.0.1:18080/api/auth/profiles > /dev/null && break
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:18080/api/auth/profiles > /dev/null || { echo "::error::server never became ready"; exit 1; }
+
+          echo "pulling a small model inside the container..."
+          curl -sf -X POST http://127.0.0.1:18434/api/pull \
+            -H 'content-type: application/json' \
+            -d '{"model":"qwen2.5:0.5b","stream":false}' --max-time 300 \
+            || { echo "::error::model pull failed"; exit 1; }
+
+          echo "registering test user..."
+          TOKEN=$(curl -sf -X POST http://127.0.0.1:18080/api/auth/register \
+            -H 'content-type: application/json' \
+            -d '{"username":"smoketest","password":"smoketest-pw"}' \
+            | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>console.log(JSON.parse(d).token))")
+
+          CHAT_ID=$(curl -sf -X POST http://127.0.0.1:18080/api/chats \
+            -H "content-type: application/json" -H "x-enzo-ai-token: $TOKEN" \
+            -d '{"model":"qwen2.5:0.5b"}' \
+            | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>console.log(JSON.parse(d).id))")
+
+          echo "sending a real chat message..."
+          RESPONSE=$(curl -sf -N -X POST http://127.0.0.1:18080/api/chat \
+            -H "content-type: application/json" -H "x-enzo-ai-token: $TOKEN" \
+            -d "{\"chatId\":\"$CHAT_ID\",\"content\":\"Say hello in exactly 3 words.\"}" --max-time 60)
+          echo "$RESPONSE"
+          if echo "$RESPONSE" | grep -q '"error"'; then echo "::error::chat returned an error instead of a reply"; exit 1; fi
+          if ! echo "$RESPONSE" | grep -q '"token"'; then echo "::error::no tokens were streamed back"; exit 1; fi
+          echo "✅ docker smoke test passed"
+
+      - name: Push platform image
+        run: docker push "ghcr.io/${{ github.repository_owner }}/enzo-ai:${{ matrix.tag-suffix }}"
 
   # Combine the two platform images into a single multi-arch manifest
   docker-manifest:
