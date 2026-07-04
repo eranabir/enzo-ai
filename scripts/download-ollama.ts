@@ -116,11 +116,23 @@ function extract(archive: string): void {
       // The tgz may produce a file named differently; rename to `ollama`
       ensureNamedOllama();
       break;
-    case "linux":
+    case "linux": {
       // .tar.zst requires the `zstd` tool (available on CI runners)
       execSync(`tar --use-compress-program=zstd -xf "${archive}" -C "${OUT_DIR}"`);
-      ensureNamedOllama();
+      // Unlike macOS's flat layout, the Linux tarball nests the daemon at
+      // bin/ollama alongside lib/ollama/** (the runner engines). The generic
+      // ensureNamedOllama() fallback assumes a single stray top-level file
+      // and would instead grab the bin/ directory itself and rename that
+      // whole directory to "ollama" — so handle this layout explicitly.
+      const nestedBin = join(OUT_DIR, "bin", "ollama");
+      if (existsSync(nestedBin)) {
+        execSync(`mv "${nestedBin}" "${OUT_FILE}"`, { shell: "/bin/sh" });
+        try { execSync(`rmdir "${join(OUT_DIR, "bin")}"`); } catch { /* non-empty or already gone */ }
+      } else {
+        ensureNamedOllama();
+      }
       break;
+    }
   }
 }
 
