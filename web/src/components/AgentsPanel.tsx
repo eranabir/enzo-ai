@@ -602,8 +602,12 @@ export function AgentsPanel({ onStartChat, onClose }: Props) {
             );
           })()}
 
-          {/* Schedule — collapsible */}
-          <div className="rounded-xl border border-border overflow-hidden">
+          {/* Schedule — collapsible. flex-shrink-0 is required: overflow-hidden
+              makes a flex item's automatic min-height resolve to 0 (per the
+              flexbox spec), so under a short viewport this would get crushed
+              to a sliver by its siblings instead of deferring to the parent's
+              own overflow-y-auto scrolling. */}
+          <div className="rounded-xl border border-border overflow-hidden flex-shrink-0">
             <button type="button" onClick={() => setScheduleOpen(v => !v)}
               className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-surface-2 transition-colors">
               <div className="flex items-center gap-2">

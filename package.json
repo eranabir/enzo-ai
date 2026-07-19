@@ -1,6 +1,6 @@
 {
   "name": "enzo-ai",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "private": true,
   "description": "Enzo AI - a self-hosted, local-first AI chat experience",
   "workspaces": [
