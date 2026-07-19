@@ -118,6 +118,6 @@ module.exports = {
   },
 
   deb: {
-    artifactName: "enzo-ai-linux-${arch}.${ext}",
+    artifactName: "enzo-ai-linux-${version}-${arch}.${ext}",
   },
 };
