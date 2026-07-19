@@ -49,9 +49,9 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - name: Stamp current version into the landing page badge
         run: |
-          MINOR=$(node -p "require('./package.json').version.split('.').slice(0,2).join('.')")
-          sed -i -E "s#v[0-9]+\.[0-9]+ now available#v${MINOR} now available#g" site/index.html
-          echo "Stamped landing page badge with v${MINOR}"
+          VERSION=$(node -p "require('./package.json').version")
+          sed -i -E "s#v[0-9]+\.[0-9]+(\.[0-9]+)? now available#v${VERSION} now available#g" site/index.html
+          echo "Stamped landing page badge with v${VERSION}"
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload site/ as the Pages artifact
