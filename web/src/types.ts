@@ -92,6 +92,7 @@ export interface Chat {
   model: string | null;
   memory_enabled: number; // 1 = on, 0 = off (SQLite boolean)
   connection: string | null; // "telegram" | null — managed by a connection
+  agent_id: string | null; // set → this chat's model is governed by the agent, not the picker
   created_at: number;
   updated_at: number;
 }

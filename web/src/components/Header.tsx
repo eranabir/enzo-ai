@@ -1,4 +1,4 @@
-import { Brain, Cpu, Wrench, Eye } from "lucide-react";
+import { Brain, Cpu, Wrench, Eye, Lock } from "lucide-react";
 import type { Chat, ModelInfo } from "../types";
 import {
   Select,
@@ -7,6 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./ui/Select";
+import { Tooltip } from "./ui/Tooltip";
 
 export function Header({
   models,
@@ -69,7 +70,16 @@ export function Header({
           </button>
         )}
 
-        {/* Model picker */}
+        {/* Model picker — locked when this chat belongs to an agent, since the
+            agent's own model always governs it (changing it here would do nothing). */}
+        {activeChat?.agent_id ? (
+          <Tooltip label="Using agent model">
+            <div className="flex items-center gap-2 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted">
+              <Lock className="h-3.5 w-3.5 flex-shrink-0" />
+              <span className="max-w-[160px] truncate">{model || "Agent default"}</span>
+            </div>
+          </Tooltip>
+        ) : (
         <Select value={model} onValueChange={onModelChange} disabled={models.length === 0}>
           <SelectTrigger className="max-w-[220px]">
             <Cpu className="h-3.5 w-3.5 flex-shrink-0 text-muted" />
@@ -121,6 +131,7 @@ export function Header({
             })}
           </SelectContent>
         </Select>
+        )}
       </div>
     </header>
   );

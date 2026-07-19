@@ -128,6 +128,17 @@ export class ChatService {
   }
 
   /**
+   * Strip the inline "`🔧 toolName`" tool-activity markers before relaying a
+   * reply to a messaging platform. They're a web-UI-only transparency touch
+   * (rendered as a small badge there) — in Telegram/Discord/Slack they'd just
+   * show up as raw backtick-wrapped text, which reads as a debug artifact.
+   */
+  private stripToolMarkers(text: string): string {
+    const stripped = text.replace(/\n?`🔧[^`]*`\n?/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+    return stripped || text;
+  }
+
+  /**
    * Scan text for every balanced top-level `{ ... }` JSON object, respecting
    * string literals so braces inside strings don't throw off the depth count.
    * Handles bare objects and objects with nested arguments alike.
@@ -286,7 +297,10 @@ export class ChatService {
       ? (JSON.parse(agent.tools) as ToolName[])
       : this.toolsService.getChatToolNames(userId);
 
-    const model = requestedModel || agent?.model || convo.model || this.settings.getDefaultModel();
+    // An agent's configured model is authoritative for its own chats — it must not
+    // be silently overridden by a stale per-chat picker value or a Telegram/Discord/
+    // Slack connection's own default model, both of which are sent as requestedModel.
+    const model = agent?.model || requestedModel || convo.model || this.settings.getDefaultModel();
     this.convos.setModel(convo.id, model);
 
     const memoryEnabled = convo.memory_enabled !== 0;
@@ -316,7 +330,16 @@ export class ChatService {
       await this.saveAttachment(userMsg.id, attachmentBuffer);
     }
 
-    const allMessages = this.convos.listMessages(convo.id);
+    // Cap how much history gets sent to the model. Left unbounded, a long-running
+    // chat eventually exceeds num_ctx (see ollama.provider.ts) once combined with
+    // the system prompt, RAG-retrieved KB chunks, and tool definitions — and when
+    // that happens the KB context can get squeezed out silently, making a
+    // knowledge-base-linked agent answer as if it has no documents at all despite
+    // everything being configured correctly. Older turns fall out of view first;
+    // the system prompt (persona, facts, RAG context) is unaffected either way
+    // since it's built fresh every turn, not carried in this list.
+    const MAX_HISTORY_MESSAGES = 20;
+    const allMessages = this.convos.listMessages(convo.id).slice(-MAX_HISTORY_MESSAGES);
     // Build history; inline attached-document text and load image data from disk
     // so providers can use them.
     const history: ChatMessage[] = await Promise.all(
@@ -397,7 +420,12 @@ export class ChatService {
           const res = await fetch(`${ollamaUrl}/api/chat`, {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ model: model.replace(/^ollama:/, ""), messages: loopMessages, tools: toolDefs, stream: false }),
+            // num_ctx: see ollama.provider.ts — left unset, Ollama defaults to
+            // the model's own max context, which can force part of it off the
+            // GPU onto much slower CPU inference. This tool-calling loop makes
+            // its own direct fetch (bypassing OllamaProvider.streamChat), so it
+            // needs the same cap or every tool-enabled agent silently loses it.
+            body: JSON.stringify({ model: model.replace(/^ollama:/, ""), messages: loopMessages, tools: toolDefs, stream: false, options: { num_ctx: 8192, temperature: 0.2 } }),
             signal,
           });
           if (!res.ok) throw new Error(`Ollama tool call failed: ${res.status}`);
@@ -457,7 +485,7 @@ export class ChatService {
           const res2 = await fetch("http://127.0.0.1:11434/api/chat", {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ model: model.replace(/^ollama:/, ""), messages: cleanMessages, stream: false }),
+            body: JSON.stringify({ model: model.replace(/^ollama:/, ""), messages: cleanMessages, stream: false, options: { num_ctx: 8192, temperature: 0.2 } }),
             signal,
           });
           if (res2.ok) {
@@ -480,12 +508,25 @@ export class ChatService {
 
       // If this chat is linked to an integration and the message did NOT
       // originate from that integration (i.e. it was sent from the web UI),
-      // push the assistant reply out to the platform so both sides stay in sync.
+      // push both the user's own message and the assistant reply out to the
+      // platform, in order, so both sides stay fully in sync — otherwise the
+      // platform only ever sees the AI's half of the conversation.
       const integration = (convo as any).connection as string | null;
       if (integration && integration !== origin && this.relayToIntegration) {
-        this.relayToIntegration(integration, userId, convo.id, assistant).catch((e) =>
-          this.logger.error(`Failed to relay reply to ${integration}: ${e.message}`),
-        );
+        // Chained (not parallel) so the user's message is guaranteed to land
+        // in the platform before the reply, regardless of network timing —
+        // fire-and-forget from the generator's perspective either way, so it
+        // never blocks the web UI's own response.
+        const userRelay = content.trim()
+          ? this.relayToIntegration(integration, userId, convo.id, `💻 (from web) ${content}`)
+          : Promise.resolve();
+        userRelay
+          .catch((e) => this.logger.error(`Failed to relay user message to ${integration}: ${e.message}`))
+          .then(() =>
+            this.relayToIntegration!(integration, userId, convo.id, this.stripToolMarkers(assistant)).catch((e) =>
+              this.logger.error(`Failed to relay reply to ${integration}: ${e.message}`),
+            ),
+          );
       }
 
       if (convo.title === "New chat") {

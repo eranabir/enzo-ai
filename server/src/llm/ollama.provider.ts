@@ -144,7 +144,20 @@ export class OllamaProvider implements ChatProvider {
     const res = await fetch(`${this.baseUrl}/api/chat`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ model: opts.model, messages, stream: true }),
+      // num_ctx caps the context window Ollama allocates for this model. Left
+      // unset, Ollama defaults to the model's own max (often 32K–128K on newer
+      // models), which can force part of the model off the GPU onto much-slower
+      // CPU inference to fit the resulting KV cache — measured 3x+ slower on a
+      // 16GB-VRAM card with a 24B model at its native 65K context vs capped at
+      // 8192. 8192 comfortably covers a chat + a handful of retrieved KB chunks;
+      // very long-running conversations will have their oldest turns fall out
+      // of context first rather than erroring.
+      // temperature lowered from Ollama's default (~0.7-0.8): with RAG-retrieved
+      // context in the prompt, a high temperature makes the model more prone to
+      // inventing plausible-sounding but false details instead of sticking to
+      // the provided source text — observed directly (same question, same
+      // context, correct answer on one run and a fabricated one on another).
+      body: JSON.stringify({ model: opts.model, messages, stream: true, options: { num_ctx: 8192, temperature: 0.2 } }),
       signal: opts.signal,
     });
 

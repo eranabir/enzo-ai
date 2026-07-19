@@ -1,15 +1,10 @@
 // Extract plain text from an uploaded chat document so it can be inlined into
-// the model's context. Supports PDF (pdf-parse), Word .docx (mammoth),
-// Excel/CSV .xlsx/.xls (SheetJS), and any UTF-8 text/code/markdown file.
-//
-// Import the lib file directly (not the package root): pdf-parse's index runs a
-// "debug mode" that reads a bundled sample PDF when `module.parent` is null —
-// which happens once ncc-bundled — so the subpath import avoids that crash.
-// pdf-parse 1.x uses the legacy pdfjs build, which (unlike 2.x) does not touch
-// DOMMatrix/canvas at load time and so survives ncc bundling for text extraction.
-import pdfParse from "pdf-parse/lib/pdf-parse.js";
+// the model's context. Supports PDF (pdfjs-dist directly — see pdf-extract.ts
+// for why, not pdf-parse), Word .docx (mammoth), Excel/CSV .xlsx/.xls
+// (SheetJS), and any UTF-8 text/code/markdown file.
 import * as mammoth from "mammoth";
 import * as XLSX from "xlsx";
+import { extractPdfText, ocrPdfBuffer } from "./pdf-extract";
 
 /** File extensions we treat as plain UTF-8 text (read as-is). */
 const TEXT_EXTS = new Set([
@@ -60,8 +55,11 @@ export async function extractDocumentText(
 
   try {
     if (e === "pdf" || m.includes("pdf")) {
-      const data = await pdfParse(buffer);
-      return (data.text || "").trim();
+      const text = (await extractPdfText(buffer)).trim();
+      if (text) return text;
+      // No text layer — likely a scanned/photographed page. Fall back to OCR
+      // (Hebrew + English). Slow, so only attempted once the fast path is empty.
+      return await ocrPdfBuffer(buffer);
     }
     if (e === "docx" || e === "doc" || m.includes("wordprocessingml") || m === "application/msword") {
       const { value } = await mammoth.extractRawText({ buffer });

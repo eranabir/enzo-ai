@@ -56,6 +56,9 @@ permissive licenses). Notable components include:
 - [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) — MIT
 - [Express](https://github.com/expressjs/express) — MIT
 - [Telegraf](https://github.com/telegraf/telegraf) — MIT
+- [pdf.js](https://github.com/mozilla/pdf.js) (`pdfjs-dist`) — Apache-2.0
+- [@napi-rs/canvas](https://github.com/Brooooooklyn/canvas) — MIT
+- [Tesseract.js](https://github.com/naptha/tesseract.js) (wraps the Apache-2.0 [Tesseract OCR](https://github.com/tesseract-ocr/tesseract) engine) — Apache-2.0. Used for OCR fallback on scanned/image-only PDF uploads; chosen specifically over MuPDF-based rasterizers, which are AGPL/commercial-dual-licensed and would be incompatible with EnzoAI's MIT license.
 
 The complete dependency list and license metadata are available in the
 `package.json` files of each workspace and in the packages' own repositories.

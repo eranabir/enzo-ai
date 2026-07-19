@@ -73,7 +73,7 @@ export function KnowledgePanel({ onClose, onStartChat }: Props) {
         <div className="flex-1 overflow-y-auto p-5">
           {embed && !embed.available && (
             <div className="mb-4 rounded-lg border border-warning/40 bg-warning/5 px-3 py-2 text-xs text-warning">
-              The embedding model <span className="font-mono">{embed.model}</span> will be downloaded automatically the first time you add a document (~270 MB, one time).
+              The embedding model <span className="font-mono">{embed.model}</span> will be downloaded automatically the first time you add a document (~1.2 GB, one time).
             </div>
           )}
 
@@ -182,7 +182,10 @@ function KnowledgeDetail({ kb, onClose, onBack, onStartChat }: {
   const refresh = () => api.knowledge.listDocuments(kb.id).then(setDocs).catch(() => {});
   useEffect(() => { refresh(); /* eslint-disable-next-line */ }, [kb.id]);
 
-  async function add(body: { title?: string; sourceType: "text" | "url"; content?: string; url?: string }) {
+  async function add(body: {
+    title?: string; sourceType: "text" | "url" | "file"; content?: string; url?: string;
+    filename?: string; mime?: string; base64?: string;
+  }) {
     setBusy(true); setErr(null);
     try {
       await api.knowledge.addDocument(kb.id, body);
@@ -192,11 +195,28 @@ function KnowledgeDetail({ kb, onClose, onBack, onStartChat }: {
     setBusy(false);
   }
 
+  const BINARY_EXTS = new Set(["pdf", "doc", "docx", "xls", "xlsx"]);
+
+  function fileToBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve((reader.result as string).split(",")[1] ?? "");
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+  }
+
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const content = await file.text();
-    await add({ title: file.name, sourceType: "text", content });
+    const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+    if (BINARY_EXTS.has(ext)) {
+      const base64 = await fileToBase64(file);
+      await add({ title: file.name, sourceType: "file", filename: file.name, mime: file.type, base64 });
+    } else {
+      const content = await file.text();
+      await add({ title: file.name, sourceType: "text", content });
+    }
     if (fileRef.current) fileRef.current.value = "";
   }
 
@@ -255,8 +275,8 @@ function KnowledgeDetail({ kb, onClose, onBack, onStartChat }: {
             )}
             {tab === "file" && (
               <div className="flex flex-col gap-2">
-                <p className="text-xs text-muted">Text-based files: .txt, .md, .csv, .json, code. (PDF support coming soon.)</p>
-                <input ref={fileRef} type="file" accept=".txt,.md,.markdown,.csv,.json,.log,.ts,.tsx,.js,.py,.html,.css,.yml,.yaml,text/*" onChange={onFile} disabled={busy}
+                <p className="text-xs text-muted">PDF, Word (.doc/.docx), Excel/CSV, and text/code files. Scanned/photographed PDFs are OCR'd automatically (Hebrew + English) — this can take longer than a regular text PDF.</p>
+                <input ref={fileRef} type="file" accept=".txt,.md,.markdown,.csv,.json,.log,.ts,.tsx,.js,.py,.html,.css,.yml,.yaml,.pdf,.doc,.docx,.xls,.xlsx,text/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={onFile} disabled={busy}
                   className="text-sm text-muted file:mr-3 file:rounded-lg file:border-0 file:bg-accent file:px-4 file:py-1.5 file:text-sm file:font-semibold file:text-white hover:file:bg-accent-2" />
                 {busy && <p className="text-xs text-muted">Indexing…</p>}
               </div>

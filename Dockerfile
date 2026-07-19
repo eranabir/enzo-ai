@@ -72,6 +72,20 @@ COPY --from=builder /build/node_modules/better-sqlite3 ./node_modules/better-sql
 COPY --from=builder /build/node_modules/bindings ./node_modules/bindings
 COPY --from=builder /build/node_modules/file-uri-to-path ./node_modules/file-uri-to-path
 
+# Scanned-PDF OCR fallback (rasterize + Tesseract) — kept external by ncc since
+# @napi-rs/canvas is a native module and tesseract.js spawns a worker_thread
+# that loads its own script by file path, which a single-file bundle breaks.
+COPY --from=builder /build/node_modules/@napi-rs ./node_modules/@napi-rs
+COPY --from=builder /build/node_modules/pdfjs-dist ./node_modules/pdfjs-dist
+COPY --from=builder /build/node_modules/tesseract.js ./node_modules/tesseract.js
+COPY --from=builder /build/node_modules/tesseract.js-core ./node_modules/tesseract.js-core
+COPY --from=builder /build/node_modules/idb-keyval ./node_modules/idb-keyval
+COPY --from=builder /build/node_modules/is-url ./node_modules/is-url
+COPY --from=builder /build/node_modules/bmp-js ./node_modules/bmp-js
+COPY --from=builder /build/node_modules/zlibjs ./node_modules/zlibjs
+COPY --from=builder /build/node_modules/wasm-feature-detect ./node_modules/wasm-feature-detect
+COPY --from=builder /build/node_modules/regenerator-runtime ./node_modules/regenerator-runtime
+
 # License + third-party notices (Ollama is redistributed in this image)
 COPY LICENSE THIRD_PARTY_NOTICES.md /app/
 

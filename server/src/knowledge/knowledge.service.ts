@@ -4,8 +4,8 @@ import { DATABASE, type DatabaseConnection } from "../database/database.module";
 import { OllamaProvider } from "../llm/ollama.provider";
 import { VaultService } from "../vault/vault.service";
 
-/** Default local embedding model — small (~274 MB), good quality, auto-pulled. */
-const DEFAULT_EMBED_MODEL = "nomic-embed-text";
+/** Default local embedding model — multilingual (100+ languages incl. Hebrew), auto-pulled. */
+const DEFAULT_EMBED_MODEL = "bge-m3";
 const CHUNK_CHARS = 1200;       // ~300 tokens per chunk
 const CHUNK_OVERLAP = 150;      // carry-over for context continuity
 const EMBED_BATCH = 16;         // chunks per /api/embed request
@@ -147,19 +147,20 @@ export class KnowledgeService {
 
   /**
    * Ingest a document into a knowledge base: extract text, chunk, embed, store.
-   * `sourceType` is "text" (raw/pasted/file contents) or "url" (fetched + stripped).
+   * `sourceType` is "text" (pasted contents), "file" (extracted from an upload,
+   * with `sourceRef` set to the filename), or "url" (fetched + stripped).
    */
   async addDocument(
     kbId: string,
     userId: string,
-    opts: { title: string; sourceType: "text" | "url"; content?: string; url?: string },
+    opts: { title: string; sourceType: "text" | "url" | "file"; content?: string; url?: string; sourceRef?: string },
   ): Promise<KnowledgeDocumentRow> {
     this.assertUnlocked();
     const kb = this.getBase(kbId, userId);
     if (!kb) throw new Error("Knowledge base not found");
 
     let text = "";
-    let sourceRef: string | null = null;
+    let sourceRef: string | null = opts.sourceRef ?? null;
     if (opts.sourceType === "url") {
       if (!opts.url?.trim()) throw new Error("URL is required");
       sourceRef = opts.url.trim();
@@ -252,8 +253,11 @@ export class KnowledgeService {
       if (hits.length === 0) return null;
       const blocks = hits.map((h, i) => `[${i + 1}] (from "${h.title}")\n${h.content}`);
       return (
-        "\n\nUse the following retrieved context from the user's knowledge base to answer when relevant. " +
-        "If the answer isn't in the context, say so rather than guessing.\n\n" +
+        "\n\nThe following passages were just retrieved from the user's own uploaded documents because they " +
+        "matched this exact question — they are real, already-confirmed-relevant source material, not optional " +
+        "background. Read them fully before answering. If they contain the answer, use them directly and do not " +
+        "claim you lack the information. Only say the knowledge base doesn't cover this if these passages truly " +
+        "don't address the question after reading all of them.\n\n" +
         blocks.join("\n\n")
       );
     } catch (err) {

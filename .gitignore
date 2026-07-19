@@ -26,3 +26,8 @@ data/
 .idea
 # Generated macOS app icon (built from icon.png by CI / create:icons)
 desktop/assets/icon.icns
+
+# Tesseract OCR trained-language data — downloaded at runtime on first scanned-PDF
+# upload (server/src/chat/pdf-extract.ts), same pattern as Ollama models: not
+# shipped in the repo, fetched on demand.
+server/*.traineddata

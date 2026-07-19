@@ -36,11 +36,12 @@ interface ComposerProps {
   busy: boolean;
   disabled: boolean;
   canAttachImage?: boolean;
+  agentLabel?: { emoji: string; name: string } | null;
   onSend: (text: string, image?: AttachedImage, doc?: AttachedDocument) => void;
   onStop: () => void;
 }
 
-export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer({ busy, disabled, canAttachImage, onSend, onStop }, ref) {
+export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer({ busy, disabled, canAttachImage, agentLabel, onSend, onStop }, ref) {
   const [text, setText] = useState("");
   const [focused, setFocused] = useState(false);
   const [image, setImage] = useState<AttachedImage | null>(null);
@@ -154,81 +155,89 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         </div>
       )}
 
-      {/* Unified input container */}
+      {/* Unified input container — a column: optional agent-label row on top, then the input row */}
       <div
-        className={`relative flex items-end rounded-2xl border bg-surface-2 transition-all duration-200 ${
+        className={`rounded-2xl border bg-surface-2 transition-all duration-200 ${
           focused
             ? "border-accent/60 shadow-[0_0_0_1px_rgba(109,94,252,0.25),0_0_20px_rgba(109,94,252,0.12)]"
             : "border-border"
         }`}
       >
-        {/* Hidden file input */}
-        <input
-          ref={fileRef}
-          type="file"
-          accept={accept}
-          className="hidden"
-          onChange={handleFile}
-        />
+        {agentLabel && (
+          <div className="flex items-center gap-1.5 border-b border-border px-4 pb-2 pt-2.5 text-[11px] font-medium text-muted">
+            <span>{agentLabel.emoji}</span>
+            <span>Using agent: {agentLabel.name}</span>
+          </div>
+        )}
+        <div className="flex items-end">
+          {/* Hidden file input */}
+          <input
+            ref={fileRef}
+            type="file"
+            accept={accept}
+            className="hidden"
+            onChange={handleFile}
+          />
 
-        <textarea
-          dir="auto"
-          className="max-h-[200px] min-h-[52px] flex-1 resize-none bg-transparent px-4 py-3.5 text-sm leading-relaxed text-fg outline-none placeholder:text-muted/60"
-          placeholder={disabled ? "Start Ollama to begin chatting…" : "Message Enzo AI…"}
-          value={text}
-          rows={1}
-          disabled={disabled}
-          onChange={(e) => {
-            setText(e.target.value);
-            e.target.style.height = "auto";
-            e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
-          }}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          onPaste={handlePaste}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              submit();
-            }
-          }}
-        />
+          <textarea
+            dir="auto"
+            className="max-h-[200px] min-h-[52px] flex-1 resize-none bg-transparent px-4 py-3.5 text-sm leading-relaxed text-fg outline-none placeholder:text-muted/60"
+            placeholder={disabled ? "Start Ollama to begin chatting…" : "Message Enzo AI…"}
+            value={text}
+            rows={1}
+            disabled={disabled}
+            onChange={(e) => {
+              setText(e.target.value);
+              e.target.style.height = "auto";
+              e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
+            }}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            onPaste={handlePaste}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                submit();
+              }
+            }}
+          />
 
-        {/* Action buttons: attach + send/stop */}
-        <div className="flex flex-shrink-0 items-end gap-1 p-2">
-          {!busy && (
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={() => fileRef.current?.click()}
-              title={canAttachImage ? "Attach a document or image" : "Attach a document (PDF, Word, Excel, text)"}
-              className="flex h-9 w-9 items-center justify-center rounded-xl text-muted transition-colors hover:bg-surface hover:text-fg disabled:opacity-40"
-            >
-              <Paperclip className="h-4 w-4" />
-            </button>
-          )}
-          {busy ? (
-            <button
-              onClick={onStop}
-              title="Stop generating"
-              className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-surface text-muted transition-colors hover:border-danger hover:text-danger"
-            >
-              <Square className="h-3.5 w-3.5 fill-current" />
-            </button>
-          ) : (
-            <button
-              onClick={submit}
-              disabled={!canSend}
-              title="Send (Enter)"
-              className={`flex h-9 w-9 items-center justify-center rounded-xl transition-all duration-150 ${
-                canSend
-                  ? "bg-accent text-white shadow-[0_0_12px_rgba(109,94,252,0.4)] hover:bg-accent-2 hover:shadow-[0_0_16px_rgba(139,125,255,0.5)]"
-                  : "bg-surface text-muted/40 cursor-not-allowed"
-              }`}
-            >
-              <ArrowUp className="h-4 w-4" />
-            </button>
-          )}
+          {/* Action buttons: attach + send/stop */}
+          <div className="flex flex-shrink-0 items-end gap-1 p-2">
+            {!busy && (
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => fileRef.current?.click()}
+                title={canAttachImage ? "Attach a document or image" : "Attach a document (PDF, Word, Excel, text)"}
+                className="flex h-9 w-9 items-center justify-center rounded-xl text-muted transition-colors hover:bg-surface hover:text-fg disabled:opacity-40"
+              >
+                <Paperclip className="h-4 w-4" />
+              </button>
+            )}
+            {busy ? (
+              <button
+                onClick={onStop}
+                title="Stop generating"
+                className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-surface text-muted transition-colors hover:border-danger hover:text-danger"
+              >
+                <Square className="h-3.5 w-3.5 fill-current" />
+              </button>
+            ) : (
+              <button
+                onClick={submit}
+                disabled={!canSend}
+                title="Send (Enter)"
+                className={`flex h-9 w-9 items-center justify-center rounded-xl transition-all duration-150 ${
+                  canSend
+                    ? "bg-accent text-white shadow-[0_0_12px_rgba(109,94,252,0.4)] hover:bg-accent-2 hover:shadow-[0_0_16px_rgba(139,125,255,0.5)]"
+                    : "bg-surface text-muted/40 cursor-not-allowed"
+                }`}
+              >
+                <ArrowUp className="h-4 w-4" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

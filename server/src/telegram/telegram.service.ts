@@ -5,6 +5,11 @@ import { SettingsService } from "../settings/settings.service";
 import { ChatsService } from "../chats/chats.service";
 import { UsersService } from "../users/users.service";
 import { AgentsService } from "../agents/agents.service";
+import { KnowledgeService } from "../knowledge/knowledge.service";
+import { extractDocumentText } from "../chat/document-extract";
+
+/** Telegram Bot API hard cap on file size we can fetch via getFile. */
+const MAX_DOCUMENT_BYTES = 20 * 1024 * 1024;
 
 /** Placeholder key in the chat map for the chat created at connect time,
  *  before any real Telegram chat id is known. The first inbound chat adopts it. */
@@ -41,6 +46,7 @@ export class TelegramService implements OnModuleDestroy {
     private readonly convos: ChatsService,
     private readonly users: UsersService,
     private readonly agentsSvc: AgentsService,
+    private readonly knowledge: KnowledgeService,
   ) {}
 
   /** Called by app.module after ChatService is available. Auto-starts every
@@ -210,17 +216,73 @@ export class TelegramService implements OnModuleDestroy {
       }
     });
 
+    bot.on(message("document"), async (ctx) => {
+      const telegramUserId = String(ctx.from.id);
+      const chatId          = String(ctx.chat.id);
+
+      const allowed = this.settings.get(K.allowed(ownerUserId));
+      if (allowed) {
+        const ids = allowed.split(",").map((s) => s.trim());
+        if (!ids.includes(telegramUserId)) {
+          await ctx.reply("⛔ You are not authorised to use this bot.");
+          return;
+        }
+      }
+
+      const linkedAgent = this.findAgentForChat(ownerUserId, chatId);
+      if (!linkedAgent?.knowledge_base_id) {
+        await ctx.reply(
+          "📎 Got your file, but this chat isn't linked to an agent with a knowledge base.\n\n" +
+          "Link this chat to an agent (Agents → Integrations → Telegram) and set that agent's knowledge base first.",
+        );
+        return;
+      }
+
+      const doc = ctx.message.document;
+      if (doc.file_size && doc.file_size > MAX_DOCUMENT_BYTES) {
+        await ctx.reply(`⚠️ "${doc.file_name ?? "File"}" is too large (max 20 MB).`);
+        return;
+      }
+
+      await ctx.sendChatAction("upload_document");
+      try {
+        const fileLink = await ctx.telegram.getFileLink(doc.file_id);
+        const res = await fetch(fileLink.href);
+        if (!res.ok) throw new Error(`Telegram file download failed: ${res.status}`);
+        const buffer = Buffer.from(await res.arrayBuffer());
+        const filename = doc.file_name ?? "document";
+
+        const text = await extractDocumentText(buffer, doc.mime_type ?? "", filename);
+        if (!text.trim()) {
+          await ctx.reply(`⚠️ Couldn't find readable text in "${filename}" (it may be a scanned/image-only document).`);
+          return;
+        }
+
+        const added = await this.knowledge.addDocument(linkedAgent.knowledge_base_id, ownerUserId, {
+          title: filename,
+          sourceType: "file",
+          content: text,
+          sourceRef: filename,
+        });
+        await ctx.reply(`✅ Added "${filename}" to ${linkedAgent.emoji} ${linkedAgent.name}'s knowledge base (${added.chunk_count} chunk${added.chunk_count === 1 ? "" : "s"}).`);
+      } catch (err) {
+        this.logger.error(`Telegram document ingestion failed: ${(err as Error).message}`);
+        await ctx.reply(`⚠️ ${(err as Error).message || "Couldn't process that file."}`);
+      }
+    });
+
     bot.catch((err) => this.logger.error("Telegraf error:", err));
   }
 
   // ── Chat management (per user) ───────────────────────────────────────
 
   /** Create a fresh, clean chat on connect so it shows in the UI right
-   *  away. Wipes any stale Telegram chats for this user first. */
-  prepareChat(userId: string): void {
+   *  away. Wipes any stale Telegram chats for this user first. Named after the
+   *  bot until a real message arrives and renames it to the actual chat/group. */
+  prepareChat(userId: string, botUsername?: string): void {
     this.deleteChat(userId);
     const convo = this.convos.create(userId, undefined, undefined, "telegram");
-    this.convos.rename(convo.id, "Telegram");
+    this.convos.rename(convo.id, botUsername ? `@${botUsername}` : "Telegram");
     this.saveChatMap(userId, { [PENDING_KEY]: convo.id });
     this.logger.log(`Prepared clean Telegram chat ${convo.id} for user ${userId}`);
   }

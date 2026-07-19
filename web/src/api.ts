@@ -201,7 +201,10 @@ export const api = {
     listDocuments: (kbId: string) =>
       fetch(`/api/knowledge/bases/${kbId}/documents`, { headers: headers() })
         .then(parse<import("./types").KnowledgeDocument[]>),
-    addDocument: (kbId: string, body: { title?: string; sourceType: "text" | "url"; content?: string; url?: string }) =>
+    addDocument: (kbId: string, body: {
+      title?: string; sourceType: "text" | "url" | "file"; content?: string; url?: string;
+      filename?: string; mime?: string; base64?: string;
+    }) =>
       fetch(`/api/knowledge/bases/${kbId}/documents`, { method: "POST", headers: headers(true), body: JSON.stringify(body) })
         .then(parse<import("./types").KnowledgeDocument>),
     getDocument: (id: string) =>

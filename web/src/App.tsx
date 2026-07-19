@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Routes, Route, Navigate, useNavigate, useLocation, useMatch } from "react-router-dom";
 import { api, getToken, setToken, streamChat } from "./api";
-import type { Chat, Message, ModelInfo, User } from "./types";
+import type { Agent, Chat, Message, ModelInfo, User } from "./types";
 import { Sidebar } from "./components/Sidebar";
 import { ChatView } from "./components/ChatView";
 import { Composer, type AttachedImage, type AttachedDocument, type ComposerHandle } from "./components/Composer";
@@ -23,6 +23,7 @@ export function App() {
   // null = unknown, true = vault configured but locked, false = ready/unlocked
   const [vaultLocked, setVaultLocked] = useState<boolean | null>(null);
   const [chats, setChats] = useState<Chat[]>([]);
+  const [agents, setAgents] = useState<Agent[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [models, setModels] = useState<ModelInfo[]>([]);
@@ -158,10 +159,17 @@ export function App() {
     api.listChats().then(setChats).catch(() => {});
   }, [online, user]);
 
+  // Used to label the composer with which agent a chat talks to.
+  const refreshAgents = useCallback(() => {
+    if (!online || !user) return;
+    api.agents.list().then(setAgents).catch(() => {});
+  }, [online, user]);
+
   useEffect(() => {
     if (!online || !user) return;
     refreshChats();
     refreshModels();
+    refreshAgents();
   }, [online, user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Re-fetch when the tab regains focus — picks up server-created chats
@@ -171,6 +179,7 @@ export function App() {
       if (document.visibilityState === "visible") {
         refreshModels();
         refreshChats();
+        refreshAgents();
       }
     };
     document.addEventListener("visibilitychange", onVisible);
@@ -179,7 +188,7 @@ export function App() {
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onVisible);
     };
-  }, [refreshModels, refreshChats]);
+  }, [refreshModels, refreshChats, refreshAgents]);
 
   // Poll chats every 15s so integration chats (Telegram, etc.) appear
   // without the user needing to refresh. Lightweight — only fetches the list.
@@ -371,6 +380,7 @@ export function App() {
   const stop = useCallback(() => abortRef.current?.abort(), []);
 
   const activeChat = chats.find((c) => c.id === activeId) ?? null;
+  const activeAgent = activeChat?.agent_id ? agents.find((a) => a.id === activeChat.agent_id) ?? null : null;
 
   const toggleMemory = useCallback(
     async (enabled: boolean) => {
@@ -414,7 +424,7 @@ export function App() {
             setMessages([]);
             navigate(`/chat/${c.id}`);
           }}
-          onClose={closePanel}
+          onClose={() => { closePanel(); refreshAgents(); }}
         />
       )}
       {onPanel && location.pathname.startsWith("/admin") && user.isAdmin && (
@@ -503,6 +513,7 @@ export function App() {
           busy={busy}
           disabled={online === false}
           canAttachImage={models.find((m) => m.id === model)?.supportsVision ?? false}
+          agentLabel={activeAgent ? { emoji: activeAgent.emoji, name: activeAgent.name } : null}
           onSend={send}
           onStop={stop}
         />

@@ -25,7 +25,7 @@ export class TelegramController {
     this.telegram.updateConfig(userId, body);
     if (body.token?.trim()) {
       const { username } = await this.telegram.start(userId, true);
-      this.telegram.prepareChat(userId);
+      this.telegram.prepareChat(userId, username);
       return { ok: true, running: true, username };
     }
     return { ok: true, running: this.telegram.isRunning(userId) };

@@ -4,6 +4,7 @@ import {
 } from "@nestjs/common";
 import { AuthGuard } from "../auth/auth.guard";
 import { UserId } from "../auth/current-user.decorator";
+import { extractDocumentText } from "../chat/document-extract";
 import { KnowledgeService } from "./knowledge.service";
 
 @Controller("knowledge")
@@ -45,16 +46,38 @@ export class KnowledgeController {
   async addDocument(
     @UserId() userId: string,
     @Param("id") id: string,
-    @Body() body: { title?: string; sourceType?: "text" | "url"; content?: string; url?: string },
+    @Body() body: {
+      title?: string; sourceType?: "text" | "url" | "file"; content?: string; url?: string;
+      filename?: string; mime?: string; base64?: string;
+    },
   ) {
-    const sourceType = body?.sourceType === "url" ? "url" : "text";
-    const title = String(body?.title ?? "").trim() || (sourceType === "url" ? String(body?.url ?? "") : "Untitled");
+    const sourceType = body?.sourceType === "url" ? "url" : body?.sourceType === "file" ? "file" : "text";
+
+    let content = body?.content;
+    let title = String(body?.title ?? "").trim();
+    let sourceRef: string | undefined;
+
+    if (sourceType === "file") {
+      if (!body?.base64 || !body?.filename) throw new BadRequestException("filename and base64 are required");
+      try {
+        content = await extractDocumentText(Buffer.from(body.base64, "base64"), body.mime ?? "", body.filename);
+      } catch (err) {
+        throw new BadRequestException((err as Error).message);
+      }
+      if (!content.trim()) throw new BadRequestException(`No readable text found in "${body.filename}" (it may be a scanned/image-only document).`);
+      sourceRef = body.filename;
+      title = title || body.filename;
+    } else {
+      title = title || (sourceType === "url" ? String(body?.url ?? "") : "Untitled");
+    }
+
     try {
       return await this.knowledge.addDocument(id, userId, {
         title,
         sourceType,
-        content: body?.content,
+        content,
         url: body?.url,
+        sourceRef,
       });
     } catch (err) {
       throw new BadRequestException((err as Error).message);

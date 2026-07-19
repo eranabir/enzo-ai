@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from "react";
-import { Settings, Shield, LogOut, ChevronUp, PanelLeftClose, PanelLeftOpen, Users, MoreHorizontal, Pencil, Trash2, MessagesSquare, SquarePen, Bot, Server, BookOpen } from "lucide-react";
+import { Settings, Shield, LogOut, ChevronUp, PanelLeftClose, PanelLeftOpen, Users, MoreHorizontal, Pencil, Trash2, MessagesSquare, Bot, Server, BookOpen } from "lucide-react";
 import { SiTelegram, SiDiscord } from "react-icons/si";
 import { SlackIcon } from "./ui/SlackIcon";
 import type { Chat, User } from "../types";
@@ -65,72 +65,87 @@ function useNewBtnStyles() {
 interface NewBtnProps {
   collapsed?: boolean;
   onNew: () => void;
-  onAgentsOpen: () => void;
-  onMcpOpen: () => void;
-  onKnowledgeOpen: () => void;
 }
 
-function NewButton({ collapsed, onNew, onAgentsOpen, onMcpOpen, onKnowledgeOpen }: NewBtnProps) {
+function NewButton({ collapsed, onNew }: NewBtnProps) {
   useNewBtnStyles();
-
-  const menuItems = (
-    <>
-      <DropdownMenuItem onClick={onNew}><SquarePen className="h-4 w-4 text-muted" /> New chat</DropdownMenuItem>
-      <DropdownMenuItem onClick={onAgentsOpen}><Bot className="h-4 w-4 text-muted" /> Agents</DropdownMenuItem>
-      <DropdownMenuItem onClick={onKnowledgeOpen}><BookOpen className="h-4 w-4 text-muted" /> Knowledge</DropdownMenuItem>
-      <DropdownMenuItem onClick={onMcpOpen}><Server className="h-4 w-4 text-muted" /> MCP Servers</DropdownMenuItem>
-    </>
-  );
 
   if (collapsed) {
     return (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button title="New" className="nz-btn-sm relative">
-            <div style={{ position: "relative", overflow: "hidden", borderRadius: "12px", padding: "1.5px", width: "36px", height: "36px" }}>
-              <div className="nz-spin" style={{ position: "absolute", inset: "-50%", background: "conic-gradient(from 0deg,#6d5efc 0%,#a78bfa 28%,#38bdf8 52%,#818cf8 76%,#6d5efc 100%)" }} />
-              <div style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden", borderRadius: "9px", background: "#0e0b24", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <span className="nz-star" style={{ display: "inline-block", color: "white", fontSize: "15px" }}>✦</span>
-              </div>
-            </div>
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent side="right" align="start" className="w-40">
-          {menuItems}
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <button title="New chat" onClick={onNew} className="nz-btn-sm relative">
+        <div style={{ position: "relative", overflow: "hidden", borderRadius: "12px", padding: "1.5px", width: "36px", height: "36px" }}>
+          <div className="nz-spin" style={{ position: "absolute", inset: "-50%", background: "conic-gradient(from 0deg,#6d5efc 0%,#a78bfa 28%,#38bdf8 52%,#818cf8 76%,#6d5efc 100%)" }} />
+          <div style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden", borderRadius: "9px", background: "#0e0b24", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <span className="nz-star" style={{ display: "inline-block", color: "white", fontSize: "15px" }}>✦</span>
+          </div>
+        </div>
+      </button>
     );
   }
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button className="nz-btn relative w-full">
-          {/* Spinning conic-gradient border */}
-          <div style={{ position: "relative", overflow: "hidden", borderRadius: "12px", padding: "1.5px" }}>
-            <div className="nz-spin" style={{ position: "absolute", inset: "-50%", background: "conic-gradient(from 0deg,#6d5efc 0%,#a78bfa 28%,#38bdf8 52%,#818cf8 76%,#6d5efc 100%)" }} />
+    <button onClick={onNew} className="nz-btn relative w-full">
+      {/* Spinning conic-gradient border */}
+      <div style={{ position: "relative", overflow: "hidden", borderRadius: "12px", padding: "1.5px" }}>
+        <div className="nz-spin" style={{ position: "absolute", inset: "-50%", background: "conic-gradient(from 0deg,#6d5efc 0%,#a78bfa 28%,#38bdf8 52%,#818cf8 76%,#6d5efc 100%)" }} />
 
-            {/* Button face */}
-            <div style={{ position: "relative", overflow: "hidden", borderRadius: "10px", background: "#0d0b22", padding: "10px 16px" }}>
-              {/* Shimmer sweep */}
-              <div className="nz-shimmer" style={{
-                position: "absolute", top: 0, bottom: 0, width: "64px",
-                background: "linear-gradient(90deg,transparent,rgba(255,255,255,.14),transparent)",
-                pointerEvents: "none",
-              }} />
+        {/* Button face */}
+        <div style={{ position: "relative", overflow: "hidden", borderRadius: "10px", background: "#0d0b22", padding: "10px 16px" }}>
+          {/* Shimmer sweep */}
+          <div className="nz-shimmer" style={{
+            position: "absolute", top: 0, bottom: 0, width: "64px",
+            background: "linear-gradient(90deg,transparent,rgba(255,255,255,.14),transparent)",
+            pointerEvents: "none",
+          }} />
 
-              <span style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", color: "white", fontWeight: 600, letterSpacing: "0.06em", fontSize: "14px" }}>
-                <span className="nz-star" style={{ display: "inline-block" }}>✦</span>
-                New
-              </span>
-            </div>
-          </div>
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-48">
-        {menuItems}
-      </DropdownMenuContent>
-    </DropdownMenu>
+          <span style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", color: "white", fontWeight: 600, letterSpacing: "0.06em", fontSize: "14px" }}>
+            <span className="nz-star" style={{ display: "inline-block" }}>✦</span>
+            New chat
+          </span>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+/** Always-visible nav row for a tool panel (Agents / Knowledge / MCP) — full sidebar. */
+function ToolNavButton({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-muted transition-colors hover:bg-surface-2 hover:text-fg"
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
+
+/** Hover label for an icon-only button — shown to the right, since the collapsed
+ *  rail otherwise gives no clue what each icon does beyond the (delayed, inconsistent) native title. */
+function IconTooltip({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="group/tip relative flex">
+      {children}
+      <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md border border-border bg-surface-2 px-2 py-1 text-xs font-medium text-fg opacity-0 shadow-lg transition-opacity duration-150 group-hover/tip:opacity-100">
+        {label}
+      </span>
+    </div>
+  );
+}
+
+/** Same tool, icon-only, for the collapsed rail. */
+function ToolNavIcon({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
+  return (
+    <IconTooltip label={label}>
+      <button
+        title={label}
+        onClick={onClick}
+        className="flex h-9 w-9 items-center justify-center rounded-xl border border-border text-muted transition-colors hover:border-accent hover:text-fg"
+      >
+        {icon}
+      </button>
+    </IconTooltip>
   );
 }
 
@@ -140,7 +155,7 @@ function ConvoMenu({
   onDelete,
 }: {
   onRename: (e: React.MouseEvent) => void;
-  onDelete: (e: React.MouseEvent) => void;
+  onDelete?: (e: React.MouseEvent) => void;
 }) {
   return (
     <DropdownMenu>
@@ -158,13 +173,15 @@ function ConvoMenu({
           <Pencil className="h-3.5 w-3.5 text-muted" />
           Rename
         </DropdownMenuItem>
-        <DropdownMenuItem
-          className="text-danger focus:bg-danger/10 focus:text-danger"
-          onClick={(e) => onDelete(e as unknown as React.MouseEvent)}
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-          Delete
-        </DropdownMenuItem>
+        {onDelete && (
+          <DropdownMenuItem
+            className="text-danger focus:bg-danger/10 focus:text-danger"
+            onClick={(e) => onDelete(e as unknown as React.MouseEvent)}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Delete
+          </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -286,21 +303,33 @@ export function Sidebar({
       <aside className="relative flex w-14 flex-col items-center gap-2.5 border-r border-border bg-surface pb-3 pt-2.5 transition-all duration-200">
         <EdgeDragHandle onExpand={() => setSidebarCollapsed(false)} />
         {/* Logo */}
-        <button
-          onClick={toggleCollapse}
-          title="Expand sidebar"
-          className="flex h-9 w-9 items-center justify-center rounded-xl text-accent-2 transition-colors hover:bg-surface-2"
-        >
-          {/* ⬡ glyph ink sits ~0.1em low in its line box; nudge up to optically center it in the button. */}
-          <span className="inline-block text-4xl leading-none -translate-y-[4px]">⬡</span>
-        </button>
+        <IconTooltip label="Expand sidebar">
+          <button
+            onClick={toggleCollapse}
+            title="Expand sidebar"
+            className="flex h-9 w-9 items-center justify-center rounded-xl text-accent-2 transition-colors hover:bg-surface-2"
+          >
+            {/* ⬡ glyph ink sits ~0.1em low in its line box; nudge up to optically center it in the button. */}
+            <span className="inline-block text-4xl leading-none -translate-y-[4px]">⬡</span>
+          </button>
+        </IconTooltip>
 
         <div className="h-px w-8 bg-border" />
 
-        {/* + New dropdown */}
-        <NewButton collapsed onNew={onNew} onAgentsOpen={onAgentsOpen} onMcpOpen={onMcpOpen} onKnowledgeOpen={onKnowledgeOpen} />
+        {/* + New chat */}
+        <IconTooltip label="New chat">
+          <NewButton collapsed onNew={onNew} />
+        </IconTooltip>
+
+        {/* Tool panels — always one click away */}
+        <ToolNavIcon icon={<Bot className="h-4 w-4" />} label="Agents" onClick={onAgentsOpen} />
+        <ToolNavIcon icon={<BookOpen className="h-4 w-4" />} label="Knowledge" onClick={onKnowledgeOpen} />
+        <ToolNavIcon icon={<Server className="h-4 w-4" />} label="MCP Servers" onClick={onMcpOpen} />
+
+        <div className="h-px w-8 bg-border" />
 
         {/* Chats popover */}
+        <IconTooltip label="Chats">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
@@ -350,11 +379,13 @@ export function Sidebar({
             )}
           </DropdownMenuContent>
         </DropdownMenu>
+        </IconTooltip>
 
         {/* Spacer */}
         <div className="flex-1" />
 
         {/* Expand button */}
+        <IconTooltip label="Expand sidebar">
         <button
           onClick={toggleCollapse}
           title="Expand sidebar"
@@ -362,8 +393,10 @@ export function Sidebar({
         >
           <PanelLeftOpen className="h-5 w-5" />
         </button>
+        </IconTooltip>
 
         {/* Avatar — opens profile dropdown */}
+        <IconTooltip label={displayLabel}>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
@@ -399,6 +432,7 @@ export function Sidebar({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        </IconTooltip>
       </aside>
     );
   }
@@ -421,7 +455,13 @@ export function Sidebar({
         </button>
       </div>
 
-      <NewButton onNew={onNew} onAgentsOpen={onAgentsOpen} onMcpOpen={onMcpOpen} onKnowledgeOpen={onKnowledgeOpen} />
+      <NewButton onNew={onNew} />
+
+      <div className="flex flex-col gap-0.5 border-b border-border pb-2">
+        <ToolNavButton icon={<Bot className="h-4 w-4" />} label="Agents" onClick={onAgentsOpen} />
+        <ToolNavButton icon={<BookOpen className="h-4 w-4" />} label="Knowledge" onClick={onKnowledgeOpen} />
+        <ToolNavButton icon={<Server className="h-4 w-4" />} label="MCP Servers" onClick={onMcpOpen} />
+      </div>
 
       <nav className="flex flex-1 flex-col overflow-y-auto">
         {(() => {
@@ -459,10 +499,10 @@ export function Sidebar({
                 </div>
               )}
 
-              {editingId !== c.id && !c.connection && (
+              {editingId !== c.id && (
                 <ConvoMenu
                   onRename={(e) => startEdit(c, e)}
-                  onDelete={(e) => { e.stopPropagation(); onDelete(c.id); }}
+                  onDelete={c.connection ? undefined : (e) => { e.stopPropagation(); onDelete(c.id); }}
                 />
               )}
             </div>
