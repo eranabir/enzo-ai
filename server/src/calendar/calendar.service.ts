@@ -149,7 +149,7 @@ export class CalendarService {
       { headers: { Authorization: `Bearer ${accessToken}` } }
     );
 
-    if (!res.ok) throw new Error(`Calendar API error: ${res.status}`);
+    if (!res.ok) throw new Error(`Calendar API error: ${res.status} ${await res.text()}`);
     const data = await res.json() as { items?: any[] };
 
     return (data.items ?? []).map((item: any) => this.mapEvent(item));

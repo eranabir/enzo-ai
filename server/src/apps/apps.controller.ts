@@ -4,8 +4,11 @@ import { CalendarService } from "../calendar/calendar.service";
 import { GmailService } from "../gmail/gmail.service";
 
 function getRedirectBase(req: Request): string {
+  // Must match calendar.controller.ts's getRedirectBase exactly — this base is
+  // used to rebuild the redirect_uri for the token exchange, and Google
+  // rejects the exchange if it doesn't match the one used to obtain the code.
   const proto = req.headers["x-forwarded-proto"] ?? req.protocol ?? "http";
-  const host = req.headers.host ?? "localhost:1616";
+  const host = req.headers["x-forwarded-host"] ?? req.headers.host ?? "localhost:1616";
   return `${proto}://${host}`;
 }
 

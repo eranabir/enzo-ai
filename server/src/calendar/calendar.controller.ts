@@ -16,9 +16,12 @@ import { CalendarService } from "./calendar.service";
 import { SettingsService } from "../settings/settings.service";
 
 function getRedirectBase(req: Request): string {
-  // In prod: same origin. In dev: server port.
+  // In prod: same origin. In dev: Vite's proxy rewrites the Host header to
+  // its own target (changeOrigin), so the browser's real origin is forwarded
+  // separately as X-Forwarded-Host (see web/vite.config.ts) — prefer that,
+  // then fall back to Host for prod/no-proxy requests.
   const proto  = req.headers["x-forwarded-proto"] ?? req.protocol ?? "http";
-  const host   = req.headers.host ?? "localhost:1616";
+  const host   = req.headers["x-forwarded-host"] ?? req.headers.host ?? "localhost:1616";
   return `${proto}://${host}`;
 }
 

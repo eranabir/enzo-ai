@@ -24,10 +24,12 @@ export const APPS = {
   },
 } satisfies Record<string, AppDef>;
 
-/** Base origin of the Enzo server that receives OAuth redirects. */
-export const SERVER_ORIGIN = "http://localhost:1616";
-
-/** Build the OAuth callback URL the user registers with the provider. */
+/**
+ * Build the OAuth callback URL the user registers with the provider. Uses
+ * the browser's actual origin rather than a hardcoded prod port, so the
+ * instructions shown are correct in dev (5310) too — matching the backend's
+ * own redirect_uri computation (calendar.controller.ts's getRedirectBase).
+ */
 export function appCallbackUrl(appId: string): string {
-  return `${SERVER_ORIGIN}/api/apps/${appId}/callback`;
+  return `${window.location.origin}/api/apps/${appId}/callback`;
 }

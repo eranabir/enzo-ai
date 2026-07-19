@@ -102,6 +102,8 @@ export function SettingsPanel({ open, user, onClose, onUpdated }: Props) {
       const handler = (e: MessageEvent) => {
         if (e.data?.ok) {
           setCalStatus(s => s ? { ...s, connected: true, email: e.data.email } : null);
+        } else if (e.data?.error) {
+          alert(`Google Calendar connection failed: ${e.data.error}`);
         }
         window.removeEventListener("message", handler);
         popup?.close();
@@ -124,6 +126,8 @@ export function SettingsPanel({ open, user, onClose, onUpdated }: Props) {
       const handler = (e: MessageEvent) => {
         if (e.data?.ok) {
           setGmStatus(s => s ? { ...s, connected: true, email: e.data.email } : null);
+        } else if (e.data?.error) {
+          alert(`Gmail connection failed: ${e.data.error}`);
         }
         window.removeEventListener("message", handler);
         popup?.close();
