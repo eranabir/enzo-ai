@@ -41,7 +41,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'yarn'
       # node-gyp (rebuilds better-sqlite3) needs distutils, removed from Python 3.12.
       - uses: actions/setup-python@v5
@@ -76,7 +76,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'yarn'
       # node-gyp (rebuilds better-sqlite3) needs distutils, removed from Python 3.12.
       - uses: actions/setup-python@v5
@@ -160,7 +160,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'yarn'
       # node-gyp (rebuilds better-sqlite3) needs distutils, removed from Python 3.12.
       - uses: actions/setup-python@v5

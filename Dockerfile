@@ -2,7 +2,7 @@
 # Debian-slim (glibc), not Alpine (musl) — the bundled Ollama binary below is
 # glibc-linked, and better-sqlite3's native module must be compiled against the
 # same libc as the runtime stage it ends up in, so both stages use the same base.
-FROM node:20-bookworm-slim AS builder
+FROM node:22-bookworm-slim AS builder
 
 WORKDIR /build
 
@@ -18,7 +18,7 @@ COPY cli/package.json ./cli/
 RUN mkdir -p desktop && \
     echo '{"name":"@enzo-ai/desktop","version":"0.0.0","private":true}' > desktop/package.json
 
-RUN yarn install --frozen-lockfile --ignore-engines
+RUN yarn install --frozen-lockfile
 
 COPY server/ ./server/
 COPY web/ ./web/
@@ -36,7 +36,7 @@ FROM ollama/ollama:latest AS ollama
 
 
 # ── Stage 3: Runtime ──────────────────────────────────────────────────────────
-FROM node:20-bookworm-slim
+FROM node:22-bookworm-slim
 
 WORKDIR /app
 
