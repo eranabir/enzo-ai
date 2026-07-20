@@ -9,6 +9,9 @@ export interface Message {
   attachment_name?: string | null;
   attachment_mime?: string | null;
   created_at: number;
+  /** Client-side only — set when this message's reply failed to stream, so the
+   *  UI can show a retry affordance. Never persisted or loaded from the server. */
+  error?: string;
 }
 
 export type MemoryType = "fact" | "decision" | "preference" | "work_context";

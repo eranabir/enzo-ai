@@ -273,7 +273,7 @@ export function App() {
     onTitle: (title: string) =>
       setChats((prev) => prev.map((c) => (c.id === convoId ? { ...c, title } : c))),
     onError: (msg: string) =>
-      setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, content: m.content + `\n\n⚠️ ${msg}` } : m))),
+      setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, error: msg } : m))),
   });
 
   const send = useCallback(

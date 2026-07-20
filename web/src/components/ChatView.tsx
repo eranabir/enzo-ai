@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Copy, Check, Pencil, RefreshCw, FileText, Download } from "lucide-react";
+import { Copy, Check, Pencil, RefreshCw, FileText, Download, AlertTriangle } from "lucide-react";
 import type { Message } from "../types";
 import { getToken } from "../api";
 import { Markdown } from "./Markdown";
@@ -220,6 +220,22 @@ function MessageBubble({ m, busy, onRegenerate, onEditMessage }: {
       ) : (
         <div dir="auto" className="break-words leading-relaxed">
           {m.content ? <Markdown content={m.content} /> : (busy ? <span className="animate-blink text-accent-2">▋</span> : "")}
+        </div>
+      )}
+
+      {m.role === "assistant" && m.error && (
+        <div className="mt-2 flex items-center gap-2.5 rounded-xl border border-danger/40 bg-danger/10 px-3.5 py-2.5">
+          <AlertTriangle className="h-4 w-4 flex-shrink-0 text-danger" />
+          <span className="flex-1 text-sm text-danger">{m.error}</span>
+          {onRegenerate && (
+            <button
+              onClick={() => onRegenerate(m.id)}
+              disabled={busy}
+              className="flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-danger/40 px-2.5 py-1 text-xs font-semibold text-danger transition-colors hover:bg-danger/20 disabled:opacity-40"
+            >
+              <RefreshCw className="h-3 w-3" /> Retry
+            </button>
+          )}
         </div>
       )}
 
