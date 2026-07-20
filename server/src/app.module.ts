@@ -83,27 +83,28 @@ export class AppModule implements OnModuleInit {
       });
     }
 
-    // Telegram bot → ChatService
+    // Telegram bot → ChatService. No model override — these are plain chats
+    // like any other, so they use the chat's/agent's own configured model.
     const telegram = this.moduleRef.get(TelegramService, { strict: false });
     if (telegram && chat) {
-      telegram.setRunner((userId, convoId, content, model) =>
-        chat.processMessage(userId, convoId, content, model, "telegram"),
+      telegram.setRunner((userId, convoId, content) =>
+        chat.processMessage(userId, convoId, content, undefined, "telegram"),
       );
     }
 
     // Discord bot → ChatService
     const discordSvc = this.moduleRef.get(DiscordService, { strict: false });
     if (discordSvc && chat) {
-      discordSvc.setRunner((userId, convoId, content, model) =>
-        chat.processMessage(userId, convoId, content, model, "discord"),
+      discordSvc.setRunner((userId, convoId, content) =>
+        chat.processMessage(userId, convoId, content, undefined, "discord"),
       );
     }
 
     // Slack bot → ChatService
     const slackSvc = this.moduleRef.get(SlackService, { strict: false });
     if (slackSvc && chat) {
-      slackSvc.setRunner((userId, convoId, content, model) =>
-        chat.processMessage(userId, convoId, content, model, "slack"),
+      slackSvc.setRunner((userId, convoId, content) =>
+        chat.processMessage(userId, convoId, content, undefined, "slack"),
       );
     }
 

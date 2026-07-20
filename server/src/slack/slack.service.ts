@@ -11,7 +11,6 @@ const K = {
   appToken: (u: string) => `slack_app_token_${u}`,
   botName:  (u: string) => `slack_bot_name_${u}`,
   allowed:  (u: string) => `slack_allowed_ids_${u}`,
-  model:    (u: string) => `slack_model_${u}`,
   enabled:  (u: string) => `slack_enabled_${u}`,
   chatMap:  (u: string) => `slack_chat_map_${u}`,
 };
@@ -23,7 +22,7 @@ export class SlackService implements OnModuleDestroy {
   // ownerUserId → that user's live Slack app.
   private apps = new Map<string, { app: BoltApp; botName: string }>();
 
-  private runChat?: (userId: string, convoId: string, content: string, model?: string) => Promise<string>;
+  private runChat?: (userId: string, convoId: string, content: string) => Promise<string>;
 
   constructor(
     private readonly settings: SettingsService,
@@ -32,7 +31,7 @@ export class SlackService implements OnModuleDestroy {
     private readonly agentsSvc: AgentsService,
   ) {}
 
-  setRunner(fn: (userId: string, convoId: string, content: string, model?: string) => Promise<string>) {
+  setRunner(fn: (userId: string, convoId: string, content: string) => Promise<string>) {
     // Bots start via startAllEnabled() once the vault is ready (see AppModule).
     this.runChat = fn;
   }
@@ -118,9 +117,8 @@ export class SlackService implements OnModuleDestroy {
     }
   }
 
-  updateConfig(userId: string, cfg: { botToken?: string; appToken?: string; allowedIds?: string; model?: string }): void {
+  updateConfig(userId: string, cfg: { botToken?: string; appToken?: string; allowedIds?: string }): void {
     if (cfg.allowedIds != null) this.settings.set(K.allowed(userId), String(cfg.allowedIds).trim());
-    if (cfg.model != null) this.settings.set(K.model(userId), String(cfg.model).trim());
     if (cfg.botToken?.trim()) this.settings.set(K.botToken(userId), cfg.botToken.trim());
     if (cfg.appToken?.trim()) this.settings.set(K.appToken(userId), cfg.appToken.trim());
   }
@@ -133,7 +131,6 @@ export class SlackService implements OnModuleDestroy {
       botToken: this.settings.get(K.botToken(userId)) ? "••••••••" : null,
       appToken: this.settings.get(K.appToken(userId)) ? "••••••••" : null,
       allowedIds: this.settings.get(K.allowed(userId)) ?? "",
-      model: this.settings.get(K.model(userId)) ?? "",
     };
   }
 
@@ -148,13 +145,12 @@ export class SlackService implements OnModuleDestroy {
     }
   }
 
-  /** Clear a user's saved Slack config (tokens/name/allowlist/model). */
+  /** Clear a user's saved Slack config (tokens/name/allowlist). */
   clearConfig(userId: string): void {
     this.settings.set(K.botToken(userId), "");
     this.settings.set(K.appToken(userId), "");
     this.settings.set(K.botName(userId), "");
     this.settings.set(K.allowed(userId), "");
-    this.settings.set(K.model(userId), "");
   }
 
   deleteChat(userId: string): void {
@@ -230,8 +226,7 @@ export class SlackService implements OnModuleDestroy {
         );
 
         await client.reactions.add({ channel: channelId, timestamp: msg.ts, name: "thinking_face" }).catch(() => {});
-        const model = this.settings.get(K.model(ownerUserId)) ?? undefined;
-        const reply = await this.runChat(userId, convoId, content, model);
+        const reply = await this.runChat(userId, convoId, content);
         await client.reactions.remove({ channel: channelId, timestamp: msg.ts, name: "thinking_face" }).catch(() => {});
 
         for (const chunk of splitMessage(reply)) {

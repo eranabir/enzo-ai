@@ -16,7 +16,6 @@ import { AgentsService } from "../agents/agents.service";
 const K = {
   token:   (u: string) => `discord_bot_token_${u}`,
   allowed: (u: string) => `discord_allowed_ids_${u}`,
-  model:   (u: string) => `discord_model_${u}`,
   enabled: (u: string) => `discord_enabled_${u}`,
   chatMap: (u: string) => `discord_chat_map_${u}`,
 };
@@ -28,7 +27,7 @@ export class DiscordService implements OnModuleDestroy {
   // ownerUserId → that user's live Discord client.
   private clients = new Map<string, { client: Client; tag: string }>();
 
-  private runChat?: (userId: string, convoId: string, content: string, model?: string) => Promise<string>;
+  private runChat?: (userId: string, convoId: string, content: string) => Promise<string>;
 
   constructor(
     private readonly settings: SettingsService,
@@ -37,7 +36,7 @@ export class DiscordService implements OnModuleDestroy {
     private readonly agentsSvc: AgentsService,
   ) {}
 
-  setRunner(fn: (userId: string, convoId: string, content: string, model?: string) => Promise<string>) {
+  setRunner(fn: (userId: string, convoId: string, content: string) => Promise<string>) {
     // Bots start via startAllEnabled() once the vault is ready (see AppModule).
     this.runChat = fn;
   }
@@ -130,9 +129,8 @@ export class DiscordService implements OnModuleDestroy {
     }
   }
 
-  updateConfig(userId: string, cfg: { token?: string; allowedIds?: string; model?: string }): void {
+  updateConfig(userId: string, cfg: { token?: string; allowedIds?: string }): void {
     if (cfg.allowedIds != null) this.settings.set(K.allowed(userId), String(cfg.allowedIds).trim());
-    if (cfg.model != null) this.settings.set(K.model(userId), String(cfg.model).trim());
     if (cfg.token?.trim()) this.settings.set(K.token(userId), cfg.token.trim());
   }
 
@@ -143,7 +141,6 @@ export class DiscordService implements OnModuleDestroy {
       tag: this.clients.get(userId)?.tag ?? null,
       token: this.settings.get(K.token(userId)) ? "••••••••" : null,
       allowedIds: this.settings.get(K.allowed(userId)) ?? "",
-      model: this.settings.get(K.model(userId)) ?? "",
     };
   }
 
@@ -163,11 +160,10 @@ export class DiscordService implements OnModuleDestroy {
     }
   }
 
-  /** Clear a user's saved Discord config (token/allowlist/model). */
+  /** Clear a user's saved Discord config (token/allowlist). */
   clearConfig(userId: string): void {
     this.settings.set(K.token(userId), "");
     this.settings.set(K.allowed(userId), "");
-    this.settings.set(K.model(userId), "");
   }
 
   deleteChat(userId: string): void {
@@ -261,11 +257,10 @@ export class DiscordService implements OnModuleDestroy {
           linkedAgent?.id,
         );
 
-        const model = this.settings.get(K.model(ownerUserId)) ?? undefined;
         const typingInterval = setInterval(() => (message.channel as any).sendTyping?.().catch(() => {}), 8000);
         let reply: string;
         try {
-          reply = await this.runChat(userId, convoId, content, model);
+          reply = await this.runChat(userId, convoId, content);
         } finally {
           clearInterval(typingInterval);
         }

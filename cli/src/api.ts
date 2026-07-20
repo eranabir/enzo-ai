@@ -276,17 +276,17 @@ export const api = {
 
   // Per-user Telegram/Discord/Slack integrations
   telegramStatus: () => request<IntegrationStatus>("GET", "/api/integrations/telegram"),
-  telegramSave: (body: { token?: string; allowedIds?: string; model?: string }) =>
+  telegramSave: (body: { token?: string; allowedIds?: string }) =>
     request<{ ok: boolean; running: boolean; username?: string }>("PUT", "/api/integrations/telegram", body),
   telegramDisconnect: () => request<{ ok: boolean; running: boolean }>("DELETE", "/api/integrations/telegram"),
 
   discordStatus: () => request<IntegrationStatus>("GET", "/api/integrations/discord"),
-  discordSave: (body: { token?: string; allowedIds?: string; model?: string }) =>
+  discordSave: (body: { token?: string; allowedIds?: string }) =>
     request<{ ok: boolean; running: boolean; tag?: string }>("PUT", "/api/integrations/discord", body),
   discordDisconnect: () => request<{ ok: boolean; running: boolean }>("DELETE", "/api/integrations/discord"),
 
   slackStatus: () => request<IntegrationStatus & { appToken?: boolean }>("GET", "/api/integrations/slack"),
-  slackSave: (body: { botToken?: string; appToken?: string; allowedIds?: string; model?: string }) =>
+  slackSave: (body: { botToken?: string; appToken?: string; allowedIds?: string }) =>
     request<{ ok: boolean; running: boolean; botName?: string }>("PUT", "/api/integrations/slack", body),
   slackDisconnect: () => request<{ ok: boolean; running: boolean }>("DELETE", "/api/integrations/slack"),
 
@@ -408,5 +408,4 @@ export interface IntegrationStatus {
   botName?: string | null;
   token: string | null;
   allowedIds: string;
-  model: string;
 }

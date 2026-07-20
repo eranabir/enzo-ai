@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useConfirm } from "./ui/ConfirmProvider";
-import { Pencil, Trash2, Play, Clock, Zap, Globe, Calculator, Calendar, ChevronDown, ChevronRight, GitBranch, Key, ShieldAlert, Send } from "lucide-react";
+import { Pencil, Trash2, Play, Clock, Zap, Globe, Calculator, Calendar, ChevronDown, ChevronRight, GitBranch, Key, ShieldAlert, Send, Mail } from "lucide-react";
 import { SiTelegram, SiDiscord } from "react-icons/si";
 import { SlackIcon } from "./ui/SlackIcon";
 import { Plus, X } from "lucide-react";
@@ -147,7 +147,9 @@ import {
 
 const inputCls = "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-fg outline-none focus:border-accent placeholder:text-muted";
 
-const TOOL_ICONS: Record<ToolName, React.ReactNode> = {
+// Partial: list_directory/read_file are auto-injected per-chat tools, never
+// shown in this picker (see FOLDER_TOOL_DEFINITIONS in tools.service.ts).
+const TOOL_ICONS: Partial<Record<ToolName, React.ReactNode>> = {
   get_datetime:    <Clock className="h-3.5 w-3.5" />,
   calculator:      <Calculator className="h-3.5 w-3.5" />,
   web_search:      <Globe className="h-3.5 w-3.5" />,
@@ -155,6 +157,8 @@ const TOOL_ICONS: Record<ToolName, React.ReactNode> = {
   git:             <GitBranch className="h-3.5 w-3.5" />,
   api_request:     <Key className="h-3.5 w-3.5" />,
   calendar:        <Calendar className="h-3.5 w-3.5" />,
+  search_emails:   <Mail className="h-3.5 w-3.5" />,
+  read_email:      <Mail className="h-3.5 w-3.5" />,
 };
 
 const EMOJI_OPTIONS = [

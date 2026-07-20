@@ -13,7 +13,7 @@ const program = new Command();
 program
   .name("enzo-ai")
   .description("Enzo AI — local-first AI assistant CLI")
-  .version("3.0.0");
+  .version("3.0.1");
 
 // ── config ────────────────────────────────────────────────────────────────────
 
@@ -909,14 +909,13 @@ connectionsCmd
     }
   });
 
-function printIntegrationStatus(name: string, s: { available: boolean; enabled: boolean; token: string | null; allowedIds: string; model: string }) {
+function printIntegrationStatus(name: string, s: { available: boolean; enabled: boolean; token: string | null; allowedIds: string }) {
   console.log("\n" + brand + "  " + dim(name));
   divider();
   console.log(`  ${dim("available")}   ${s.available ? ok("yes") : dim("disabled by admin")}`);
   console.log(`  ${dim("running")}     ${s.enabled ? ok("● connected") : dim("○ not connected")}`);
   console.log(`  ${dim("token")}       ${s.token ? dim(s.token) : dim("(none)")}`);
   console.log(`  ${dim("allowed ids")} ${s.allowedIds || dim("(any)")}`);
-  console.log(`  ${dim("model")}       ${s.model || dim("(default)")}`);
   console.log();
 }
 
@@ -945,14 +944,13 @@ telegramCmd
   .description("Connect (or update) your Telegram bot")
   .option("--token <token>", "Bot token from @BotFather")
   .option("--allowed-ids <ids>", "Comma-separated chat IDs allowed to use the bot")
-  .option("--model <model>")
   .action(async (opts) => {
     const { token } = loadConfig();
     ensureAuth(token);
     const botToken = opts.token || await promptSecret("  Bot token (from @BotFather): ");
     const stop = spinner("Connecting…");
     try {
-      const res = await api.telegramSave({ token: botToken, allowedIds: opts.allowedIds, model: opts.model });
+      const res = await api.telegramSave({ token: botToken, allowedIds: opts.allowedIds });
       stop();
       console.log(ok(`\n  ✓ Connected${res.username ? " as @" + res.username : ""}\n`));
     } catch (e) {
@@ -1004,14 +1002,13 @@ discordCmd
   .description("Connect (or update) your Discord bot")
   .option("--token <token>", "Bot token from the Discord developer portal")
   .option("--allowed-ids <ids>", "Comma-separated channel IDs allowed to use the bot")
-  .option("--model <model>")
   .action(async (opts) => {
     const { token } = loadConfig();
     ensureAuth(token);
     const botToken = opts.token || await promptSecret("  Bot token: ");
     const stop = spinner("Connecting…");
     try {
-      const res = await api.discordSave({ token: botToken, allowedIds: opts.allowedIds, model: opts.model });
+      const res = await api.discordSave({ token: botToken, allowedIds: opts.allowedIds });
       stop();
       console.log(ok(`\n  ✓ Connected${res.tag ? " as " + res.tag : ""}\n`));
     } catch (e) {
@@ -1064,7 +1061,6 @@ slackCmd
   .option("--bot-token <token>", "Bot token (xoxb-…)")
   .option("--app-token <token>", "App-level token (xapp-…)")
   .option("--allowed-ids <ids>", "Comma-separated channel IDs allowed to use the bot")
-  .option("--model <model>")
   .action(async (opts) => {
     const { token } = loadConfig();
     ensureAuth(token);
@@ -1072,7 +1068,7 @@ slackCmd
     const appToken = opts.appToken || await promptSecret("  App-level token (xapp-…): ");
     const stop = spinner("Connecting…");
     try {
-      const res = await api.slackSave({ botToken, appToken, allowedIds: opts.allowedIds, model: opts.model });
+      const res = await api.slackSave({ botToken, appToken, allowedIds: opts.allowedIds });
       stop();
       console.log(ok(`\n  ✓ Connected${res.botName ? " as " + res.botName : ""}\n`));
     } catch (e) {
@@ -1968,6 +1964,6 @@ async function resolveChatId(idOrPrefix: string) {
 
 // ── Entry ─────────────────────────────────────────────────────────────────────
 
-program.addHelpText("beforeAll", "\n" + brand + "  " + dim("local-first AI  ·  v3.0.0") + "\n");
+program.addHelpText("beforeAll", "\n" + brand + "  " + dim("local-first AI  ·  v3.0.1") + "\n");
 program.parse(process.argv);
 if (!process.argv.slice(2).length) program.help();

@@ -17,7 +17,7 @@ export class DiscordController {
   @Put()
   async save(
     @UserId() userId: string,
-    @Body() body: { token?: string; allowedIds?: string; model?: string },
+    @Body() body: { token?: string; allowedIds?: string },
   ) {
     this.discord.updateConfig(userId, body);
     if (body.token?.trim()) {

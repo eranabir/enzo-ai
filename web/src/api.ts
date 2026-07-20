@@ -367,8 +367,8 @@ export const api = {
   telegram: {
     status: () =>
       fetch("/api/integrations/telegram", { headers: headers() })
-        .then(parse<{ available: boolean; enabled: boolean; username: string | null; token: string | null; allowedIds: string; model: string }>),
-    save: (body: { token?: string; allowedIds?: string; model?: string }) =>
+        .then(parse<{ available: boolean; enabled: boolean; username: string | null; token: string | null; allowedIds: string }>),
+    save: (body: { token?: string; allowedIds?: string }) =>
       fetch("/api/integrations/telegram", { method: "PUT", headers: headers(true), body: JSON.stringify(body) })
         .then(parse<{ ok: boolean; running: boolean; username?: string }>),
     disconnect: () =>
@@ -379,8 +379,8 @@ export const api = {
   discord: {
     status: () =>
       fetch("/api/integrations/discord", { headers: headers() })
-        .then(parse<{ available: boolean; enabled: boolean; tag: string | null; token: string | null; allowedIds: string; model: string }>),
-    save: (body: { token?: string; allowedIds?: string; model?: string }) =>
+        .then(parse<{ available: boolean; enabled: boolean; tag: string | null; token: string | null; allowedIds: string }>),
+    save: (body: { token?: string; allowedIds?: string }) =>
       fetch("/api/integrations/discord", { method: "PUT", headers: headers(true), body: JSON.stringify(body) })
         .then(parse<{ ok: boolean; running: boolean; tag?: string }>),
     disconnect: () =>
@@ -391,8 +391,8 @@ export const api = {
   slack: {
     status: () =>
       fetch("/api/integrations/slack", { headers: headers() })
-        .then(parse<{ available: boolean; enabled: boolean; botName: string | null; botToken: string | null; appToken: string | null; allowedIds: string; model: string }>),
-    save: (body: { botToken?: string; appToken?: string; allowedIds?: string; model?: string }) =>
+        .then(parse<{ available: boolean; enabled: boolean; botName: string | null; botToken: string | null; appToken: string | null; allowedIds: string }>),
+    save: (body: { botToken?: string; appToken?: string; allowedIds?: string }) =>
       fetch("/api/integrations/slack", { method: "PUT", headers: headers(true), body: JSON.stringify(body) })
         .then(parse<{ ok: boolean; running: boolean; botName?: string }>),
     disconnect: () =>

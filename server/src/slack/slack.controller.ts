@@ -17,7 +17,7 @@ export class SlackController {
   @Put()
   async save(
     @UserId() userId: string,
-    @Body() body: { botToken?: string; appToken?: string; allowedIds?: string; model?: string },
+    @Body() body: { botToken?: string; appToken?: string; allowedIds?: string },
   ) {
     this.slack.updateConfig(userId, body);
     const hasBoth = this.slack.getStatus(userId).botToken && this.slack.getStatus(userId).appToken;

@@ -20,7 +20,7 @@ export class TelegramController {
   @Put()
   async save(
     @UserId() userId: string,
-    @Body() body: { token?: string; allowedIds?: string; model?: string },
+    @Body() body: { token?: string; allowedIds?: string },
   ) {
     this.telegram.updateConfig(userId, body);
     if (body.token?.trim()) {

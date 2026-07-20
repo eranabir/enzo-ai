@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { useConfirm } from "./ui/ConfirmProvider";
-import { ModelPicker } from "./ui/ModelPicker";
 
 const inputCls = "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-fg outline-none focus:border-accent placeholder:text-muted";
 
@@ -33,7 +32,6 @@ export function TelegramConfig() {
   const confirm = useConfirm();
   const [token, setToken] = useState("");
   const [allowedIds, setAllowed] = useState("");
-  const [model, setModel] = useState("");
   const [running, setRunning] = useState(false);
   const [hasToken, setHasToken] = useState(false);
   const [botName, setBotName] = useState<string | null>(null);
@@ -42,7 +40,7 @@ export function TelegramConfig() {
 
   useEffect(() => {
     api.telegram.status().then(d => {
-      setRunning(d.enabled); setAllowed(d.allowedIds); setModel(d.model); setHasToken(!!d.token);
+      setRunning(d.enabled); setAllowed(d.allowedIds); setHasToken(!!d.token);
       if (d.username) setBotName(d.username);
     }).catch(() => {});
   }, []);
@@ -51,7 +49,7 @@ export function TelegramConfig() {
     if (!token.trim() && !hasToken) return;
     setBusy(true); setError(null);
     try {
-      const body: { token?: string; allowedIds: string; model: string } = { allowedIds, model };
+      const body: { token?: string; allowedIds: string } = { allowedIds };
       if (token.trim()) body.token = token;
       const res = await api.telegram.save(body);
       setRunning(res.running); setHasToken(true);
@@ -67,7 +65,7 @@ export function TelegramConfig() {
     try {
       await api.telegram.disconnect();
       setRunning(false); setHasToken(false); setBotName(null);
-      setToken(""); setAllowed(""); setModel("");
+      setToken(""); setAllowed("");
     } catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }
   }
@@ -96,10 +94,6 @@ export function TelegramConfig() {
           <p className="mb-1.5 text-[11px] text-muted">Blank = anyone can use it. Your ID via <span className="text-accent-2">@userinfobot</span></p>
           <input className={inputCls} placeholder="123456789, 987654321" value={allowedIds} onChange={e => setAllowed(e.target.value)} />
         </div>
-        <div>
-          <label className="mb-1 block text-xs font-semibold text-muted">Model</label>
-          <ModelPicker value={model} onChange={setModel} />
-        </div>
         <ActionRow busy={busy} running={running} configured={running || hasToken} onSave={save} onRemove={remove} canSave={!!token.trim() || hasToken} />
         {error && <p className="text-xs text-danger">{error}</p>}
       </div>
@@ -113,7 +107,6 @@ export function DiscordConfig() {
   const confirm = useConfirm();
   const [token, setToken] = useState("");
   const [allowedIds, setAllowed] = useState("");
-  const [model, setModel] = useState("");
   const [running, setRunning] = useState(false);
   const [hasToken, setHasToken] = useState(false);
   const [botTag, setBotTag] = useState<string | null>(null);
@@ -122,7 +115,7 @@ export function DiscordConfig() {
 
   useEffect(() => {
     api.discord.status().then(d => {
-      setRunning(d.enabled); setAllowed(d.allowedIds); setModel(d.model); setHasToken(!!d.token);
+      setRunning(d.enabled); setAllowed(d.allowedIds); setHasToken(!!d.token);
       if (d.tag) setBotTag(d.tag);
     }).catch(() => {});
   }, []);
@@ -131,7 +124,7 @@ export function DiscordConfig() {
     if (!token.trim() && !hasToken) return;
     setBusy(true); setError(null);
     try {
-      const body: { token?: string; allowedIds: string; model: string } = { allowedIds, model };
+      const body: { token?: string; allowedIds: string } = { allowedIds };
       if (token.trim()) body.token = token;
       const res = await api.discord.save(body);
       setRunning(res.running); setHasToken(true);
@@ -147,7 +140,7 @@ export function DiscordConfig() {
     try {
       await api.discord.disconnect();
       setRunning(false); setHasToken(false); setBotTag(null);
-      setToken(""); setAllowed(""); setModel("");
+      setToken(""); setAllowed("");
     } catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }
   }
@@ -176,10 +169,6 @@ export function DiscordConfig() {
           <p className="mb-1.5 text-[11px] text-muted">Right-click your name → Copy User ID (needs Developer Mode on).</p>
           <input className={inputCls} placeholder="123456789012345678" value={allowedIds} onChange={e => setAllowed(e.target.value)} />
         </div>
-        <div>
-          <label className="mb-1 block text-xs font-semibold text-muted">Model</label>
-          <ModelPicker value={model} onChange={setModel} />
-        </div>
         <ActionRow busy={busy} running={running} configured={running || hasToken} onSave={save} onRemove={remove} canSave={!!token.trim() || hasToken} />
         {error && <p className="text-xs text-danger">{error}</p>}
         <div className="rounded-xl border border-border bg-surface-2 px-4 py-3 text-xs text-muted space-y-1.5">
@@ -200,7 +189,6 @@ export function SlackConfig() {
   const [botToken, setBotToken] = useState("");
   const [appToken, setAppToken] = useState("");
   const [allowedIds, setAllowed] = useState("");
-  const [model, setModel] = useState("");
   const [running, setRunning] = useState(false);
   const [hasTokens, setHasTokens] = useState(false);
   const [botName, setBotName] = useState<string | null>(null);
@@ -209,7 +197,7 @@ export function SlackConfig() {
 
   useEffect(() => {
     api.slack.status().then(d => {
-      setRunning(d.enabled); setAllowed(d.allowedIds); setModel(d.model);
+      setRunning(d.enabled); setAllowed(d.allowedIds);
       setHasTokens(!!(d.botToken && d.appToken));
       if (d.botName) setBotName(d.botName);
     }).catch(() => {});
@@ -219,7 +207,7 @@ export function SlackConfig() {
     if (!botToken.trim() && !appToken.trim() && !hasTokens) return;
     setBusy(true); setError(null);
     try {
-      const body: { botToken?: string; appToken?: string; allowedIds: string; model: string } = { allowedIds, model };
+      const body: { botToken?: string; appToken?: string; allowedIds: string } = { allowedIds };
       if (botToken.trim()) body.botToken = botToken;
       if (appToken.trim()) body.appToken = appToken;
       const res = await api.slack.save(body);
@@ -236,7 +224,7 @@ export function SlackConfig() {
     try {
       await api.slack.disconnect();
       setRunning(false); setHasTokens(false); setBotName(null);
-      setBotToken(""); setAppToken(""); setAllowed(""); setModel("");
+      setBotToken(""); setAppToken(""); setAllowed("");
     } catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }
   }
@@ -268,10 +256,6 @@ export function SlackConfig() {
         <div>
           <label className="mb-1 block text-xs font-semibold text-muted">Allowed Channel / User IDs <span className="font-normal">(optional)</span></label>
           <input className={inputCls} placeholder="C1234567890, U1234567890" value={allowedIds} onChange={e => setAllowed(e.target.value)} />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-semibold text-muted">Model</label>
-          <ModelPicker value={model} onChange={setModel} />
         </div>
         <ActionRow busy={busy} running={running} configured={running || hasTokens} onSave={save} onRemove={remove} canSave={!!botToken.trim() || !!appToken.trim() || hasTokens} />
         {error && <p className="text-xs text-danger">{error}</p>}

@@ -20,7 +20,6 @@ const PENDING_KEY = "__pending__";
 const K = {
   token:   (u: string) => `telegram_bot_token_${u}`,
   allowed: (u: string) => `telegram_allowed_ids_${u}`,
-  model:   (u: string) => `telegram_model_${u}`,
   enabled: (u: string) => `telegram_enabled_${u}`,
   chatMap: (u: string) => `telegram_chat_map_${u}`,
 };
@@ -38,7 +37,6 @@ export class TelegramService implements OnModuleDestroy {
     userId: string,
     chatId: string,
     content: string,
-    model: string | undefined,
   ) => Promise<string>;
 
   constructor(
@@ -52,7 +50,7 @@ export class TelegramService implements OnModuleDestroy {
   /** Called by app.module after ChatService is available. Auto-starts every
    *  user who has Telegram enabled. */
   setRunner(
-    fn: (userId: string, convoId: string, content: string, model?: string) => Promise<string>,
+    fn: (userId: string, convoId: string, content: string) => Promise<string>,
   ) {
     // Note: bots are started separately via startAllEnabled() once the vault is
     // ready (see AppModule), so we don't auto-start here.
@@ -124,10 +122,9 @@ export class TelegramService implements OnModuleDestroy {
     }
   }
 
-  /** Persist a user's Telegram config (token/allowlist/model). */
-  updateConfig(userId: string, cfg: { token?: string; allowedIds?: string; model?: string }): void {
+  /** Persist a user's Telegram config (token/allowlist). */
+  updateConfig(userId: string, cfg: { token?: string; allowedIds?: string }): void {
     if (cfg.allowedIds != null) this.settings.set(K.allowed(userId), String(cfg.allowedIds).trim());
-    if (cfg.model != null) this.settings.set(K.model(userId), String(cfg.model).trim());
     if (cfg.token?.trim()) this.settings.set(K.token(userId), cfg.token.trim());
   }
 
@@ -139,7 +136,6 @@ export class TelegramService implements OnModuleDestroy {
       username: this.bots.get(userId)?.username ?? null,
       token: this.settings.get(K.token(userId)) ? "••••••••" : null,
       allowedIds: this.settings.get(K.allowed(userId)) ?? "",
-      model: this.settings.get(K.model(userId)) ?? "",
     };
   }
 
@@ -197,12 +193,11 @@ export class TelegramService implements OnModuleDestroy {
           linkedAgent ? agentTitle : chatTitle,
           linkedAgent?.id,
         );
-        const model = this.settings.get(K.model(ownerUserId)) ?? undefined;
 
         const typingInterval = setInterval(() => ctx.sendChatAction("typing").catch(() => {}), 4000);
         let reply: string;
         try {
-          reply = await this.runChat(userId, convoId, text, model);
+          reply = await this.runChat(userId, convoId, text);
         } finally {
           clearInterval(typingInterval);
         }
@@ -344,11 +339,10 @@ export class TelegramService implements OnModuleDestroy {
     }
   }
 
-  /** Clear a user's saved Telegram config (token/allowlist/model). */
+  /** Clear a user's saved Telegram config (token/allowlist). */
   clearConfig(userId: string): void {
     this.settings.set(K.token(userId), "");
     this.settings.set(K.allowed(userId), "");
-    this.settings.set(K.model(userId), "");
   }
 
   /** Delete all of a user's Telegram chats (on disconnect/reconnect). */
