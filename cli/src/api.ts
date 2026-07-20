@@ -34,6 +34,15 @@ export async function request<T = unknown>(
       let raw = "";
       res.on("data", (c) => (raw += c));
       res.on("end", () => {
+        // 204/empty bodies (e.g. DELETE endpoints) have nothing to parse.
+        if (!raw.trim()) {
+          if (res.statusCode && res.statusCode >= 400) {
+            reject(new Error(`HTTP ${res.statusCode}`));
+          } else {
+            resolve(undefined as T);
+          }
+          return;
+        }
         try {
           const parsed = JSON.parse(raw);
           if (res.statusCode && res.statusCode >= 400) {
@@ -216,14 +225,36 @@ export const api = {
 
   // ── Agents ───────────────────────────────────────────────────────────────
   listAgents: () =>
-    request<{
-      id: string; name: string; emoji: string; description: string | null;
-      model: string | null; tools: string[]; schedule: string | null;
-      scheduleEnabled: boolean; lastRunAt: number | null;
-    }[]>("GET", "/api/agents"),
+    request<AgentPublic[]>("GET", "/api/agents"),
+
+  getAgent: (id: string) =>
+    request<AgentPublic>("GET", `/api/agents/${id}`),
+
+  createAgent: (body: CreateAgentInput) =>
+    request<AgentPublic>("POST", "/api/agents", body),
+
+  updateAgent: (id: string, body: Partial<CreateAgentInput>) =>
+    request<AgentPublic>("PATCH", `/api/agents/${id}`, body),
+
+  deleteAgent: (id: string) =>
+    request<void>("DELETE", `/api/agents/${id}`),
 
   runAgent: (id: string) =>
     request<{ ok: boolean }>("POST", `/api/agents/${id}/run`),
+
+  // ── Agent credentials (name/value secrets scoped to one agent) ───────────
+  listAgentCredentials: (agentId: string) =>
+    request<{ id: string; name: string; createdAt: number }[]>(
+      "GET", `/api/agents/${agentId}/credentials`
+    ),
+
+  addAgentCredential: (agentId: string, name: string, value: string) =>
+    request<{ id: string; name: string; createdAt: number }>(
+      "POST", `/api/agents/${agentId}/credentials`, { name, value }
+    ),
+
+  removeAgentCredential: (agentId: string, credId: string) =>
+    request<void>("DELETE", `/api/agents/${agentId}/credentials/${credId}`),
 
   // ── Tools ────────────────────────────────────────────────────────────────
   listTools: () =>
@@ -242,4 +273,140 @@ export const api = {
     request<{ telegram: boolean; discord: boolean; slack: boolean }>(
       "GET", "/api/health/integrations"
     ),
+
+  // Per-user Telegram/Discord/Slack integrations
+  telegramStatus: () => request<IntegrationStatus>("GET", "/api/integrations/telegram"),
+  telegramSave: (body: { token?: string; allowedIds?: string; model?: string }) =>
+    request<{ ok: boolean; running: boolean; username?: string }>("PUT", "/api/integrations/telegram", body),
+  telegramDisconnect: () => request<{ ok: boolean; running: boolean }>("DELETE", "/api/integrations/telegram"),
+
+  discordStatus: () => request<IntegrationStatus>("GET", "/api/integrations/discord"),
+  discordSave: (body: { token?: string; allowedIds?: string; model?: string }) =>
+    request<{ ok: boolean; running: boolean; tag?: string }>("PUT", "/api/integrations/discord", body),
+  discordDisconnect: () => request<{ ok: boolean; running: boolean }>("DELETE", "/api/integrations/discord"),
+
+  slackStatus: () => request<IntegrationStatus & { appToken?: boolean }>("GET", "/api/integrations/slack"),
+  slackSave: (body: { botToken?: string; appToken?: string; allowedIds?: string; model?: string }) =>
+    request<{ ok: boolean; running: boolean; botName?: string }>("PUT", "/api/integrations/slack", body),
+  slackDisconnect: () => request<{ ok: boolean; running: boolean }>("DELETE", "/api/integrations/slack"),
+
+  // ── Vault (encryption) extras ────────────────────────────────────────────
+  vaultLock: () => request<{ ok: boolean; configured: boolean; unlocked: boolean }>("POST", "/api/vault/lock"),
+  vaultChangePassphrase: (passphrase: string) =>
+    request<{ ok: boolean }>("POST", "/api/vault/change-passphrase", { passphrase }),
+
+  // ── LLM provider API keys (OpenAI / Anthropic / Google) ──────────────────
+  listApiKeys: () => request<{ configured: string[] }>("GET", "/api/keys"),
+  setApiKey: (provider: string, key: string) =>
+    request<{ ok?: boolean; error?: string }>("PUT", `/api/keys/${provider}`, { key }),
+  removeApiKey: (provider: string) => request<void>("DELETE", `/api/keys/${provider}`),
+
+  // ── Knowledge bases ───────────────────────────────────────────────────────
+  knowledgeStatus: () => request<{ embedModelReady: boolean; embedModel?: string }>("GET", "/api/knowledge/status"),
+  listKnowledgeBases: () =>
+    request<{ id: string; name: string; description: string | null; document_count: number; created_at: number }[]>(
+      "GET", "/api/knowledge/bases"
+    ),
+  createKnowledgeBase: (name: string, description?: string) =>
+    request<{ id: string; name: string; description: string | null; created_at: number }>(
+      "POST", "/api/knowledge/bases", { name, description }
+    ),
+  deleteKnowledgeBase: (id: string) => request<void>("DELETE", `/api/knowledge/bases/${id}`),
+  listKnowledgeDocuments: (baseId: string) =>
+    request<{ id: string; title: string; source_type: string; status: string; created_at: number }[]>(
+      "GET", `/api/knowledge/bases/${baseId}/documents`
+    ),
+  addKnowledgeDocument: (
+    baseId: string,
+    body: { title?: string; sourceType?: "text" | "url" | "file"; content?: string; url?: string; filename?: string; mime?: string; base64?: string },
+  ) => request<{ id: string; title: string; status: string }>("POST", `/api/knowledge/bases/${baseId}/documents`, body),
+  deleteKnowledgeDocument: (id: string) => request<void>("DELETE", `/api/knowledge/documents/${id}`),
+
+  // ── MCP servers ───────────────────────────────────────────────────────────
+  listMcpServers: () =>
+    request<{ id: string; name: string; type: "stdio" | "http"; command: string | null; args: string[]; url: string | null; enabled: boolean }[]>(
+      "GET", "/api/mcp/servers"
+    ),
+  createMcpServer: (body: { name: string; type?: "stdio" | "http"; command?: string; args?: string[]; env?: Record<string, string>; url?: string }) =>
+    request<{ id: string; name: string }>("POST", "/api/mcp/servers", body),
+  updateMcpServer: (id: string, body: Partial<{ name: string; type: "stdio" | "http"; command: string; args: string[]; env: Record<string, string>; url: string; enabled: boolean }>) =>
+    request<{ id: string; name: string }>("PATCH", `/api/mcp/servers/${id}`, body),
+  deleteMcpServer: (id: string) => request<{ ok: boolean }>("DELETE", `/api/mcp/servers/${id}`),
+  testMcpServer: (id: string) => request<{ ok: boolean; toolCount: number; tools: string[] }>("POST", `/api/mcp/servers/${id}/connect`),
+
+  // ── Admin ─────────────────────────────────────────────────────────────────
+  adminListUsers: () =>
+    request<{ id: string; username: string; displayName: string; role: string }[]>("GET", "/api/admin/users"),
+  adminResetPassword: (userId: string, password: string) =>
+    request<{ ok: boolean }>("PUT", `/api/admin/users/${userId}/password`, { password }),
+  adminDeleteUser: (userId: string) => request<{ ok: boolean }>("DELETE", `/api/admin/users/${userId}`),
+
+  adminListModels: () =>
+    request<{
+      models: { id: string; provider: string; label?: string }[];
+      ollamaOnline: boolean; defaultModel: string; configuredProviders: string[];
+    }>("GET", "/api/admin/models"),
+  adminSetDefaultModel: (model: string) =>
+    request<{ defaultModel: string }>("PUT", "/api/admin/models/default", { model }),
+  adminDeleteModel: (name: string) => request<{ ok: boolean }>("DELETE", `/api/admin/models/${encodeURIComponent(name)}`),
+
+  adminGetSettings: () =>
+    request<{ defaultModel: string; chatToolsEnabled: boolean }>("GET", "/api/admin/settings"),
+  adminUpdateSettings: (body: { chatToolsEnabled?: boolean }) =>
+    request<{ defaultModel: string; chatToolsEnabled: boolean }>("PATCH", "/api/admin/settings", body),
+
+  adminGetConnections: () =>
+    request<{ id: string; name: string; enabled: boolean }[]>("GET", "/api/admin/connections"),
+  adminToggleConnection: (id: string, enabled: boolean) =>
+    request<{ id: string; name: string; enabled: boolean }[]>("PATCH", `/api/admin/connections/${id}`, { enabled }),
+
+  adminReset: () => request<{ ok: boolean; message: string }>("DELETE", "/api/admin/reset", { confirm: "reset" }),
+
+  // ── Chats extras ──────────────────────────────────────────────────────────
+  getChat: (id: string) =>
+    request<{
+      id: string; title: string; model: string | null; folder_path: string | null;
+      messages: { role: string; content: string; created_at: number }[];
+    }>("GET", `/api/chats/${id}`),
+  updateChat: (id: string, body: { title?: string; model?: string; memoryEnabled?: boolean; folderPath?: string | null }) =>
+    request("PATCH", `/api/chats/${id}`, body),
+  deleteChat: (id: string) => request<void>("DELETE", `/api/chats/${id}`),
+
+  // ── Memories extra ────────────────────────────────────────────────────────
+  removeMemory: (id: string) => request<void>("DELETE", `/api/memories/${id}`),
 };
+
+// ── Shared types ──────────────────────────────────────────────────────────────
+
+export interface CreateAgentInput {
+  name: string;
+  emoji?: string;
+  description?: string;
+  instructions: string;
+  model?: string;
+  tools?: string[];
+  schedule?: string;
+  schedulePrompt?: string;
+  scheduleEnabled?: boolean;
+  telegramChatIds?: string;
+  knowledgeBaseId?: string | null;
+}
+
+export interface AgentPublic {
+  id: string; name: string; emoji: string; description: string | null;
+  instructions: string; model: string | null; tools: string[];
+  schedule: string | null; schedulePrompt: string | null; scheduleEnabled: boolean;
+  telegramChatIds: string; knowledgeBaseId: string | null;
+  lastRunAt: number | null; createdAt: number; updatedAt: number;
+}
+
+export interface IntegrationStatus {
+  available: boolean;
+  enabled: boolean;
+  username?: string | null;
+  tag?: string | null;
+  botName?: string | null;
+  token: string | null;
+  allowedIds: string;
+  model: string;
+}

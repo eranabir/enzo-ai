@@ -232,6 +232,17 @@ export const api = {
       fetch(`/api/agents/${id}`, { method: "PATCH", headers: headers(true), body: JSON.stringify(body) }).then(parse<import("./types").Agent>),
     delete: (id: string) => fetch(`/api/agents/${id}`, { method: "DELETE", headers: headers() }),
     tools: () => fetch("/api/agents/tools", { headers: headers() }).then(parse<import("./types").ToolDefinition[]>),
+
+    // Named secrets (e.g. a trading platform API key) scoped to one agent —
+    // vault-encrypted server-side; values are never returned, only metadata.
+    listCredentials: (agentId: string) =>
+      fetch(`/api/agents/${agentId}/credentials`, { headers: headers() })
+        .then(parse<{ id: string; name: string; createdAt: number }[]>),
+    addCredential: (agentId: string, body: { name: string; value: string }) =>
+      fetch(`/api/agents/${agentId}/credentials`, { method: "POST", headers: headers(true), body: JSON.stringify(body) })
+        .then(parse<{ id: string; name: string; createdAt: number }>),
+    removeCredential: (agentId: string, credId: string) =>
+      fetch(`/api/agents/${agentId}/credentials/${credId}`, { method: "DELETE", headers: headers() }),
   },
 
   // ---- api keys ----
@@ -265,6 +276,27 @@ export const api = {
       headers: headers(true),
       body: JSON.stringify({ memoryEnabled: enabled }),
     }).then(parse<import("./types").Chat>),
+
+  // ---- chats: attach a local project folder (file/git tools) ----
+  setFolderPath: (chatId: string, folderPath: string | null) =>
+    fetch(`/api/chats/${chatId}`, {
+      method: "PATCH",
+      headers: headers(true),
+      body: JSON.stringify({ folderPath }),
+    }).then(parse<import("./types").Chat>),
+
+  checkFolder: (folderPath: string) =>
+    fetch(`/api/chats/check-folder?path=${encodeURIComponent(folderPath)}`, { headers: headers() })
+      .then(parse<{
+        exists: boolean; isDirectory: boolean; isGit: boolean; branch: string | null;
+        diffStat: { insertions: number; deletions: number } | null;
+      }>),
+
+  /** List subfolders of a directory for the "attach project folder" browser.
+   *  Omit path to start from the home directory. */
+  browseFolder: (path?: string) =>
+    fetch(`/api/chats/browse-folder${path ? `?path=${encodeURIComponent(path)}` : ""}`, { headers: headers() })
+      .then(parse<{ path: string; parent: string | null; folders: string[] }>),
 
   // ---- admin ----
   admin: {

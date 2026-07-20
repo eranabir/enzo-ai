@@ -356,10 +356,17 @@ export class ChatService {
       }),
     );
 
+    // A project folder attached to this chat (see chats.folder_path) unlocks
+    // list_directory/read_file regardless of agent/admin tool config — same
+    // pattern as knowledge-base retrieval below: presence of the attachment
+    // itself is the gate, not a toggleable tool setting.
+    const folderPath = (convo as any).folder_path as string | null | undefined;
+    const folderDefs = folderPath ? this.toolsService.getFolderToolDefinitions() : [];
+
     // Resolve the tools available this turn so we can both describe them in the
     // system prompt (so the model can answer "what can you do?") and offer them
     // for function-calling below.
-    const builtinDefs = this.toolsService.getDefinitions(agentTools);
+    const builtinDefs = [...this.toolsService.getDefinitions(agentTools), ...folderDefs];
     // Agents always get tools; agent-less chats only when the admin enabled it
     // (mirrors getChatToolNames). Skipping MCP here keeps plain chats on the
     // fast streaming path instead of the non-streaming tool-detection loop.
@@ -404,7 +411,7 @@ export class ChatService {
       // ── Tool-use loop ─────────────────────────────────────────────────────
       const hasMcpTools = mcpTools.length > 0;
 
-      if ((agentTools.length > 0 || hasMcpTools) && provider.id === "ollama") {
+      if ((agentTools.length > 0 || hasMcpTools || folderDefs.length > 0) && provider.id === "ollama") {
         // Strip _mcp metadata before sending to LLM (it only needs type/function)
         const mcpDefs = mcpTools.map(({ type, function: fn }) => ({ type, function: fn }));
         const toolDefs = [...builtinDefs, ...mcpDefs];
@@ -467,7 +474,7 @@ export class ChatService {
             if (this.mcpService.isMcpTool(toolName)) {
               result = await this.mcpService.callTool(userId, toolName, toolArgs);
             } else {
-              result = await this.toolsService.execute(toolName, toolArgs, userId);
+              result = await this.toolsService.execute(toolName, toolArgs, userId, folderPath, agent?.id);
             }
             loopMessages.push({ role: "tool", content: result } as any);
           }

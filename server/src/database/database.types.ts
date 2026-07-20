@@ -8,6 +8,7 @@ export interface ChatRow {
   model: string | null;
   memory_enabled: number; // SQLite boolean: 1 = on, 0 = off
   connection: string | null; // e.g. "telegram" — managed by an connection
+  folder_path: string | null; // local project folder attached for file/git tools
   created_at: number;
   updated_at: number;
 }
@@ -38,5 +39,16 @@ export interface MemoryRow {
 export interface ChatSummaryRow {
   chat_id: string;
   summary: string;
+  created_at: number;
+}
+
+/** A named secret (e.g. a trading platform API key) scoped to one agent.
+ *  value_enc is vault-encrypted — see agent-credentials.service.ts. */
+export interface AgentCredentialRow {
+  id: string;
+  agent_id: string;
+  user_id: string;
+  name: string;
+  value_enc: string;
   created_at: number;
 }

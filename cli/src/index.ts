@@ -13,7 +13,7 @@ const program = new Command();
 program
   .name("enzo-ai")
   .description("Enzo AI — local-first AI assistant CLI")
-  .version("0.1.0");
+  .version("3.0.0");
 
 // ── config ────────────────────────────────────────────────────────────────────
 
@@ -335,9 +335,10 @@ program
 
 // ── chats ──────────────────────────────────────────────────────────────────────
 
-program
-  .command("chats")
-  .alias("chats")
+const chatsCmd = program.command("chats").description("List and manage your chats");
+
+chatsCmd
+  .command("list", { isDefault: true })
   .description("List recent chats with their IDs")
   .action(async () => {
     const { token } = loadConfig();
@@ -373,6 +374,71 @@ program
     }
   });
 
+chatsCmd
+  .command("show <id>")
+  .description("Print a chat's messages")
+  .action(async (id: string) => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    const stop = spinner("Loading…");
+    try {
+      const c = await resolveChatId(id);
+      const full = await api.getChat(c.id);
+      stop();
+      console.log("\n" + brand + "  " + accent(full.title));
+      divider();
+      for (const m of full.messages) {
+        const who = m.role === "user" ? bold("You") : m.role === "assistant" ? purple2("Enzo AI") : dim("system");
+        console.log(`  ${who} ${dim("›")} ${m.content}\n`);
+      }
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+chatsCmd
+  .command("rename <id> <title>")
+  .description("Rename a chat")
+  .action(async (id: string, title: string) => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    try {
+      const c = await resolveChatId(id);
+      const stop = spinner("Renaming…");
+      await api.updateChat(c.id, { title });
+      stop();
+      console.log(ok(`\n  ✓ Renamed to "${title}"\n`));
+    } catch (e) {
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+chatsCmd
+  .command("delete <id>")
+  .description("Delete a chat")
+  .option("-y, --yes", "Skip confirmation")
+  .action(async (id: string, opts) => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    try {
+      const c = await resolveChatId(id);
+      if (!opts.yes) {
+        const ans = await prompt(`  Delete "${c.title}"? (yes/no): `);
+        if (ans !== "yes") { console.log(dim("  Cancelled.\n")); return; }
+      }
+      const stop = spinner("Deleting…");
+      await api.deleteChat(c.id);
+      stop();
+      console.log(ok("\n  ✓ Deleted\n"));
+    } catch (e) {
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
 // ── memories ──────────────────────────────────────────────────────────────────
 
 const memoriesCmd = program.command("memories").description("Manage your memories");
@@ -397,9 +463,40 @@ memoriesCmd
           m.type === "decision"     ? kleur.yellow(tag)  :
           m.type === "preference"   ? kleur.magenta(tag) :
                                       kleur.green(tag);
-        console.log(`  ${colored} ${m.content}`);
+        console.log(`  ${colored} ${m.content}  ${dim(m.id.slice(0, 8))}`);
       });
       console.log();
+      console.log(dim("  Tip: enzo-ai memories remove <id>  to delete one"));
+      console.log();
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+memoriesCmd
+  .command("remove <id>")
+  .description("Delete a single memory")
+  .action(async (id: string) => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    const stop = spinner("Removing…");
+    try {
+      let memId = id;
+      if (id.length < 36) {
+        const all = await api.listMemories();
+        const match = all.find((m) => m.id.startsWith(id));
+        if (!match) {
+          stop();
+          console.error(error(`\n  No memory found matching "${id}"\n`));
+          process.exit(1);
+        }
+        memId = match!.id;
+      }
+      await api.removeMemory(memId);
+      stop();
+      console.log(ok("\n  ✓ Removed\n"));
     } catch (e) {
       stop();
       console.error(error(`\n  ${(e as Error).message}\n`));
@@ -503,6 +600,211 @@ agentsCmd
     }
   });
 
+agentsCmd
+  .command("show <id>")
+  .description("Show full details for one agent")
+  .action(async (id: string) => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    const stop = spinner("Loading…");
+    try {
+      const a = await resolveAgentId(id);
+      stop();
+      console.log("\n" + brand + "  " + accent(a.emoji + " " + a.name));
+      divider();
+      console.log(`  ${dim("id")}          ${a.id}`);
+      if (a.description) console.log(`  ${dim("description")} ${a.description}`);
+      console.log(`  ${dim("model")}       ${a.model ?? dim("(default)")}`);
+      console.log(`  ${dim("tools")}       ${a.tools.length ? a.tools.join(", ") : dim("none")}`);
+      console.log(`  ${dim("knowledge")}   ${a.knowledgeBaseId ?? dim("none")}`);
+      console.log(`  ${dim("schedule")}    ${a.schedule ? `${a.schedule} ${a.scheduleEnabled ? ok("(enabled)") : dim("(disabled)")}` : dim("none")}`);
+      if (a.telegramChatIds) console.log(`  ${dim("integrations")} ${a.telegramChatIds}`);
+      console.log(`  ${dim("instructions")}`);
+      console.log(dim("  " + "─".repeat(50)));
+      console.log("  " + a.instructions.split("\n").join("\n  "));
+      console.log();
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+function collectTools(value: string, prev: string[]): string[] {
+  return [...prev, ...value.split(",").map((s) => s.trim()).filter(Boolean)];
+}
+
+agentsCmd
+  .command("create")
+  .description("Create a new agent")
+  .requiredOption("-n, --name <name>", "Agent name")
+  .requiredOption("-i, --instructions <text>", "System instructions for the agent")
+  .option("-e, --emoji <emoji>", "Emoji shown next to the agent's name")
+  .option("-d, --description <text>", "Short description")
+  .option("-m, --model <model>", "Model to use (defaults to the server default)")
+  .option("-t, --tools <name>", "Tool to enable — repeatable", collectTools, [])
+  .option("--schedule <cron>", "Cron expression for scheduled runs, e.g. \"0 9 * * *\"")
+  .option("--schedule-prompt <text>", "Prompt to run on schedule")
+  .option("--schedule-enabled", "Enable the schedule immediately")
+  .option("--knowledge-base <id>", "Knowledge base ID to ground answers with")
+  .action(async (opts) => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    const stop = spinner("Creating agent…");
+    try {
+      const agent = await api.createAgent({
+        name: opts.name,
+        instructions: opts.instructions,
+        emoji: opts.emoji,
+        description: opts.description,
+        model: opts.model,
+        tools: opts.tools.length ? opts.tools : undefined,
+        schedule: opts.schedule,
+        schedulePrompt: opts.schedulePrompt,
+        scheduleEnabled: !!opts.scheduleEnabled,
+        knowledgeBaseId: opts.knowledgeBase,
+      });
+      stop();
+      console.log(ok(`\n  ✓ Created ${agent.emoji} ${accent(agent.name)}  `) + dim(`(${agent.id.slice(0, 8)}…)`) + "\n");
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+agentsCmd
+  .command("update <id>")
+  .description("Update an existing agent — only given fields change")
+  .option("-n, --name <name>")
+  .option("-i, --instructions <text>")
+  .option("-e, --emoji <emoji>")
+  .option("-d, --description <text>")
+  .option("-m, --model <model>")
+  .option("-t, --tools <name>", "Replace the tool list — repeatable", collectTools, [])
+  .option("--schedule <cron>")
+  .option("--schedule-prompt <text>")
+  .option("--schedule-enabled <bool>", "true/false")
+  .option("--knowledge-base <id>")
+  .action(async (id: string, opts) => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    const stop = spinner("Updating…");
+    try {
+      const a = await resolveAgentId(id);
+      const patch: Record<string, unknown> = {};
+      if (opts.name !== undefined) patch.name = opts.name;
+      if (opts.instructions !== undefined) patch.instructions = opts.instructions;
+      if (opts.emoji !== undefined) patch.emoji = opts.emoji;
+      if (opts.description !== undefined) patch.description = opts.description;
+      if (opts.model !== undefined) patch.model = opts.model;
+      if (opts.tools.length) patch.tools = opts.tools;
+      if (opts.schedule !== undefined) patch.schedule = opts.schedule;
+      if (opts.schedulePrompt !== undefined) patch.schedulePrompt = opts.schedulePrompt;
+      if (opts.scheduleEnabled !== undefined) patch.scheduleEnabled = opts.scheduleEnabled === "true";
+      if (opts.knowledgeBase !== undefined) patch.knowledgeBaseId = opts.knowledgeBase;
+      const updated = await api.updateAgent(a.id, patch);
+      stop();
+      console.log(ok(`\n  ✓ Updated ${updated.emoji} ${accent(updated.name)}\n`));
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+agentsCmd
+  .command("delete <id>")
+  .description("Delete an agent")
+  .option("-y, --yes", "Skip confirmation")
+  .action(async (id: string, opts) => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    try {
+      const a = await resolveAgentId(id);
+      if (!opts.yes) {
+        const ans = await prompt(`  Delete "${a.name}"? (yes/no): `);
+        if (ans !== "yes") { console.log(dim("  Cancelled.\n")); return; }
+      }
+      const stop = spinner("Deleting…");
+      await api.deleteAgent(a.id);
+      stop();
+      console.log(ok(`\n  ✓ Deleted ${a.name}\n`));
+    } catch (e) {
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+// ── agent credentials ────────────────────────────────────────────────────────
+
+const agentCredsCmd = agentsCmd.command("credentials").description("Manage an agent's API credentials");
+
+agentCredsCmd
+  .command("list <agentId>")
+  .description("List credentials saved on an agent (names only, values are never shown)")
+  .action(async (agentId: string) => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    const stop = spinner("Loading…");
+    try {
+      const a = await resolveAgentId(agentId);
+      const creds = await api.listAgentCredentials(a.id);
+      stop();
+      if (!creds.length) { console.log(dim(`\n  No credentials on ${a.name}.\n`)); return; }
+      console.log("\n" + brand + "  " + dim(`${creds.length} credentials on ${a.name}`));
+      divider();
+      for (const c of creds) {
+        console.log(`  ${accent(c.name.padEnd(24))} ${dim(c.id.slice(0, 8))}  ${dim(new Date(c.createdAt).toLocaleDateString())}`);
+      }
+      console.log();
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+agentCredsCmd
+  .command("add <agentId>")
+  .description("Add a name/value credential to an agent (vault must be set up)")
+  .option("--name <name>")
+  .option("--value <value>")
+  .action(async (agentId: string, opts) => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    try {
+      const a = await resolveAgentId(agentId);
+      const name = opts.name || await prompt("  Credential name: ");
+      const value = opts.value || await promptSecret("  Credential value: ");
+      const stop = spinner("Encrypting…");
+      const cred = await api.addAgentCredential(a.id, name, value);
+      stop();
+      console.log(ok(`\n  ✓ Added "${cred.name}" to ${a.name}\n`));
+    } catch (e) {
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+agentCredsCmd
+  .command("remove <agentId> <credId>")
+  .description("Remove a credential from an agent")
+  .action(async (agentId: string, credId: string) => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    try {
+      const a = await resolveAgentId(agentId);
+      const stop = spinner("Removing…");
+      await api.removeAgentCredential(a.id, credId);
+      stop();
+      console.log(ok("\n  ✓ Removed\n"));
+    } catch (e) {
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
 // ── tools ─────────────────────────────────────────────────────────────────────
 
 const toolsCmd = program.command("tools").description("List and manage available tools");
@@ -571,9 +873,11 @@ toolsCmd
 
 // ── connections ─────────────────────────────────────────────────────────────────
 
-program
-  .command("connections")
-  .alias("integrations")
+const connectionsCmd = program.command("connections").alias("integrations")
+  .description("View and configure your connections (Telegram, Discord, Slack)");
+
+connectionsCmd
+  .command("status", { isDefault: true })
   .description("Show your connections (Telegram, Discord, Slack)")
   .action(async () => {
     const { token } = loadConfig();
@@ -596,8 +900,933 @@ program
         console.log(`  ${dot}  ${name.padEnd(12)} ${label}`);
       }
       console.log();
-      console.log(dim("  Configure connections in: Settings → Connections"));
+      console.log(dim("  Tip: enzo-ai connections telegram set --token <token>  to connect"));
       console.log();
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+function printIntegrationStatus(name: string, s: { available: boolean; enabled: boolean; token: string | null; allowedIds: string; model: string }) {
+  console.log("\n" + brand + "  " + dim(name));
+  divider();
+  console.log(`  ${dim("available")}   ${s.available ? ok("yes") : dim("disabled by admin")}`);
+  console.log(`  ${dim("running")}     ${s.enabled ? ok("● connected") : dim("○ not connected")}`);
+  console.log(`  ${dim("token")}       ${s.token ? dim(s.token) : dim("(none)")}`);
+  console.log(`  ${dim("allowed ids")} ${s.allowedIds || dim("(any)")}`);
+  console.log(`  ${dim("model")}       ${s.model || dim("(default)")}`);
+  console.log();
+}
+
+// Telegram
+const telegramCmd = connectionsCmd.command("telegram").description("Manage your Telegram bot connection");
+
+telegramCmd
+  .command("status", { isDefault: true })
+  .action(async () => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    const stop = spinner("Loading…");
+    try {
+      const s = await api.telegramStatus();
+      stop();
+      printIntegrationStatus("Telegram", s);
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+telegramCmd
+  .command("set")
+  .description("Connect (or update) your Telegram bot")
+  .option("--token <token>", "Bot token from @BotFather")
+  .option("--allowed-ids <ids>", "Comma-separated chat IDs allowed to use the bot")
+  .option("--model <model>")
+  .action(async (opts) => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    const botToken = opts.token || await promptSecret("  Bot token (from @BotFather): ");
+    const stop = spinner("Connecting…");
+    try {
+      const res = await api.telegramSave({ token: botToken, allowedIds: opts.allowedIds, model: opts.model });
+      stop();
+      console.log(ok(`\n  ✓ Connected${res.username ? " as @" + res.username : ""}\n`));
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+telegramCmd
+  .command("disconnect")
+  .action(async () => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    const stop = spinner("Disconnecting…");
+    try {
+      await api.telegramDisconnect();
+      stop();
+      console.log(ok("\n  ✓ Disconnected\n"));
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+// Discord
+const discordCmd = connectionsCmd.command("discord").description("Manage your Discord bot connection");
+
+discordCmd
+  .command("status", { isDefault: true })
+  .action(async () => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    const stop = spinner("Loading…");
+    try {
+      const s = await api.discordStatus();
+      stop();
+      printIntegrationStatus("Discord", s);
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+discordCmd
+  .command("set")
+  .description("Connect (or update) your Discord bot")
+  .option("--token <token>", "Bot token from the Discord developer portal")
+  .option("--allowed-ids <ids>", "Comma-separated channel IDs allowed to use the bot")
+  .option("--model <model>")
+  .action(async (opts) => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    const botToken = opts.token || await promptSecret("  Bot token: ");
+    const stop = spinner("Connecting…");
+    try {
+      const res = await api.discordSave({ token: botToken, allowedIds: opts.allowedIds, model: opts.model });
+      stop();
+      console.log(ok(`\n  ✓ Connected${res.tag ? " as " + res.tag : ""}\n`));
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+discordCmd
+  .command("disconnect")
+  .action(async () => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    const stop = spinner("Disconnecting…");
+    try {
+      await api.discordDisconnect();
+      stop();
+      console.log(ok("\n  ✓ Disconnected\n"));
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+// Slack
+const slackCmd = connectionsCmd.command("slack").description("Manage your Slack app connection");
+
+slackCmd
+  .command("status", { isDefault: true })
+  .action(async () => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    const stop = spinner("Loading…");
+    try {
+      const s = await api.slackStatus();
+      stop();
+      printIntegrationStatus("Slack", s);
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+slackCmd
+  .command("set")
+  .description("Connect (or update) your Slack app")
+  .option("--bot-token <token>", "Bot token (xoxb-…)")
+  .option("--app-token <token>", "App-level token (xapp-…)")
+  .option("--allowed-ids <ids>", "Comma-separated channel IDs allowed to use the bot")
+  .option("--model <model>")
+  .action(async (opts) => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    const botToken = opts.botToken || await promptSecret("  Bot token (xoxb-…): ");
+    const appToken = opts.appToken || await promptSecret("  App-level token (xapp-…): ");
+    const stop = spinner("Connecting…");
+    try {
+      const res = await api.slackSave({ botToken, appToken, allowedIds: opts.allowedIds, model: opts.model });
+      stop();
+      console.log(ok(`\n  ✓ Connected${res.botName ? " as " + res.botName : ""}\n`));
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+slackCmd
+  .command("disconnect")
+  .action(async () => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    const stop = spinner("Disconnecting…");
+    try {
+      await api.slackDisconnect();
+      stop();
+      console.log(ok("\n  ✓ Disconnected\n"));
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+// ── knowledge bases ──────────────────────────────────────────────────────────
+
+const knowledgeCmd = program.command("knowledge").alias("kb").description("Manage knowledge bases and documents");
+
+knowledgeCmd
+  .command("bases", { isDefault: true })
+  .description("List your knowledge bases")
+  .action(async () => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    const stop = spinner("Loading…");
+    try {
+      const bases = await api.listKnowledgeBases();
+      stop();
+      if (!bases.length) { console.log(dim("\n  No knowledge bases yet. Run: enzo-ai knowledge create <name>\n")); return; }
+      console.log("\n" + brand + "  " + dim(`${bases.length} knowledge bases`));
+      divider();
+      for (const b of bases) {
+        console.log(`  ${accent(b.name.padEnd(24))} ${dim(b.id.slice(0, 8))}  ${dim(`${b.document_count} documents`)}`);
+        if (b.description) console.log(`  ${" ".repeat(26)}${dim(b.description)}`);
+      }
+      console.log();
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+knowledgeCmd
+  .command("create <name>")
+  .description("Create a new knowledge base")
+  .option("-d, --description <text>")
+  .action(async (name: string, opts) => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    const stop = spinner("Creating…");
+    try {
+      const base = await api.createKnowledgeBase(name, opts.description);
+      stop();
+      console.log(ok(`\n  ✓ Created "${base.name}"  `) + dim(`(${base.id.slice(0, 8)}…)`) + "\n");
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+async function resolveKnowledgeBaseId(idOrPrefix: string): Promise<string> {
+  if (idOrPrefix.length >= 36) return idOrPrefix;
+  const all = await api.listKnowledgeBases();
+  const match = all.find((b) => b.id.startsWith(idOrPrefix) || b.name.toLowerCase() === idOrPrefix.toLowerCase());
+  if (!match) throw new Error(`No knowledge base found matching "${idOrPrefix}"`);
+  return match.id;
+}
+
+knowledgeCmd
+  .command("delete <id>")
+  .description("Delete a knowledge base and all its documents")
+  .option("-y, --yes", "Skip confirmation")
+  .action(async (id: string, opts) => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    try {
+      const kbId = await resolveKnowledgeBaseId(id);
+      if (!opts.yes) {
+        const ans = await prompt("  Delete this knowledge base and all its documents? (yes/no): ");
+        if (ans !== "yes") { console.log(dim("  Cancelled.\n")); return; }
+      }
+      const stop = spinner("Deleting…");
+      await api.deleteKnowledgeBase(kbId);
+      stop();
+      console.log(ok("\n  ✓ Deleted\n"));
+    } catch (e) {
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+knowledgeCmd
+  .command("docs <baseId>")
+  .description("List documents in a knowledge base")
+  .action(async (baseId: string) => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    const stop = spinner("Loading…");
+    try {
+      const kbId = await resolveKnowledgeBaseId(baseId);
+      const docs = await api.listKnowledgeDocuments(kbId);
+      stop();
+      if (!docs.length) { console.log(dim("\n  No documents yet.\n")); return; }
+      console.log("\n" + brand + "  " + dim(`${docs.length} documents`));
+      divider();
+      for (const d of docs) {
+        const statusLabel = d.status === "ready" ? ok(d.status) : d.status === "error" ? error(d.status) : dim(d.status);
+        console.log(`  ${accent(d.title.padEnd(30))} ${dim(d.source_type.padEnd(6))} ${statusLabel}  ${dim(d.id.slice(0, 8))}`);
+      }
+      console.log();
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+knowledgeCmd
+  .command("add <baseId>")
+  .description("Add a document to a knowledge base (text, URL, or local file)")
+  .option("--title <title>")
+  .option("--text <text>", "Inline text content")
+  .option("--url <url>", "Fetch and index a URL")
+  .option("--file <path>", "Path to a local PDF/Word/Excel/text file")
+  .action(async (baseId: string, opts) => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    if (!opts.text && !opts.url && !opts.file) {
+      console.error(error("\n  Provide one of --text, --url, or --file\n"));
+      process.exit(1);
+    }
+    const stop = spinner("Adding…");
+    try {
+      const kbId = await resolveKnowledgeBaseId(baseId);
+      let body: Parameters<typeof api.addKnowledgeDocument>[1];
+      if (opts.file) {
+        const { readFileSync } = await import("node:fs");
+        const { basename } = await import("node:path");
+        const buf = readFileSync(opts.file);
+        body = { title: opts.title, sourceType: "file", filename: basename(opts.file), base64: buf.toString("base64") };
+      } else if (opts.url) {
+        body = { title: opts.title, sourceType: "url", url: opts.url };
+      } else {
+        body = { title: opts.title, sourceType: "text", content: opts.text };
+      }
+      const doc = await api.addKnowledgeDocument(kbId, body);
+      stop();
+      console.log(ok(`\n  ✓ Added "${doc.title}"  `) + dim(`(${doc.status})`) + "\n");
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+knowledgeCmd
+  .command("remove-doc <docId>")
+  .description("Delete a document")
+  .action(async (docId: string) => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    const stop = spinner("Deleting…");
+    try {
+      await api.deleteKnowledgeDocument(docId);
+      stop();
+      console.log(ok("\n  ✓ Deleted\n"));
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+// ── MCP servers ──────────────────────────────────────────────────────────────
+
+const mcpCmd = program.command("mcp").description("Manage MCP servers");
+
+mcpCmd
+  .command("list", { isDefault: true })
+  .description("List your MCP servers")
+  .action(async () => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    const stop = spinner("Loading…");
+    try {
+      const servers = await api.listMcpServers();
+      stop();
+      if (!servers.length) { console.log(dim("\n  No MCP servers yet. Run: enzo-ai mcp add <name>\n")); return; }
+      console.log("\n" + brand + "  " + dim(`${servers.length} MCP servers`));
+      divider();
+      for (const s of servers) {
+        const dot = s.enabled ? ok("●") : dim("○");
+        const target = s.type === "http" ? s.url : `${s.command} ${s.args.join(" ")}`;
+        console.log(`  ${dot}  ${accent(s.name.padEnd(20))} ${dim(`[${s.type}]`)} ${dim(target ?? "")}  ${dim(s.id.slice(0, 8))}`);
+      }
+      console.log();
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+mcpCmd
+  .command("add <name>")
+  .description("Add an MCP server")
+  .option("--type <type>", "stdio or http", "stdio")
+  .option("--command <cmd>", "Command to launch (stdio servers)")
+  .option("--args <args>", "Comma-separated command arguments")
+  .option("--url <url>", "Server URL (http servers)")
+  .option("--env <pair>", "KEY=VALUE env var — repeatable", (v: string, prev: string[]) => [...prev, v], [] as string[])
+  .action(async (name: string, opts) => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    const env: Record<string, string> = {};
+    for (const pair of opts.env as string[]) {
+      const idx = pair.indexOf("=");
+      if (idx > 0) env[pair.slice(0, idx)] = pair.slice(idx + 1);
+    }
+    const stop = spinner("Adding…");
+    try {
+      const server = await api.createMcpServer({
+        name,
+        type: opts.type === "http" ? "http" : "stdio",
+        command: opts.command,
+        args: opts.args ? String(opts.args).split(",").map((s: string) => s.trim()).filter(Boolean) : [],
+        env,
+        url: opts.url,
+      });
+      stop();
+      console.log(ok(`\n  ✓ Added "${server.name}"  `) + dim(`(${server.id.slice(0, 8)}…)`) + "\n");
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+async function resolveMcpServerId(idOrPrefix: string): Promise<string> {
+  if (idOrPrefix.length >= 36) return idOrPrefix;
+  const all = await api.listMcpServers();
+  const match = all.find((s) => s.id.startsWith(idOrPrefix) || s.name.toLowerCase() === idOrPrefix.toLowerCase());
+  if (!match) throw new Error(`No MCP server found matching "${idOrPrefix}"`);
+  return match.id;
+}
+
+mcpCmd
+  .command("enable <id>")
+  .description("Enable an MCP server")
+  .action(async (id: string) => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    try {
+      const serverId = await resolveMcpServerId(id);
+      await api.updateMcpServer(serverId, { enabled: true });
+      console.log(ok("\n  ✓ Enabled\n"));
+    } catch (e) {
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+mcpCmd
+  .command("disable <id>")
+  .description("Disable an MCP server")
+  .action(async (id: string) => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    try {
+      const serverId = await resolveMcpServerId(id);
+      await api.updateMcpServer(serverId, { enabled: false });
+      console.log(ok("\n  ✓ Disabled\n"));
+    } catch (e) {
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+mcpCmd
+  .command("remove <id>")
+  .description("Remove an MCP server")
+  .option("-y, --yes", "Skip confirmation")
+  .action(async (id: string, opts) => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    try {
+      const serverId = await resolveMcpServerId(id);
+      if (!opts.yes) {
+        const ans = await prompt("  Remove this MCP server? (yes/no): ");
+        if (ans !== "yes") { console.log(dim("  Cancelled.\n")); return; }
+      }
+      await api.deleteMcpServer(serverId);
+      console.log(ok("\n  ✓ Removed\n"));
+    } catch (e) {
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+mcpCmd
+  .command("test <id>")
+  .description("Connect to an MCP server and list its discovered tools")
+  .action(async (id: string) => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    const stop = spinner("Connecting…");
+    try {
+      const serverId = await resolveMcpServerId(id);
+      const res = await api.testMcpServer(serverId);
+      stop();
+      console.log(ok(`\n  ✓ Connected — ${res.toolCount} tool(s)\n`));
+      if (res.tools.length) console.log("  " + res.tools.join(", ") + "\n");
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+// ── vault (encryption) ────────────────────────────────────────────────────────
+
+const vaultCmd = program.command("vault").description("Manage database encryption");
+
+vaultCmd
+  .command("status", { isDefault: true })
+  .action(async () => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    const stop = spinner("Loading…");
+    try {
+      const s = await api.vaultStatus();
+      stop();
+      console.log("\n" + brand + "  " + dim("vault"));
+      divider();
+      console.log(`  ${dim("configured")} ${s.configured ? ok("yes") : dim("no")}`);
+      console.log(`  ${dim("unlocked")}   ${s.unlocked ? ok("yes") : kleur.red("no")}`);
+      console.log();
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+vaultCmd
+  .command("setup")
+  .description("Set up encryption for the first time (admin only)")
+  .action(async () => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    let pass = "";
+    for (;;) {
+      pass = await promptSecret("  Choose a passphrase (min 6 chars): ");
+      if (pass.length < 6) { console.log(warn("  Too short — at least 6 characters.")); continue; }
+      const c = await promptSecret("  Confirm passphrase: ");
+      if (c !== pass) { console.log(warn("  Passphrases don't match — try again.")); continue; }
+      break;
+    }
+    const stop = spinner("Encrypting…");
+    try {
+      const res = await api.vaultSetup(pass);
+      stop();
+      console.log(ok("\n  ✓ Encryption enabled\n"));
+      console.log(warn("  ⚠  SAVE YOUR RECOVERY KEY — shown only once:"));
+      console.log("\n     " + bold(accent(res.recoveryKey)) + "\n");
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+vaultCmd
+  .command("unlock")
+  .description("Unlock the vault with your passphrase or recovery key (admin only)")
+  .option("-s, --secret <secret>")
+  .action(async (opts) => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    const secret = opts.secret || await promptSecret("  Passphrase or recovery key: ");
+    const stop = spinner("Unlocking…");
+    try {
+      await api.vaultUnlock(secret);
+      stop();
+      console.log(ok("\n  ✓ Unlocked\n"));
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+vaultCmd
+  .command("lock")
+  .description("Lock the vault (admin only)")
+  .action(async () => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    const stop = spinner("Locking…");
+    try {
+      await api.vaultLock();
+      stop();
+      console.log(ok("\n  ✓ Locked\n"));
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+vaultCmd
+  .command("change-passphrase")
+  .description("Change the vault passphrase (admin only, vault must be unlocked)")
+  .action(async () => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    let pass = "";
+    for (;;) {
+      pass = await promptSecret("  New passphrase (min 6 chars): ");
+      if (pass.length < 6) { console.log(warn("  Too short — at least 6 characters.")); continue; }
+      const c = await promptSecret("  Confirm: ");
+      if (c !== pass) { console.log(warn("  Passphrases don't match — try again.")); continue; }
+      break;
+    }
+    const stop = spinner("Changing…");
+    try {
+      await api.vaultChangePassphrase(pass);
+      stop();
+      console.log(ok("\n  ✓ Passphrase changed\n"));
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+// ── LLM provider API keys ──────────────────────────────────────────────────────
+
+const keysCmd = program.command("keys").description("Manage cloud LLM provider API keys");
+
+keysCmd
+  .command("list", { isDefault: true })
+  .description("Show which providers have a key configured")
+  .action(async () => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    const stop = spinner("Loading…");
+    try {
+      const { configured } = await api.listApiKeys();
+      stop();
+      console.log("\n" + brand + "  " + dim("provider keys"));
+      divider();
+      for (const p of ["openai", "anthropic", "google"]) {
+        const set = configured.includes(p);
+        console.log(`  ${set ? ok("●") : dim("○")}  ${p.padEnd(12)} ${set ? ok("configured") : dim("not set")}`);
+      }
+      console.log();
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+keysCmd
+  .command("set <provider>")
+  .description("Set an API key (openai, anthropic, or google)")
+  .option("-k, --key <key>")
+  .action(async (provider: string, opts) => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    const key = opts.key || await promptSecret(`  ${provider} API key: `);
+    const stop = spinner("Saving…");
+    try {
+      const res = await api.setApiKey(provider, key);
+      stop();
+      if (res.error) { console.error(error(`\n  ${res.error}\n`)); process.exit(1); }
+      console.log(ok(`\n  ✓ ${provider} key saved\n`));
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+keysCmd
+  .command("remove <provider>")
+  .description("Remove a saved API key")
+  .action(async (provider: string) => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    const stop = spinner("Removing…");
+    try {
+      await api.removeApiKey(provider);
+      stop();
+      console.log(ok(`\n  ✓ ${provider} key removed\n`));
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+// ── admin ──────────────────────────────────────────────────────────────────────
+
+const adminCmd = program.command("admin").description("Server administration (admin users only)");
+
+adminCmd
+  .command("users")
+  .description("List all users")
+  .action(async () => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    const stop = spinner("Loading…");
+    try {
+      const users = await api.adminListUsers();
+      stop();
+      console.log("\n" + brand + "  " + dim(`${users.length} users`));
+      divider();
+      for (const u of users) {
+        console.log(`  ${accent(u.displayName.padEnd(20))} ${dim("@" + u.username)}  ${u.role === "admin" ? kleur.yellow("admin") : dim("user")}  ${dim(u.id.slice(0, 8))}`);
+      }
+      console.log();
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+adminCmd
+  .command("reset-password <userId>")
+  .description("Reset a user's password")
+  .option("-p, --password <pass>")
+  .action(async (userId: string, opts) => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    const password = opts.password || await promptSecret("  New password (min 4 chars): ");
+    const stop = spinner("Resetting…");
+    try {
+      await api.adminResetPassword(userId, password);
+      stop();
+      console.log(ok("\n  ✓ Password reset\n"));
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+adminCmd
+  .command("delete-user <userId>")
+  .description("Delete a user account")
+  .option("-y, --yes", "Skip confirmation")
+  .action(async (userId: string, opts) => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    if (!opts.yes) {
+      const ans = await prompt("  Delete this user? (yes/no): ");
+      if (ans !== "yes") { console.log(dim("  Cancelled.\n")); return; }
+    }
+    const stop = spinner("Deleting…");
+    try {
+      await api.adminDeleteUser(userId);
+      stop();
+      console.log(ok("\n  ✓ Deleted\n"));
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+adminCmd
+  .command("models")
+  .description("List all models with provider config status")
+  .action(async () => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    const stop = spinner("Loading…");
+    try {
+      const res = await api.adminListModels();
+      stop();
+      console.log("\n" + brand + "  " + dim("models"));
+      divider();
+      console.log(`  ${dim("ollama")}   ${res.ollamaOnline ? ok("online") : kleur.red("offline")}`);
+      console.log(`  ${dim("default")}  ${accent(res.defaultModel)}`);
+      console.log(`  ${dim("providers")} ${res.configuredProviders.join(", ") || dim("none")}`);
+      console.log();
+      for (const m of res.models) {
+        const isDefault = m.id === res.defaultModel;
+        console.log(`  ${isDefault ? ok("●") : dim("○")}  ${m.id}${m.label ? dim(` (${m.label})`) : ""}`);
+      }
+      console.log();
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+adminCmd
+  .command("set-default-model <model>")
+  .action(async (model: string) => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    const stop = spinner("Setting…");
+    try {
+      await api.adminSetDefaultModel(model);
+      stop();
+      console.log(ok(`\n  ✓ Default model set to ${model}\n`));
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+adminCmd
+  .command("delete-model <name>")
+  .option("-y, --yes", "Skip confirmation")
+  .action(async (name: string, opts) => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    if (!opts.yes) {
+      const ans = await prompt(`  Delete model "${name}" from Ollama? (yes/no): `);
+      if (ans !== "yes") { console.log(dim("  Cancelled.\n")); return; }
+    }
+    const stop = spinner("Deleting…");
+    try {
+      await api.adminDeleteModel(name);
+      stop();
+      console.log(ok("\n  ✓ Deleted\n"));
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+adminCmd
+  .command("settings")
+  .description("Show global settings")
+  .action(async () => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    const stop = spinner("Loading…");
+    try {
+      const s = await api.adminGetSettings();
+      stop();
+      console.log("\n" + brand + "  " + dim("settings"));
+      divider();
+      console.log(`  ${dim("defaultModel")}      ${accent(s.defaultModel)}`);
+      console.log(`  ${dim("chatToolsEnabled")}  ${s.chatToolsEnabled ? ok("yes") : dim("no")}`);
+      console.log();
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+adminCmd
+  .command("set-setting")
+  .description("Update a global setting")
+  .option("--chat-tools-enabled <bool>", "true/false")
+  .action(async (opts) => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    const stop = spinner("Updating…");
+    try {
+      const patch: Record<string, unknown> = {};
+      if (opts.chatToolsEnabled !== undefined) patch.chatToolsEnabled = opts.chatToolsEnabled === "true";
+      await api.adminUpdateSettings(patch);
+      stop();
+      console.log(ok("\n  ✓ Updated\n"));
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+adminCmd
+  .command("connections")
+  .description("List connections' global enabled state")
+  .action(async () => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    const stop = spinner("Loading…");
+    try {
+      const conns = await api.adminGetConnections();
+      stop();
+      console.log("\n" + brand + "  " + dim("connections (global)"));
+      divider();
+      for (const c of conns) {
+        console.log(`  ${c.enabled ? ok("●") : dim("○")}  ${c.name.padEnd(16)} ${c.enabled ? ok("enabled") : dim("disabled")}`);
+      }
+      console.log();
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+adminCmd
+  .command("toggle-connection <id> <state>")
+  .description("Enable or disable a connection globally — state: on/off")
+  .action(async (id: string, state: string) => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    const stop = spinner("Updating…");
+    try {
+      await api.adminToggleConnection(id, state === "on" || state === "true");
+      stop();
+      console.log(ok(`\n  ✓ ${id} ${state === "on" || state === "true" ? "enabled" : "disabled"}\n`));
+    } catch (e) {
+      stop();
+      console.error(error(`\n  ${(e as Error).message}\n`));
+      process.exit(1);
+    }
+  });
+
+adminCmd
+  .command("reset")
+  .description("DANGER: wipe all user data (schema is preserved)")
+  .option("-y, --yes", "Skip confirmation")
+  .action(async (opts) => {
+    const { token } = loadConfig();
+    ensureAuth(token);
+    if (!opts.yes) {
+      const ans = await prompt(kleur.red("  Type \"reset\" to wipe ALL data: "));
+      if (ans !== "reset") { console.log(dim("  Cancelled.\n")); return; }
+    }
+    const stop = spinner("Resetting…");
+    try {
+      const res = await api.adminReset();
+      stop();
+      console.log(ok(`\n  ✓ ${res.message}\n`));
     } catch (e) {
       stop();
       console.error(error(`\n  ${(e as Error).message}\n`));
@@ -716,8 +1945,29 @@ async function pullWithProgress(model: string) {
   }
 }
 
+/** Resolve a full agent ID or a short prefix/name to the full agent record. */
+async function resolveAgentId(idOrPrefix: string) {
+  if (idOrPrefix.length >= 36) {
+    const a = await api.getAgent(idOrPrefix);
+    return a;
+  }
+  const all = await api.listAgents();
+  const match = all.find((a) => a.id.startsWith(idOrPrefix) || a.name.toLowerCase() === idOrPrefix.toLowerCase());
+  if (!match) throw new Error(`No agent found matching "${idOrPrefix}" — run: enzo-ai agents`);
+  return match;
+}
+
+/** Resolve a full chat ID or a short prefix to the full chat record. */
+async function resolveChatId(idOrPrefix: string) {
+  if (idOrPrefix.length >= 36) return { id: idOrPrefix, title: idOrPrefix };
+  const all = await api.listChats();
+  const match = all.find((c) => c.id.startsWith(idOrPrefix));
+  if (!match) throw new Error(`No chat found with ID starting "${idOrPrefix}" — run: enzo-ai chats`);
+  return match;
+}
+
 // ── Entry ─────────────────────────────────────────────────────────────────────
 
-program.addHelpText("beforeAll", "\n" + brand + "  " + dim("local-first AI  ·  v0.1.0") + "\n");
+program.addHelpText("beforeAll", "\n" + brand + "  " + dim("local-first AI  ·  v3.0.0") + "\n");
 program.parse(process.argv);
 if (!process.argv.slice(2).length) program.help();

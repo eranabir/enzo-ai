@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useConfirm } from "./ui/ConfirmProvider";
-import { Pencil, Trash2, Play, Clock, Zap, Globe, Calculator, Calendar, ChevronDown, ChevronRight, GitBranch } from "lucide-react";
+import { Pencil, Trash2, Play, Clock, Zap, Globe, Calculator, Calendar, ChevronDown, ChevronRight, GitBranch, Key, ShieldAlert, Send } from "lucide-react";
 import { SiTelegram, SiDiscord } from "react-icons/si";
 import { SlackIcon } from "./ui/SlackIcon";
 import { Plus, X } from "lucide-react";
@@ -148,11 +148,13 @@ import {
 const inputCls = "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-fg outline-none focus:border-accent placeholder:text-muted";
 
 const TOOL_ICONS: Record<ToolName, React.ReactNode> = {
-  get_datetime:    <Calendar className="h-3.5 w-3.5" />,
+  get_datetime:    <Clock className="h-3.5 w-3.5" />,
   calculator:      <Calculator className="h-3.5 w-3.5" />,
   web_search:      <Globe className="h-3.5 w-3.5" />,
   read_url:        <Zap className="h-3.5 w-3.5" />,
   git:             <GitBranch className="h-3.5 w-3.5" />,
+  api_request:     <Key className="h-3.5 w-3.5" />,
+  calendar:        <Calendar className="h-3.5 w-3.5" />,
 };
 
 const EMOJI_OPTIONS = [
@@ -177,6 +179,9 @@ type IntegrationType = "telegram" | "discord" | "slack";
 interface IntegrationEntry {
   type: IntegrationType;
   chatId: string;
+  /** True for entries already saved on the agent — their type can't be changed,
+   *  since it's fixed to whatever chat/channel the ID actually points at. */
+  locked?: boolean;
 }
 
 const ALL_INTEGRATION_OPTIONS: { type: IntegrationType; label: string; icon: React.ReactNode; color: string; placeholder: string }[] = [
@@ -188,7 +193,7 @@ const ALL_INTEGRATION_OPTIONS: { type: IntegrationType; label: string; icon: Rea
 /** Parses comma-separated chatIds string into entries (type unknown, assume telegram for existing data) */
 function parseEntries(chatIds: string): IntegrationEntry[] {
   return chatIds.split(",").map(s => s.trim()).filter(Boolean)
-    .map(chatId => ({ type: "telegram" as IntegrationType, chatId }));
+    .map(chatId => ({ type: "telegram" as IntegrationType, chatId, locked: true }));
 }
 
 /** Serialises entries back to comma-separated string (all IDs, regardless of type) */
@@ -196,12 +201,15 @@ function serialiseEntries(entries: IntegrationEntry[]): string {
   return entries.filter(e => e.chatId.trim()).map(e => e.chatId.trim()).join(",");
 }
 
+/** Collapsible, same visual pattern as the "Scheduled run" section — defaults
+ *  open only if this agent already has integrations configured. */
 function IntegrationEntries({ value, onChange, availableOptions }: {
   value: string;
   onChange: (v: string) => void;
   availableOptions: typeof ALL_INTEGRATION_OPTIONS;
 }) {
   const [entries, setEntries] = useState<IntegrationEntry[]>(() => parseEntries(value));
+  const [open, setOpen] = useState(() => parseEntries(value).length > 0);
 
   function update(next: IntegrationEntry[]) {
     setEntries(next);
@@ -222,64 +230,191 @@ function IntegrationEntries({ value, onChange, availableOptions }: {
   }
 
   return (
-    <div className="border-t border-border px-5 py-4 flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <label className="text-xs font-semibold text-muted">Integrations <span className="font-normal">(optional)</span></label>
-        {availableOptions.length > 0 && (
-          <button
-            type="button"
-            onClick={addEntry}
-            className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-xs text-muted transition-colors hover:border-accent/60 hover:text-fg"
-          >
-            <Plus className="h-3 w-3" /> Add
-          </button>
-        )}
-      </div>
+    <div className="rounded-xl border border-border overflow-hidden flex-shrink-0">
+      <button type="button" onClick={() => setOpen(v => !v)}
+        className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-surface-2 transition-colors">
+        <div className="flex items-center gap-2">
+          <Send className="h-4 w-4 text-muted" />
+          <span className="text-sm font-semibold">Integrations</span>
+          {entries.length > 0 && (
+            <span className="text-[10px] text-ok font-semibold">
+              {entries.length} connected
+            </span>
+          )}
+        </div>
+        {open
+          ? <ChevronDown className="h-4 w-4 text-muted" />
+          : <ChevronRight className="h-4 w-4 text-muted" />}
+      </button>
 
-      {availableOptions.length === 0 && (
-        <p className="text-[11px] text-muted">
-          No integrations connected. Set up Telegram or Discord in Admin Panel → Integrations.
-        </p>
-      )}
-      {availableOptions.length > 0 && entries.length === 0 && (
-        <p className="text-[11px] text-muted">
-          Send scheduled results to a connected chat or channel.
-        </p>
-      )}
-
-      {entries.map((entry, i) => {
-        const opt = availableOptions.find(o => o.type === entry.type) ?? availableOptions[0];
-        return (
-          <div key={i} className="flex flex-col gap-1.5 rounded-xl border border-border bg-surface-2 p-3">
-            <div className="flex items-center gap-2">
-              {/* Type selector */}
-              <Select value={entry.type} onValueChange={v => setEntry(i, { type: v as IntegrationType, chatId: "" })}>
-                <SelectTrigger className="w-36">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableOptions.map(o => (
-                    <SelectItem key={o.type} value={o.type}>
-                      <span className={`flex items-center gap-1.5 ${o.color}`}>{o.icon}<span>{o.label}</span></span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <button type="button" onClick={() => removeEntry(i)} className="ml-auto text-muted hover:text-danger transition-colors">
-                <X className="h-4 w-4" />
+      {open && (
+        <div className="border-t border-border px-4 pb-4 pt-4 flex flex-col gap-2 bg-surface-2/40">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] text-muted">Send scheduled results to a connected chat or channel.</span>
+            {availableOptions.length > 0 && (
+              <button
+                type="button"
+                onClick={addEntry}
+                className="flex flex-shrink-0 items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-xs text-muted transition-colors hover:border-accent/60 hover:text-fg"
+              >
+                <Plus className="h-3 w-3" /> Add
               </button>
-            </div>
-
-            <input
-              className={inputCls}
-              placeholder={opt.placeholder}
-              value={entry.chatId}
-              onChange={e => setEntry(i, { chatId: e.target.value })}
-            />
+            )}
           </div>
-        );
-      })}
+
+          {availableOptions.length === 0 && (
+            <p className="text-[11px] text-muted">
+              No integrations connected. Set up Telegram or Discord in Admin Panel → Integrations.
+            </p>
+          )}
+
+          {entries.length > 0 && (
+            <div className="flex items-center gap-1.5 px-0.5">
+              <span className="w-36 flex-shrink-0 text-[10px] font-semibold uppercase tracking-wide text-muted">Type</span>
+              <span className="flex-1 text-[10px] font-semibold uppercase tracking-wide text-muted">Chat / Channel ID</span>
+              <span className="w-4 flex-shrink-0" />
+            </div>
+          )}
+
+          {entries.map((entry, i) => {
+            const opt = availableOptions.find(o => o.type === entry.type) ?? availableOptions[0];
+            return (
+              <div key={i} className="flex items-center gap-1.5">
+                {entry.locked ? (
+                  <div className="flex h-9 w-36 flex-shrink-0 items-center gap-1.5 rounded-lg border border-border bg-surface-2 px-2.5 text-sm text-fg">
+                    <span className={`flex items-center gap-1.5 ${opt?.color}`}>{opt?.icon}<span>{opt?.label}</span></span>
+                  </div>
+                ) : (
+                  <Select value={entry.type} onValueChange={v => setEntry(i, { type: v as IntegrationType, chatId: "" })}>
+                    <SelectTrigger className="w-36 flex-shrink-0 px-2.5">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableOptions.map(o => (
+                        <SelectItem key={o.type} value={o.type}>
+                          <span className={`flex items-center gap-1.5 ${o.color}`}>{o.icon}<span>{o.label}</span></span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+
+                <input
+                  className={`${inputCls} flex-1`}
+                  placeholder={opt?.placeholder ?? "Chat ID"}
+                  value={entry.chatId}
+                  onChange={e => setEntry(i, { chatId: e.target.value })}
+                />
+
+                <button type="button" onClick={() => removeEntry(i)} className="flex-shrink-0 text-muted hover:text-danger transition-colors">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Agent credentials (API keys/tokens scoped to this agent) ─────────────────
+
+interface AgentCredential { id: string; name: string; createdAt: number }
+
+/** Named secrets for this agent (e.g. a trading platform API key), used by the
+ *  api_request tool. Values are vault-encrypted server-side and never sent
+ *  back to the browser once saved — only name/createdAt. */
+function AgentCredentialsSection({ agentId }: { agentId: string }) {
+  const confirm = useConfirm();
+  const [credentials, setCredentials] = useState<AgentCredential[]>([]);
+  const [vaultStatus, setVaultStatus] = useState<{ configured: boolean; unlocked: boolean } | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [name, setName] = useState("");
+  const [value, setValue] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.agents.listCredentials(agentId).then(setCredentials).catch(() => {});
+    api.vault.status().then(setVaultStatus).catch(() => {});
+  }, [agentId]);
+
+  async function add() {
+    if (!name.trim() || !value.trim()) { setErr("Name and value are required."); return; }
+    setBusy(true); setErr(null);
+    try {
+      const created = await api.agents.addCredential(agentId, { name: name.trim(), value: value.trim() });
+      setCredentials((prev) => [created, ...prev]);
+      setName(""); setValue("");
+      setAdding(false);
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+    setBusy(false);
+  }
+
+  async function remove(id: string, credName: string) {
+    if (!(await confirm({ title: `Remove "${credName}"?`, description: "Any tool calls using this credential will stop working.", confirmText: "Remove", danger: true }))) return;
+    await api.agents.removeCredential(agentId, id).catch(() => {});
+    setCredentials((prev) => prev.filter((c) => c.id !== id));
+  }
+
+  const vaultReady = vaultStatus?.configured ?? true; // don't block the UI before the status check resolves
+
+  return (
+    <div className="flex flex-col gap-2">
+      <label className="text-xs font-semibold text-muted">
+        Credentials <span className="font-normal">(optional — API keys for the api_request tool)</span>
+      </label>
+
+      {vaultStatus && !vaultStatus.configured && (
+        <div className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/5 px-3 py-2 text-xs text-warning">
+          <ShieldAlert className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+          <span>Set up encryption in Settings → Vault before adding credentials — they're too sensitive to store unencrypted.</span>
+        </div>
+      )}
+
+      {credentials.map((c) => (
+        <div key={c.id} className="flex items-center gap-2 rounded-lg border border-border bg-surface-2 px-3 py-2">
+          <Key className="h-3.5 w-3.5 flex-shrink-0 text-muted" />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm text-fg">{c.name}</p>
+          </div>
+          <button type="button" onClick={() => remove(c.id, c.name)} className="flex-shrink-0 text-muted hover:text-danger" title="Remove credential">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      ))}
+
+      {adding ? (
+        <div className="flex flex-col gap-1.5 rounded-xl border border-border bg-surface-2 p-3">
+          <label className="text-[11px] font-semibold text-muted">Name</label>
+          <input className={inputCls} placeholder="e.g. alpaca_trading" value={name} onChange={(e) => setName(e.target.value)} />
+          <label className="mt-1 text-[11px] font-semibold text-muted">Value</label>
+          <input className={inputCls} type="password" placeholder="The API key / token" value={value} onChange={(e) => setValue(e.target.value)} />
+
+          {err && <p className="text-xs text-danger">{err}</p>}
+          <div className="mt-1 flex gap-2">
+            <button type="button" onClick={() => { setAdding(false); setErr(null); }} className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted hover:text-fg">
+              Cancel
+            </button>
+            <button type="button" onClick={add} disabled={busy} className="ml-auto rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:bg-accent-2 disabled:opacity-40">
+              {busy ? "Adding…" : "Add credential"}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setAdding(true)}
+          disabled={!vaultReady}
+          title={vaultReady ? undefined : "Set up encryption first (Settings → Vault)"}
+          className="flex items-center gap-1 self-start rounded-lg border border-border px-2.5 py-1 text-xs text-muted transition-colors hover:border-accent/60 hover:text-fg disabled:opacity-40"
+        >
+          <Plus className="h-3 w-3" /> Add credential
+        </button>
+      )}
     </div>
   );
 }
@@ -602,6 +737,9 @@ export function AgentsPanel({ onStartChat, onClose }: Props) {
             );
           })()}
 
+          {/* Credentials — only for an already-saved agent, since a new one has no id yet. */}
+          {editing && <AgentCredentialsSection agentId={editing.id} />}
+
           {/* Schedule — collapsible. flex-shrink-0 is required: overflow-hidden
               makes a flex item's automatic min-height resolve to 0 (per the
               flexbox spec), so under a short viewport this would get crushed
@@ -642,14 +780,14 @@ export function AgentsPanel({ onStartChat, onClose }: Props) {
               </div>
             )}
           </div>
-        </div>
 
-        {/* Integrations */}
-        <IntegrationEntries
-          value={form.telegramChatIds}
-          onChange={v => setForm(f => ({...f, telegramChatIds: v}))}
-          availableOptions={connectedIntegrations}
-        />
+          {/* Integrations — collapsible, same pattern as Schedule above. */}
+          <IntegrationEntries
+            value={form.telegramChatIds}
+            onChange={v => setForm(f => ({...f, telegramChatIds: v}))}
+            availableOptions={connectedIntegrations}
+          />
+        </div>
 
         <div className="border-t border-border px-5 py-4 flex gap-3">
           <button onClick={() => setView("list")} className="rounded-xl border border-border px-4 py-2 text-sm text-muted hover:text-fg">Cancel</button>

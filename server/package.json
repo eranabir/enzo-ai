@@ -1,9 +1,9 @@
 {
   "name": "@enzo-ai/server",
-  "version": "2.0.1",
+  "version": "3.0.0",
   "private": true,
   "scripts": {
-    "dev": "cross-env ENZO_PORT=1716 nest start --watch",
+    "dev": "cross-env ENZO_PORT=1716 ENZO_PASSPHRASE_FILE=../data/vault-passphrase nest start --watch",
     "start": "node dist/main.js",
     "build": "nest build && ncc build dist/main.js -o dist/bundle -e better-sqlite3 -e @napi-rs/canvas -e tesseract.js -e pdfjs-dist -q",
     "typecheck": "tsc --noEmit"

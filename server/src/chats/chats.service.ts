@@ -89,6 +89,13 @@ export class ChatsService {
       .run(enabled ? 1 : 0, id);
   }
 
+  /** Attach (or clear, with null) a local project folder for file/git tools. */
+  setFolderPath(id: string, folderPath: string | null): void {
+    this.db
+      .prepare(`UPDATE chats SET folder_path = ?, updated_at = ? WHERE id = ?`)
+      .run(folderPath, now(), id);
+  }
+
   delete(id: string): void {
     // messages are removed via ON DELETE CASCADE (foreign_keys pragma on)
     this.db.prepare(`DELETE FROM messages WHERE chat_id = ?`).run(id);

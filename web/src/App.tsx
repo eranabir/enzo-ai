@@ -395,6 +395,19 @@ export function App() {
     [activeId],
   );
 
+  const setChatFolderPath = useCallback(
+    async (folderPath: string | null) => {
+      if (!activeId) return;
+      const updated = await api.setFolderPath(activeId, folderPath).catch(() => null);
+      if (updated) {
+        setChats((prev) =>
+          prev.map((c) => (c.id === activeId ? { ...c, folder_path: folderPath } : c)),
+        );
+      }
+    },
+    [activeId],
+  );
+
   const closePanel = () => navigate(activeId ? `/chat/${activeId}` : "/");
 
   // Wait until we know whether a session exists, then route.
@@ -514,6 +527,11 @@ export function App() {
           disabled={online === false}
           canAttachImage={models.find((m) => m.id === model)?.supportsVision ?? false}
           agentLabel={activeAgent ? { emoji: activeAgent.emoji, name: activeAgent.name } : null}
+          chatId={activeId}
+          folderPath={activeChat?.folder_path}
+          onSetFolderPath={setChatFolderPath}
+          onCheckFolder={api.checkFolder}
+          onBrowseFolder={api.browseFolder}
           onSend={send}
           onStop={stop}
         />

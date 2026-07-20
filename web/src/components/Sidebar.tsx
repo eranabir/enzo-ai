@@ -10,6 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./ui/DropdownMenu";
+import { Tooltip } from "./ui/Tooltip";
 
 
 // ── Animated "New" button ────────────────────────────────────────────────────
@@ -121,23 +122,10 @@ function ToolNavButton({ icon, label, onClick }: { icon: React.ReactNode; label:
   );
 }
 
-/** Hover label for an icon-only button — shown to the right, since the collapsed
- *  rail otherwise gives no clue what each icon does beyond the (delayed, inconsistent) native title. */
-function IconTooltip({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="group/tip relative flex">
-      {children}
-      <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md border border-border bg-surface-2 px-2 py-1 text-xs font-medium text-fg opacity-0 shadow-lg transition-opacity duration-150 group-hover/tip:opacity-100">
-        {label}
-      </span>
-    </div>
-  );
-}
-
 /** Same tool, icon-only, for the collapsed rail. */
 function ToolNavIcon({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
   return (
-    <IconTooltip label={label}>
+    <Tooltip label={label} side="right">
       <button
         title={label}
         onClick={onClick}
@@ -145,7 +133,7 @@ function ToolNavIcon({ icon, label, onClick }: { icon: React.ReactNode; label: s
       >
         {icon}
       </button>
-    </IconTooltip>
+    </Tooltip>
   );
 }
 
@@ -303,23 +291,23 @@ export function Sidebar({
       <aside className="relative flex w-14 flex-col items-center gap-2.5 border-r border-border bg-surface pb-3 pt-2.5 transition-all duration-200">
         <EdgeDragHandle onExpand={() => setSidebarCollapsed(false)} />
         {/* Logo */}
-        <IconTooltip label="Expand sidebar">
+        <Tooltip label="Expand sidebar" side="right">
           <button
             onClick={toggleCollapse}
             title="Expand sidebar"
             className="flex h-9 w-9 items-center justify-center rounded-xl text-accent-2 transition-colors hover:bg-surface-2"
           >
-            {/* ⬡ glyph ink sits ~0.1em low in its line box; nudge up to optically center it in the button. */}
-            <span className="inline-block text-4xl leading-none -translate-y-[4px]">⬡</span>
+            {/* ⬡ glyph ink sits a touch low in its line box; nudge up slightly to optically center it in the button. */}
+            <span className="inline-block text-4xl leading-none -translate-y-[1px]">⬡</span>
           </button>
-        </IconTooltip>
+        </Tooltip>
 
         <div className="h-px w-8 bg-border" />
 
         {/* + New chat */}
-        <IconTooltip label="New chat">
+        <Tooltip label="New chat" side="right">
           <NewButton collapsed onNew={onNew} />
-        </IconTooltip>
+        </Tooltip>
 
         {/* Tool panels — always one click away */}
         <ToolNavIcon icon={<Bot className="h-4 w-4" />} label="Agents" onClick={onAgentsOpen} />
@@ -329,7 +317,7 @@ export function Sidebar({
         <div className="h-px w-8 bg-border" />
 
         {/* Chats popover */}
-        <IconTooltip label="Chats">
+        <Tooltip label="Chats" side="right">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
@@ -379,13 +367,13 @@ export function Sidebar({
             )}
           </DropdownMenuContent>
         </DropdownMenu>
-        </IconTooltip>
+        </Tooltip>
 
         {/* Spacer */}
         <div className="flex-1" />
 
         {/* Expand button */}
-        <IconTooltip label="Expand sidebar">
+        <Tooltip label="Expand sidebar" side="right">
         <button
           onClick={toggleCollapse}
           title="Expand sidebar"
@@ -393,10 +381,10 @@ export function Sidebar({
         >
           <PanelLeftOpen className="h-5 w-5" />
         </button>
-        </IconTooltip>
+        </Tooltip>
 
         {/* Avatar — opens profile dropdown */}
-        <IconTooltip label={displayLabel}>
+        <Tooltip label={displayLabel} side="right">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
@@ -432,7 +420,7 @@ export function Sidebar({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        </IconTooltip>
+        </Tooltip>
       </aside>
     );
   }
@@ -444,7 +432,7 @@ export function Sidebar({
       <EdgeDragHandle onCollapse={() => setSidebarCollapsed(true)} />
       <div className="flex items-center justify-between px-1.5 py-1">
         <div className="flex items-center gap-2 text-lg font-bold tracking-wide">
-          <span className="inline-block text-4xl leading-none -translate-y-[4px] text-accent-2">⬡</span> EnzoAI
+          <span className="inline-block text-4xl leading-none -translate-y-[1px] text-accent-2">⬡</span> EnzoAI
         </div>
         <button
           onClick={toggleCollapse}
@@ -457,7 +445,9 @@ export function Sidebar({
 
       <NewButton onNew={onNew} />
 
-      <div className="flex flex-col gap-0.5 border-b border-border pb-2">
+      {/* pb-3 matches the parent's own gap-3, so the border-bottom sits the same
+          distance from the last icon above it as from the chat list below it. */}
+      <div className="flex flex-col gap-0.5 border-b border-border pb-3">
         <ToolNavButton icon={<Bot className="h-4 w-4" />} label="Agents" onClick={onAgentsOpen} />
         <ToolNavButton icon={<BookOpen className="h-4 w-4" />} label="Knowledge" onClick={onKnowledgeOpen} />
         <ToolNavButton icon={<Server className="h-4 w-4" />} label="MCP Servers" onClick={onMcpOpen} />

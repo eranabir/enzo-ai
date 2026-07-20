@@ -93,6 +93,7 @@ export interface Chat {
   memory_enabled: number; // 1 = on, 0 = off (SQLite boolean)
   connection: string | null; // "telegram" | null — managed by a connection
   agent_id: string | null; // set → this chat's model is governed by the agent, not the picker
+  folder_path: string | null; // local project folder attached for file/git tools
   created_at: number;
   updated_at: number;
 }

@@ -190,6 +190,15 @@ export type DatabaseConnection = Database.Database;
             created_at  INTEGER NOT NULL
           );
 
+          CREATE TABLE IF NOT EXISTS agent_credentials (
+            id         TEXT PRIMARY KEY,
+            agent_id   TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+            user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            name       TEXT NOT NULL,
+            value_enc  TEXT NOT NULL,
+            created_at INTEGER NOT NULL
+          );
+
           CREATE INDEX IF NOT EXISTS idx_messages_chat
             ON messages(chat_id, created_at);
           CREATE INDEX IF NOT EXISTS idx_agents_user
@@ -204,6 +213,8 @@ export type DatabaseConnection = Database.Database;
             ON knowledge_documents(kb_id, created_at);
           CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_kb
             ON knowledge_chunks(kb_id);
+          CREATE INDEX IF NOT EXISTS idx_agent_credentials_agent
+            ON agent_credentials(agent_id);
         `);
 
         // ── Column-add migrations (older installs) — guarded so they're no-ops on fresh DBs ──
@@ -212,6 +223,7 @@ export type DatabaseConnection = Database.Database;
         if (!colExists("chats", "agent_id"))        db.exec(`ALTER TABLE chats ADD COLUMN agent_id TEXT`);
         if (!colExists("chats", "connection"))      db.exec(`ALTER TABLE chats ADD COLUMN connection TEXT`);
         if (!colExists("chats", "knowledge_base_id")) db.exec(`ALTER TABLE chats ADD COLUMN knowledge_base_id TEXT`);
+        if (!colExists("chats", "folder_path"))     db.exec(`ALTER TABLE chats ADD COLUMN folder_path TEXT`);
         if (!colExists("agents", "knowledge_base_id")) db.exec(`ALTER TABLE agents ADD COLUMN knowledge_base_id TEXT`);
 
         const agentCols = db.prepare(`PRAGMA table_info(agents)`).all() as { name: string }[];

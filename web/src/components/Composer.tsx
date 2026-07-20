@@ -1,5 +1,5 @@
-import { forwardRef, useImperativeHandle, useRef, useState } from "react";
-import { ArrowUp, Square, Paperclip, X, FileText } from "lucide-react"; // image + document upload
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { ArrowUp, Square, Paperclip, X, FileText, FolderGit2, Folder, CornerLeftUp, GitBranch } from "lucide-react"; // image + document upload
 
 export interface AttachedImage {
   base64: string;   // without data-URI prefix
@@ -32,16 +32,189 @@ export interface ComposerHandle {
   attachFile: (file: File) => void;
 }
 
+type FolderCheck = {
+  exists: boolean; isDirectory: boolean; isGit: boolean; branch: string | null;
+  diffStat: { insertions: number; deletions: number } | null;
+};
+type FolderListing = { path: string; parent: string | null; folders: string[] };
+
+/** Join a directory and a child name using whichever separator the directory
+ *  string already uses (Windows paths use "\", everything else "/"). The
+ *  server re-resolves the result, so this only needs to be roughly right. */
+function joinPath(dir: string, name: string): string {
+  const sep = dir.includes("\\") && !dir.includes("/") ? "\\" : "/";
+  return dir.endsWith(sep) ? `${dir}${name}` : `${dir}${sep}${name}`;
+}
+
+/** Attach/detach a local project folder (for list_directory/read_file/git tools) as a
+ *  row inside the input box — same placement as the agent label above it. Lets the
+ *  user click their way down through subfolders instead of typing a path. */
+function FolderRow({
+  chatId, folderPath, onSetFolderPath, onCheckFolder, onBrowseFolder,
+}: {
+  chatId: string | null;
+  folderPath: string | null | undefined;
+  onSetFolderPath: (path: string | null) => void;
+  onCheckFolder: (path: string) => Promise<FolderCheck>;
+  onBrowseFolder: (path?: string) => Promise<FolderListing>;
+}) {
+  const [browsing, setBrowsing] = useState(false);
+  const [listing, setListing] = useState<FolderListing | null>(null);
+  const [pathInput, setPathInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [gitInfo, setGitInfo] = useState<FolderCheck | null>(null);
+
+  // Reset local editing state when switching chats.
+  useEffect(() => {
+    setBrowsing(false);
+  }, [chatId]);
+
+  // Branch/git indicator for the collapsed display row.
+  useEffect(() => {
+    if (!folderPath) { setGitInfo(null); return; }
+    onCheckFolder(folderPath).then(setGitInfo).catch(() => setGitInfo(null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [folderPath]);
+
+  async function loadDir(path?: string) {
+    setLoading(true);
+    try {
+      const res = await onBrowseFolder(path);
+      setListing(res);
+      setPathInput(res.path);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function openBrowser() {
+    setBrowsing(true);
+    loadDir(folderPath ?? undefined);
+  }
+
+  function selectCurrent() {
+    if (listing) onSetFolderPath(listing.path);
+    setBrowsing(false);
+  }
+
+  function remove() {
+    onSetFolderPath(null);
+    setBrowsing(false);
+  }
+
+  if (!browsing) {
+    const folderName = folderPath ? folderPath.split(/[\\/]/).filter(Boolean).pop() || folderPath : null;
+    const diff = gitInfo?.isGit ? gitInfo.diffStat : null;
+    const hasDiff = diff && (diff.insertions > 0 || diff.deletions > 0);
+    return (
+      <button
+        type="button"
+        onClick={openBrowser}
+        title={folderPath ?? "Attach a project folder"}
+        className="mb-2 flex w-full items-center gap-2 rounded-xl border border-border bg-surface-2 px-3.5 py-2 text-left text-xs transition-colors hover:border-accent/40"
+      >
+        <FolderGit2 className="h-3.5 w-3.5 flex-shrink-0 text-muted" />
+        {folderName ? (
+          <>
+            <span className="font-semibold text-fg">{folderName}</span>
+            {gitInfo?.isGit && gitInfo.branch && (
+              <span className="flex items-center gap-1 text-muted">
+                <GitBranch className="h-3 w-3" />
+                {gitInfo.branch}
+              </span>
+            )}
+            {hasDiff && (
+              <span className="ml-auto flex items-center gap-2 font-mono text-[11px] font-semibold">
+                {diff!.insertions > 0 && <span className="text-ok">+{diff!.insertions}</span>}
+                {diff!.deletions > 0 && <span className="text-danger">-{diff!.deletions}</span>}
+              </span>
+            )}
+          </>
+        ) : (
+          <span className="text-muted">Choose a project folder…</span>
+        )}
+      </button>
+    );
+  }
+
+  return (
+    <div className="mb-2 rounded-xl border border-border bg-surface-2 px-3.5 py-3">
+      {/* Current path — editable for pasting an exact path, but the list below is the primary way to navigate */}
+      <div className="flex items-center gap-1.5">
+        <input
+          autoFocus
+          className="min-w-0 flex-1 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs text-fg outline-none focus:border-accent"
+          value={pathInput}
+          onChange={(e) => setPathInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") { e.preventDefault(); loadDir(pathInput); }
+            if (e.key === "Escape") setBrowsing(false);
+          }}
+        />
+        <button
+          type="button"
+          disabled={!listing?.parent}
+          title="Up one level"
+          onClick={() => listing?.parent && loadDir(listing.parent)}
+          className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-border text-muted hover:text-fg disabled:opacity-30"
+        >
+          <CornerLeftUp className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      {/* Subfolders — click to descend without typing */}
+      <div className="mt-2 max-h-40 overflow-y-auto rounded-lg border border-border">
+        {loading ? (
+          <div className="px-3 py-4 text-center text-xs text-muted">Loading…</div>
+        ) : !listing || listing.folders.length === 0 ? (
+          <div className="px-3 py-4 text-center text-xs text-muted">No subfolders</div>
+        ) : (
+          listing.folders.map((name) => (
+            <button
+              key={name}
+              type="button"
+              onClick={() => loadDir(joinPath(listing.path, name))}
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-muted transition-colors hover:bg-surface hover:text-fg"
+            >
+              <Folder className="h-3.5 w-3.5 flex-shrink-0" />
+              <span className="truncate">{name}</span>
+            </button>
+          ))
+        )}
+      </div>
+
+      <div className="mt-2 flex gap-2">
+        {folderPath && (
+          <button type="button" onClick={remove} className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted hover:text-danger">
+            Remove
+          </button>
+        )}
+        <button type="button" onClick={() => setBrowsing(false)} className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted hover:text-fg">
+          Cancel
+        </button>
+        <button type="button" onClick={selectCurrent} className="ml-auto rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:bg-accent-2">
+          Select This Folder
+        </button>
+      </div>
+    </div>
+  );
+}
+
 interface ComposerProps {
   busy: boolean;
   disabled: boolean;
   canAttachImage?: boolean;
   agentLabel?: { emoji: string; name: string } | null;
+  chatId: string | null;
+  folderPath?: string | null;
+  onSetFolderPath: (path: string | null) => void;
+  onCheckFolder: (path: string) => Promise<FolderCheck>;
+  onBrowseFolder: (path?: string) => Promise<FolderListing>;
   onSend: (text: string, image?: AttachedImage, doc?: AttachedDocument) => void;
   onStop: () => void;
 }
 
-export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer({ busy, disabled, canAttachImage, agentLabel, onSend, onStop }, ref) {
+export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer({ busy, disabled, canAttachImage, agentLabel, chatId, folderPath, onSetFolderPath, onCheckFolder, onBrowseFolder, onSend, onStop }, ref) {
   const [text, setText] = useState("");
   const [focused, setFocused] = useState(false);
   const [image, setImage] = useState<AttachedImage | null>(null);
@@ -153,6 +326,11 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
             <X className="h-3 w-3" />
           </button>
         </div>
+      )}
+
+      {/* Project folder — its own bar above the input, like a repo/branch status bar */}
+      {chatId && (
+        <FolderRow chatId={chatId} folderPath={folderPath} onSetFolderPath={onSetFolderPath} onCheckFolder={onCheckFolder} onBrowseFolder={onBrowseFolder} />
       )}
 
       {/* Unified input container — a column: optional agent-label row on top, then the input row */}
