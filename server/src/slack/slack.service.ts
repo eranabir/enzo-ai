@@ -203,6 +203,11 @@ export class SlackService implements OnModuleDestroy {
 
       const isDM = channelType === "im";
 
+      // Declared outside the try block so the catch handler can still save
+      // the failure into the chat's own history (see telegram.service.ts for
+      // why: otherwise a mid-request failure is invisible in EnzoAI's own
+      // mirrored view of the conversation even though Slack got a reply).
+      let convoId: string | undefined;
       try {
         const content = text;
 
@@ -218,12 +223,14 @@ export class SlackService implements OnModuleDestroy {
         }
 
         const linkedAgent = this.findAgentForChannel(ownerUserId, channelId);
-        const { userId, convoId } = this.getOrCreateChat(
+        const created = this.getOrCreateChat(
           ownerUserId,
           channelId,
           linkedAgent ? `${linkedAgent.emoji} ${linkedAgent.name}` : chatTitle,
           linkedAgent?.id,
         );
+        convoId = created.convoId;
+        const userId = created.userId;
 
         await client.reactions.add({ channel: channelId, timestamp: msg.ts, name: "thinking_face" }).catch(() => {});
         const reply = await this.runChat(userId, convoId, content);
@@ -234,7 +241,9 @@ export class SlackService implements OnModuleDestroy {
         }
       } catch (err) {
         this.logger.error("Slack message handling failed:", (err as Error).message);
-        await say("⚠️ Something went wrong. Please try again.").catch(() => {});
+        const errorReply = "⚠️ Something went wrong. Please try again.";
+        if (convoId) this.convos.addMessage(convoId, "assistant", errorReply);
+        await say(errorReply).catch(() => {});
       }
     });
 

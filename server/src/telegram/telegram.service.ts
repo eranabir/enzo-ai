@@ -184,6 +184,12 @@ export class TelegramService implements OnModuleDestroy {
 
       await ctx.sendChatAction("typing");
 
+      // Declared outside the try block so the catch handler can still save
+      // the failure into the chat's own history — otherwise a mid-request
+      // failure (e.g. Ollama's local model runtime crashing) leaves the user
+      // seeing the "sorry" reply in Telegram itself but total silence in
+      // EnzoAI's own mirrored view of the same conversation.
+      let convoId: string | undefined;
       try {
         const chatTitle = isGroup
           ? (("title" in ctx.chat ? ctx.chat.title : null) ?? `Group ${chatId}`)
@@ -191,12 +197,14 @@ export class TelegramService implements OnModuleDestroy {
         const linkedAgent = this.findAgentForChat(ownerUserId, chatId);
         const agentTitle = linkedAgent ? `${linkedAgent.emoji} ${linkedAgent.name}` : chatTitle;
 
-        const { userId, convoId } = this.getOrCreateChat(
+        const created = this.getOrCreateChat(
           ownerUserId,
           chatId,
           linkedAgent ? agentTitle : chatTitle,
           linkedAgent?.id,
         );
+        convoId = created.convoId;
+        const userId = created.userId;
 
         const typingInterval = setInterval(() => ctx.sendChatAction("typing").catch(() => {}), 4000);
         let reply: string;
@@ -211,7 +219,9 @@ export class TelegramService implements OnModuleDestroy {
         }
       } catch (err) {
         this.logger.error("Failed to process message:", (err as Error).message);
-        await ctx.reply("⚠️ Something went wrong. Please try again.");
+        const errorReply = "⚠️ Something went wrong. Please try again.";
+        if (convoId) this.convos.addMessage(convoId, "assistant", errorReply);
+        await ctx.reply(errorReply);
       }
     });
 

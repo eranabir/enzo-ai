@@ -246,16 +246,23 @@ export class DiscordService implements OnModuleDestroy {
         : message.author.displayName ?? message.author.username;
       const content = text;
 
+      // Declared outside the try block so the catch handler can still save
+      // the failure into the chat's own history (see telegram.service.ts for
+      // why: otherwise a mid-request failure is invisible in EnzoAI's own
+      // mirrored view of the conversation even though Discord got a reply).
+      let convoId: string | undefined;
       try {
         await (message.channel as any).sendTyping?.().catch(() => {});
 
         const linkedAgent = this.findAgentForChannel(ownerUserId, chatId);
-        const { userId, convoId } = this.getOrCreateChat(
+        const created = this.getOrCreateChat(
           ownerUserId,
           chatId,
           linkedAgent ? `${linkedAgent.emoji} ${linkedAgent.name}` : chatTitle,
           linkedAgent?.id,
         );
+        convoId = created.convoId;
+        const userId = created.userId;
 
         const typingInterval = setInterval(() => (message.channel as any).sendTyping?.().catch(() => {}), 8000);
         let reply: string;
@@ -270,7 +277,9 @@ export class DiscordService implements OnModuleDestroy {
         }
       } catch (err) {
         this.logger.error("Discord message handling failed:", (err as Error).message);
-        await message.reply("⚠️ Something went wrong. Please try again.");
+        const errorReply = "⚠️ Something went wrong. Please try again.";
+        if (convoId) this.convos.addMessage(convoId, "assistant", errorReply);
+        await message.reply(errorReply);
       }
     });
 

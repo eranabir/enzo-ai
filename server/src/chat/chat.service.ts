@@ -157,6 +157,28 @@ export class ChatService {
   }
 
   /**
+   * Ollama's local llama-server occasionally crashes when (re)loading a model
+   * onto the GPU (observed: "CUDA error: shared object initialization
+   * failed"), which surfaces here as a single 500 on an otherwise-fine
+   * request — and reliably succeeds on an immediate retry once Ollama
+   * restarts the worker. Retry once after a short delay before giving up, so
+   * this one flaky failure mode doesn't sink the whole reply.
+   */
+  private async fetchOllamaChatWithRetry(
+    url: string,
+    payload: Record<string, unknown>,
+    signal?: AbortSignal,
+  ): Promise<Response> {
+    const body = JSON.stringify(payload);
+    const attempt = () => fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body, signal });
+    const res = await attempt();
+    if (res.ok || signal?.aborted) return res;
+    this.logger.warn(`Ollama request failed (${res.status}) — retrying once in 2s`);
+    await new Promise((resolve) => setTimeout(resolve, 2_000));
+    return attempt();
+  }
+
+  /**
    * Strip the inline "`🔧 toolName`" tool-activity markers before relaying a
    * reply to a messaging platform. They're a web-UI-only transparency touch
    * (rendered as a small badge there) — in Telegram/Discord/Slack they'd just
@@ -462,17 +484,11 @@ export class ChatService {
         for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
           // Non-streaming call to detect tool calls
           const ollamaUrl = "http://127.0.0.1:11434";
-          const res = await fetch(`${ollamaUrl}/api/chat`, {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            // num_ctx: see ollama.provider.ts — left unset, Ollama defaults to
-            // the model's own max context, which can force part of it off the
-            // GPU onto much slower CPU inference. This tool-calling loop makes
-            // its own direct fetch (bypassing OllamaProvider.streamChat), so it
-            // needs the same cap or every tool-enabled agent silently loses it.
-            body: JSON.stringify({ model: model.replace(/^ollama:/, ""), messages: loopMessages, tools: toolDefs, stream: false, options: { num_ctx: 8192, temperature: 0.2 } }),
+          const res = await this.fetchOllamaChatWithRetry(
+            `${ollamaUrl}/api/chat`,
+            { model: model.replace(/^ollama:/, ""), messages: loopMessages, tools: toolDefs, stream: false, options: { num_ctx: 8192, temperature: 0.2 } },
             signal,
-          });
+          );
           if (!res.ok) throw new Error(`Ollama tool call failed: ${res.status}`);
           const data = await res.json() as any;
           const msg = data?.message;
@@ -531,12 +547,11 @@ export class ChatService {
             ...loopMessages,
             { role: "system", content: "Reply to the user now in plain natural language. Do not call any tool and do not output any JSON — just answer the question directly, using Markdown and fenced code blocks for any code." },
           ];
-          const res2 = await fetch("http://127.0.0.1:11434/api/chat", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ model: model.replace(/^ollama:/, ""), messages: cleanMessages, stream: false, options: { num_ctx: 8192, temperature: 0.2 } }),
+          const res2 = await this.fetchOllamaChatWithRetry(
+            "http://127.0.0.1:11434/api/chat",
+            { model: model.replace(/^ollama:/, ""), messages: cleanMessages, stream: false, options: { num_ctx: 8192, temperature: 0.2 } },
             signal,
-          });
+          );
           if (res2.ok) {
             const d2 = await res2.json() as any;
             assistant = this.stripLeakedToolCalls(d2?.message?.content ?? "", validNames);
