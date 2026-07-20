@@ -156,13 +156,20 @@ export class ChatService {
     return `${toolName}:${JSON.stringify(clean, sortedKeys)}`;
   }
 
+  /** How long a single Ollama request is allowed to hang before we treat it
+   *  as failed. Generous — a cold model load on a big local model can
+   *  legitimately take a while — but bounded, which is the whole point. */
+  private static readonly OLLAMA_ATTEMPT_TIMEOUT_MS = 120_000;
+
   /**
    * Ollama's local llama-server occasionally crashes when (re)loading a model
    * onto the GPU (observed: "CUDA error: shared object initialization
-   * failed"), which surfaces here as a single 500 on an otherwise-fine
-   * request — and reliably succeeds on an immediate retry once Ollama
-   * restarts the worker. Retry once after a short delay before giving up, so
-   * this one flaky failure mode doesn't sink the whole reply.
+   * failed", surfacing here as a 500) — or, after such a crash, the *next*
+   * request can hang forever waiting on a wedged worker instead of erroring
+   * at all. Both failure modes reliably clear up on a fresh attempt once
+   * Ollama's scheduler recovers, so: bound every attempt with a timeout (a
+   * wedged Ollama can never hang the whole reply indefinitely) and retry
+   * once before giving up with a real, specific error.
    */
   private async fetchOllamaChatWithRetry(
     url: string,
@@ -170,10 +177,31 @@ export class ChatService {
     signal?: AbortSignal,
   ): Promise<Response> {
     const body = JSON.stringify(payload);
-    const attempt = () => fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body, signal });
-    const res = await attempt();
-    if (res.ok || signal?.aborted) return res;
-    this.logger.warn(`Ollama request failed (${res.status}) — retrying once in 2s`);
+    const attempt = async (): Promise<Response> => {
+      const timeoutSignal = AbortSignal.timeout(ChatService.OLLAMA_ATTEMPT_TIMEOUT_MS);
+      const combined = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
+      try {
+        return await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body, signal: combined });
+      } catch (err) {
+        if (signal?.aborted) throw err; // real user cancellation — never mask or retry that
+        if (timeoutSignal.aborted) {
+          throw new Error(
+            `Local model didn't respond within ${ChatService.OLLAMA_ATTEMPT_TIMEOUT_MS / 1000}s — Ollama may be stuck reloading the model. ` +
+            `If this keeps happening, try restarting Ollama.`,
+          );
+        }
+        throw err;
+      }
+    };
+
+    try {
+      const res = await attempt();
+      if (res.ok) return res;
+      this.logger.warn(`Ollama request failed (${res.status}) — retrying once in 2s`);
+    } catch (err) {
+      if (signal?.aborted) throw err;
+      this.logger.warn(`Ollama request failed (${(err as Error).message}) — retrying once in 2s`);
+    }
     await new Promise((resolve) => setTimeout(resolve, 2_000));
     return attempt();
   }
