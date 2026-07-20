@@ -266,14 +266,34 @@ export function App() {
     });
   }, []);
 
+  // Whether the turn currently in flight ended up failing — checked in each
+  // caller's `finally` to decide whether to resync from the server. A failed
+  // turn is never persisted server-side (see chat.service.ts), so syncing
+  // after one would silently wipe out the local error/retry state we just set.
+  const turnFailedRef = useRef(false);
+
   // Shared SSE handlers that stream tokens into a given assistant message.
   const streamInto = (assistantId: string, convoId: string) => ({
     onToken: (token: string) =>
       setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, content: m.content + token } : m))),
     onTitle: (title: string) =>
       setChats((prev) => prev.map((c) => (c.id === convoId ? { ...c, title } : c))),
-    onError: (msg: string) =>
-      setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, error: msg } : m))),
+    onError: (msg: string) => {
+      turnFailedRef.current = true;
+      setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, error: msg } : m)));
+    },
+    onDone: () => {
+      // No explicit error, but nothing came back either — still a failure
+      // from the user's point of view (e.g. the model produced a completely
+      // empty reply after exhausting its tool-call rounds).
+      setMessages((prev) =>
+        prev.map((m) => {
+          if (m.id !== assistantId || m.error || m.content.trim()) return m;
+          turnFailedRef.current = true;
+          return { ...m, error: "No response was generated." };
+        }),
+      );
+    },
   });
 
   const send = useCallback(
@@ -312,6 +332,7 @@ export function App() {
 
       const controller = new AbortController();
       abortRef.current = controller;
+      turnFailedRef.current = false;
 
       await streamChat(
         {
@@ -324,7 +345,7 @@ export function App() {
       ).finally(() => {
         setBusy(false);
         abortRef.current = null;
-        syncMessages(convoId);
+        if (!turnFailedRef.current) syncMessages(convoId);
       });
     },
     [activeId, busy, model, navigate, syncMessages],
@@ -346,11 +367,12 @@ export function App() {
       setBusy(true);
       const controller = new AbortController();
       abortRef.current = controller;
+      turnFailedRef.current = false;
       await streamChat(
         { chatId: convoId, content: userMsg.content, model, replaceFromMessageId: userMsg.id },
         streamInto(assistantMsg.id, convoId),
         controller.signal,
-      ).finally(() => { setBusy(false); abortRef.current = null; syncMessages(convoId); });
+      ).finally(() => { setBusy(false); abortRef.current = null; if (!turnFailedRef.current) syncMessages(convoId); });
     },
     [activeId, busy, messages, model],
   );
@@ -368,11 +390,12 @@ export function App() {
       setBusy(true);
       const controller = new AbortController();
       abortRef.current = controller;
+      turnFailedRef.current = false;
       await streamChat(
         { chatId: convoId, content: newContent, model, replaceFromMessageId: userMsgId },
         streamInto(assistantMsg.id, convoId),
         controller.signal,
-      ).finally(() => { setBusy(false); abortRef.current = null; syncMessages(convoId); });
+      ).finally(() => { setBusy(false); abortRef.current = null; if (!turnFailedRef.current) syncMessages(convoId); });
     },
     [activeId, busy, messages, model],
   );

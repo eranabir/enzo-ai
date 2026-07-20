@@ -98,8 +98,10 @@ export class ChatService {
       lines.push("\n\nYou have access to these tools:");
       for (const t of availableTools) lines.push(`- ${t.name}: ${t.description}`);
       lines.push(
-        "Tool-use rules: Only call a tool when the user asks you to perform an action or to fetch information you do not already have — e.g. run a calculation they gave you, read a file or URL they referenced, search the web, or check the current date/time. " +
+        "Tool-use rules: Only call a tool when the user's CURRENT message asks you to perform an action or fetch information you do not already have — e.g. run a calculation they gave you, read a file or URL they referenced, search the web, or check the current date/time. " +
         "For explaining, summarizing, writing, reviewing, or discussing code or concepts, answer directly from your own knowledge — do NOT call any tool. " +
+        "Do not call a tool again to re-fetch information you already obtained earlier in this same conversation — reuse what you already know, unless the new message specifically asks for something new or updated (e.g. asking again after enough time has passed that the answer could have changed). " +
+        "If the user's message is unclear, a greeting, small talk, or a short test message (e.g. \"test\", \"ping\", a random word) with no actual question or request in it, do not call any tool at all — just reply briefly and naturally, or ask what they'd like help with. " +
         "If the user asks what tools or capabilities you have, just describe the ones listed above by name without calling them, and never claim tools that are not listed. " +
         "Never write a tool or function call as part of your reply: do not output JSON such as {\"name\": ...}, and do not write tool_name(...) call syntax. Tools are executed by the system automatically — your reply to the user must always be plain natural language, using Markdown and fenced code blocks for any code.",
       );
@@ -125,6 +127,33 @@ export class ChatService {
     }
 
     return lines.join(" ");
+  }
+
+  /** Tools that only ever read data — always safe to reuse a cached result for
+   *  an identical call within the same turn. Anything that can write/send
+   *  (api_request, git, calendar create/update) is deliberately excluded. */
+  private static readonly DEDUPABLE_READONLY_TOOLS = new Set<string>([
+    "get_datetime", "calculator", "web_search", "read_url",
+    "search_emails", "read_email", "list_directory", "read_file",
+  ]);
+
+  /**
+   * Cache key for a tool call within one turn's tool-loop, or null if this
+   * call must never be deduped (it can have side effects, or — for calendar —
+   * it's a create/update rather than a read). Normalizes args (drops
+   * null/undefined/empty-string fields, sorts keys) so that e.g.
+   * {"days":7} and {"days":7,"description":null} are recognized as the same
+   * call, since small models often pad tool calls with redundant null fields.
+   */
+  private dedupableToolCallKey(toolName: string, args: Record<string, unknown>): string | null {
+    const isCalendarList = toolName === "calendar" && args?.action === "list";
+    if (!ChatService.DEDUPABLE_READONLY_TOOLS.has(toolName) && !isCalendarList) return null;
+    const clean: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(args ?? {})) {
+      if (v !== null && v !== undefined && v !== "") clean[k] = v;
+    }
+    const sortedKeys = Object.keys(clean).sort();
+    return `${toolName}:${JSON.stringify(clean, sortedKeys)}`;
   }
 
   /**
@@ -420,6 +449,15 @@ export class ChatService {
         );
         let loopMessages = [...messages];
         const MAX_TOOL_ROUNDS = 5;
+        // Small models sometimes re-issue the exact same read-only call across
+        // rounds of this loop (e.g. "calendar list" twice, 13s apart) instead of
+        // reusing the result they just got — wasted latency that can be the
+        // difference between finishing in time and blowing past a caller's
+        // timeout (e.g. Telegram's). Cache read-only calls per-turn and skip
+        // the round-trip on an exact repeat. Never applied to calls that can
+        // have side effects (api_request, git, calendar create/update) —
+        // those must always actually run.
+        const toolResultCache = new Map<string, string>();
 
         for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
           // Non-streaming call to detect tool calls
@@ -470,12 +508,16 @@ export class ChatService {
             const toolArgs = tc.args ?? {};
             this.logger.debug(`Tool call: ${toolName}(${JSON.stringify(toolArgs)})`);
             yield { token: `\n\`🔧 ${toolName}\`\n` };
+            const cacheKey = this.dedupableToolCallKey(toolName, toolArgs);
             let result: string;
-            if (this.mcpService.isMcpTool(toolName)) {
+            if (cacheKey && toolResultCache.has(cacheKey)) {
+              result = toolResultCache.get(cacheKey)!;
+            } else if (this.mcpService.isMcpTool(toolName)) {
               result = await this.mcpService.callTool(userId, toolName, toolArgs);
             } else {
               result = await this.toolsService.execute(toolName, toolArgs, userId, folderPath, agent?.id);
             }
+            if (cacheKey) toolResultCache.set(cacheKey, result);
             loopMessages.push({ role: "tool", content: result } as any);
           }
         }

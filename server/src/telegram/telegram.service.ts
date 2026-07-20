@@ -68,7 +68,11 @@ export class TelegramService implements OnModuleDestroy {
     if (!token) throw new Error("Bot token not configured");
     this.stop(userId);
 
-    const bot = new Telegraf(token);
+    // Telegraf wraps every update handler in a 90s timeout by default and
+    // silently aborts (no reply sent) if it's exceeded — too short for a local
+    // model doing multiple sequential tool calls or a cold start. Disable it;
+    // the handler naturally ends when the chat reply finishes streaming.
+    const bot = new Telegraf(token, { handlerTimeout: Infinity });
     const me = await bot.telegram.getMe(); // verifies the token
     this.registerHandlers(userId, bot);
     bot.launch().catch((e) => this.logger.error(`Telegram bot crashed (user ${userId}): ${e.message}`));
