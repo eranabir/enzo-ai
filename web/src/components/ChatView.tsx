@@ -219,7 +219,20 @@ function MessageBubble({ m, busy, onRegenerate, onEditMessage }: {
         </div>
       ) : (
         <div dir="auto" className="break-words leading-relaxed">
-          {m.content ? <Markdown content={m.content} /> : (busy ? <span className="animate-blink text-accent-2">▋</span> : "")}
+          {m.content ? (
+            <Markdown content={m.content} />
+          ) : busy ? (
+            <span className="flex items-center gap-2 text-sm text-muted">
+              <span className="flex gap-1">
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-accent-2 [animation-delay:-0.3s]" />
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-accent-2 [animation-delay:-0.15s]" />
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-accent-2" />
+              </span>
+              Thinking…
+            </span>
+          ) : (
+            ""
+          )}
         </div>
       )}
 

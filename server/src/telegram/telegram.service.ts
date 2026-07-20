@@ -183,6 +183,12 @@ export class TelegramService implements OnModuleDestroy {
       }
 
       await ctx.sendChatAction("typing");
+      // Telegram's native "typing…" indicator is easy to miss (it's a small
+      // subtitle under the chat name, and expires after ~5s), so also send an
+      // actual visible message immediately — replaced with the real answer
+      // (or the error) once it's ready, so there's never a stretch with zero
+      // visible feedback while a reply is in flight.
+      const statusMsg = await ctx.reply("🤔 Thinking…").catch(() => null);
 
       // Declared outside the try block so the catch handler can still save
       // the failure into the chat's own history — otherwise a mid-request
@@ -214,14 +220,29 @@ export class TelegramService implements OnModuleDestroy {
           clearInterval(typingInterval);
         }
 
-        for (const chunk of splitMessage(reply)) {
+        const chunks = splitMessage(reply);
+        const [first, ...rest] = chunks;
+        if (statusMsg && first) {
+          await ctx.telegram
+            .editMessageText(ctx.chat.id, statusMsg.message_id, undefined, first, { parse_mode: "Markdown" })
+            .catch(() => ctx.reply(first, { parse_mode: "Markdown" }));
+        } else if (first) {
+          await ctx.reply(first, { parse_mode: "Markdown" });
+        }
+        for (const chunk of rest) {
           await ctx.reply(chunk, { parse_mode: "Markdown" });
         }
       } catch (err) {
         this.logger.error("Failed to process message:", (err as Error).message);
         const errorReply = "⚠️ Something went wrong. Please try again.";
         if (convoId) this.convos.addMessage(convoId, "assistant", errorReply);
-        await ctx.reply(errorReply);
+        if (statusMsg) {
+          await ctx.telegram
+            .editMessageText(ctx.chat.id, statusMsg.message_id, undefined, errorReply)
+            .catch(() => ctx.reply(errorReply));
+        } else {
+          await ctx.reply(errorReply);
+        }
       }
     });
 
