@@ -124,7 +124,14 @@ export class ChatsController {
   getOne(@UserId() userId: string, @Param("id") id: string) {
     const convo = this.convos.get(id, userId);
     if (!convo) throw new NotFoundException("not found");
-    return { ...convo, messages: this.convos.listMessages(convo.id) };
+    return {
+      ...convo,
+      messages: this.convos.listMessages(convo.id),
+      // True while a reply is being generated for this chat by an
+      // integration-originated message (Telegram/Discord/Slack) — lets the
+      // polling web UI show a live "thinking" indicator for it.
+      replying: this.convos.isReplying(convo.id),
+    };
   }
 
   @Patch(":id")

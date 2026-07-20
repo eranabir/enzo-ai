@@ -103,6 +103,9 @@ export interface Chat {
 
 export interface ChatDetail extends Chat {
   messages: Message[];
+  /** True while an integration-originated reply (Telegram/Discord/Slack) is
+   *  being generated for this chat — drives the polled "thinking" indicator. */
+  replying?: boolean;
 }
 
 export interface ModelInfo {

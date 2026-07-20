@@ -418,7 +418,14 @@ export class ChatService {
     // the system prompt (persona, facts, RAG context) is unaffected either way
     // since it's built fresh every turn, not carried in this list.
     const MAX_HISTORY_MESSAGES = 20;
-    const allMessages = this.convos.listMessages(convo.id).slice(-MAX_HISTORY_MESSAGES);
+    // Failure notices ("⚠️ Something went wrong…") are persisted so both the
+    // platform and the app show them — but they must NEVER be fed back to the
+    // model as assistant turns: a small model that sees itself having
+    // "answered" that way several times will simply imitate the pattern and
+    // reply with the same error text even when everything is now working.
+    const allMessages = this.convos.listMessages(convo.id)
+      .filter((m) => !(m.role === "assistant" && m.content.startsWith("⚠️")))
+      .slice(-MAX_HISTORY_MESSAGES);
     // Build history; inline attached-document text and load image data from disk
     // so providers can use them.
     const history: ChatMessage[] = await Promise.all(
@@ -649,9 +656,14 @@ export class ChatService {
     if (!convo) throw new Error(`Chat ${convoId} not found for user ${userId}`);
     const controller = new AbortController();
     let reply = "";
-    for await (const event of this.streamReply(convo, userId, content, model, controller.signal, undefined, undefined, undefined, origin)) {
-      if (event.token) reply += event.token;
-      if (event.error) throw new Error(event.error);
+    this.convos.markReplying(convoId, true);
+    try {
+      for await (const event of this.streamReply(convo, userId, content, model, controller.signal, undefined, undefined, undefined, origin)) {
+        if (event.token) reply += event.token;
+        if (event.error) throw new Error(event.error);
+      }
+    } finally {
+      this.convos.markReplying(convoId, false);
     }
     return reply || "No response";
   }

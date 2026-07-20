@@ -96,6 +96,21 @@ export class ChatsService {
       .run(folderPath, now(), id);
   }
 
+  // ── In-flight reply tracking (in-memory) ──────────────────────────────────
+  // Lets the web UI show a "thinking" indicator for replies triggered from
+  // outside the app (Telegram/Discord/Slack), where it only sees the chat via
+  // polling and otherwise has no idea a reply is being generated.
+  private readonly replying = new Set<string>();
+
+  markReplying(id: string, inProgress: boolean): void {
+    if (inProgress) this.replying.add(id);
+    else this.replying.delete(id);
+  }
+
+  isReplying(id: string): boolean {
+    return this.replying.has(id);
+  }
+
   delete(id: string): void {
     // messages are removed via ON DELETE CASCADE (foreign_keys pragma on)
     this.db.prepare(`DELETE FROM messages WHERE chat_id = ?`).run(id);

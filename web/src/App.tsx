@@ -17,6 +17,22 @@ import { SettingsPanel } from "./components/SettingsPanel";
 
 const PANEL_PATHS = ["/settings", "/admin", "/agents", "/mcp", "/knowledge"];
 
+// Telegram/Discord/Slack save this exact text as a normal assistant message
+// when their own request to the AI fails (see telegram.service.ts etc.).
+// Messages loaded from the server are never "live" (Message.error is only
+// ever set by streamInto's onError/onDone during an in-session send), so
+// without this they'd render as an ordinary reply instead of a failure.
+// Match on content so they get the same red-box + retry treatment.
+const INTEGRATION_FALLBACK_ERROR = "⚠️ Something went wrong. Please try again.";
+
+function markFailedReplies(msgs: Message[]): Message[] {
+  return msgs.map((m) =>
+    m.role === "assistant" && !m.error && m.content === INTEGRATION_FALLBACK_ERROR
+      ? { ...m, error: "The connected platform (Telegram/Discord/Slack) reported a failure." }
+      : m,
+  );
+}
+
 export function App() {
   const [user, setUser] = useState<User | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
@@ -33,6 +49,10 @@ export function App() {
   useEffect(() => { defaultModelRef.current = defaultModel; }, [defaultModel]);
   const [online, setOnline] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
+  // A reply is in flight for the active chat, triggered from the platform
+  // side (Telegram/Discord/Slack) rather than this UI — reported by the
+  // server and picked up by the integration-chat polling below.
+  const [remoteReplying, setRemoteReplying] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const activeIdRef = useRef<string | null>(null);
   useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
@@ -80,9 +100,10 @@ export function App() {
     if (routeChatId) {
       if (routeChatId !== activeIdRef.current) {
         setActiveId(routeChatId);
+        setRemoteReplying(false);
         api.getChat(routeChatId)
           .then((d) => {
-            setMessages(d.messages);
+            setMessages(markFailedReplies(d.messages));
             // A chat keeps its own model; a fresh chat (no model yet) shows the
             // current system default so new chats reflect the latest default.
             setModel(d.model || defaultModelRef.current || "");
@@ -99,7 +120,7 @@ export function App() {
   // server's (needed for regenerate / edit, which re-mint message ids).
   const syncMessages = useCallback((convoId: string) => {
     api.getChat(convoId)
-      .then((d) => { if (activeIdRef.current === convoId) setMessages(d.messages); })
+      .then((d) => { if (activeIdRef.current === convoId) setMessages(markFailedReplies(d.messages)); })
       .catch(() => {});
   }, []);
 
@@ -208,7 +229,22 @@ export function App() {
     const t = setInterval(async () => {
       try {
         const detail = await api.getChat(activeId);
-        setMessages(detail.messages);
+        let msgs = markFailedReplies(detail.messages);
+        // A reply is being generated for a message that came in from the
+        // platform side (e.g. the user texted the Telegram bot): show the
+        // same "Thinking…" bubble a locally-sent message gets, so the
+        // mirrored view is never silently idle while work is in progress.
+        if (detail.replying && msgs[msgs.length - 1]?.role === "user") {
+          msgs = [...msgs, {
+            id: "__remote-thinking__",
+            chat_id: activeId,
+            role: "assistant" as const,
+            content: "",
+            created_at: Date.now(),
+          }];
+        }
+        setRemoteReplying(!!detail.replying);
+        setMessages(msgs);
       } catch { /* ignore */ }
     }, 4_000);
     return () => clearInterval(t);
@@ -536,7 +572,7 @@ export function App() {
         <ModelNudge model={model} models={models} onManageModels={() => navigate("/admin/models")} />
         <ChatView
           messages={messages}
-          busy={busy}
+          busy={busy || remoteReplying}
           online={online}
           hasActiveChat={activeId !== null}
           onNewChat={newChat}
