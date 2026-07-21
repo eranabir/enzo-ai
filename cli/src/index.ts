@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { Command } from "commander";
 import kleur from "kleur";
+import { execSync } from "node:child_process";
 import { api, streamChat, streamSse } from "./api";
 import { clearAuth, loadConfig, saveConfig } from "./config";
 import {
@@ -8,12 +9,20 @@ import {
   error, header, ok, prompt, promptSecret, purple, purple2, spinner, warn,
 } from "./ui";
 
+// Windows cmd.exe defaults to a legacy codepage (e.g. CP437/CP862), which
+// renders this CLI's UTF-8 output (⬡, ─, ✓, …) as mojibake like "Γ¼í".
+// Switch the console to UTF-8 for this session; harmless where already set
+// (Windows Terminal/PowerShell 7 default to it).
+if (process.platform === "win32") {
+  try { execSync("chcp 65001", { stdio: "ignore" }); } catch { /* best effort */ }
+}
+
 const program = new Command();
 
 program
   .name("enzo-ai")
   .description("Enzo AI — local-first AI assistant CLI")
-  .version("3.1.5");
+  .version("3.1.6");
 
 // ── config ────────────────────────────────────────────────────────────────────
 
@@ -58,56 +67,68 @@ program
   .action(async () => {
     const cfg = loadConfig();
     const stop = spinner("Checking…");
+
+    // Only the health check decides "reachable". Everything else is optional
+    // detail — /api/models needs a signed-in session, so treating its 401 as
+    // a connection failure used to make a running server look down whenever
+    // the CLI simply wasn't logged in yet.
     try {
-      const [health, modelInfo, statusInfo, profiles, connections] = await Promise.all([
-        api.health(),
-        api.models(),
-        api.status(),
-        api.profiles(),
-        api.connectionStatus().catch(() => ({ telegram: false, discord: false, slack: false })),
-      ]);
-
-      // Detect whether the web UI is served by this server or a separate Vite dev server
-      const webUrl = await api.servesFrontend() ? cfg.serverUrl : cfg.serverUrl.replace(/:\d+$/, ":5310");
-
-      // Current session
-      let sessionLine = dim("not signed in  ·  run: enzo-ai login");
-      if (cfg.token) {
-        try {
-          const { user } = await api.me();
-          sessionLine = `${accent(user.displayName)} ${dim("@" + user.username)} ${user.role === "admin" ? kleur.yellow("(admin)") : ""}`;
-        } catch {
-          sessionLine = dim("session expired  ·  run: enzo-ai login");
-        }
-      }
-
-      stop();
-      console.log("\n" + brand);
-      divider();
-      console.log(`  Server  ${ok("●")} ${cfg.serverUrl}`);
-      console.log(`  Web UI  ${ok("●")} ${accent(webUrl)}`);
-      console.log(`  Ollama  ${statusInfo.ollama ? ok("●") : kleur.red("●")} ${statusInfo.ollama ? ok("running") : kleur.red("offline")}`);
-      console.log(`  Model   ${accent(modelInfo.default)}`);
-      const list = modelInfo.models.map(m => `${m.id}${m.label ? ` (${m.label})` : ""}`).join(", ");
-      console.log(`  Models  ${list || dim("none installed")}`);
-      console.log(`  Users   ${profiles.length} registered`);
-      console.log(`  You     ${sessionLine}`);
-      // Show connected accounts if any are running
-      const connectedConnections = [
-        connections.telegram && "Telegram",
-        connections.discord  && "Discord",
-        connections.slack    && "Slack",
-      ].filter(Boolean);
-      if (connectedConnections.length) {
-        console.log(`  Bots    ${ok("●")} ${connectedConnections.join(", ")}`);
-      }
-      console.log();
+      await api.health();
     } catch {
       stop();
       console.error(error(`\nCannot reach server at ${cfg.serverUrl}`));
       console.error(dim("  Is Enzo AI running? Launch the app or run: yarn dev\n"));
       process.exit(1);
     }
+
+    const [modelInfo, statusInfo, profiles, connections] = await Promise.all([
+      api.models().catch(() => null),
+      api.status().catch(() => null),
+      api.profiles().catch(() => null),
+      api.connectionStatus().catch(() => ({ telegram: false, discord: false, slack: false })),
+    ]);
+
+    // Detect whether the web UI is served by this server or a separate Vite dev server
+    const webUrl = await api.servesFrontend() ? cfg.serverUrl : cfg.serverUrl.replace(/:\d+$/, ":5310");
+
+    // Current session
+    let sessionLine = dim("not signed in  ·  run: enzo-ai login");
+    if (cfg.token) {
+      try {
+        const { user } = await api.me();
+        sessionLine = `${accent(user.displayName)} ${dim("@" + user.username)} ${user.role === "admin" ? kleur.yellow("(admin)") : ""}`;
+      } catch {
+        sessionLine = dim("session expired  ·  run: enzo-ai login");
+      }
+    }
+
+    stop();
+    console.log("\n" + brand);
+    divider();
+    console.log(`  Server  ${ok("●")} ${cfg.serverUrl}`);
+    console.log(`  Web UI  ${ok("●")} ${accent(webUrl)}`);
+    if (statusInfo) {
+      console.log(`  Ollama  ${statusInfo.ollama ? ok("●") : kleur.red("●")} ${statusInfo.ollama ? ok("running") : kleur.red("offline")}`);
+    }
+    if (modelInfo) {
+      console.log(`  Model   ${accent(modelInfo.default)}`);
+      const list = modelInfo.models.map(m => `${m.id}${m.label ? ` (${m.label})` : ""}`).join(", ");
+      console.log(`  Models  ${list || dim("none installed")}`);
+    } else {
+      console.log(`  Models  ${dim("sign in to see  ·  run: enzo-ai login")}`);
+    }
+    if (profiles) console.log(`  Users   ${profiles.length} registered`);
+    console.log(`  You     ${sessionLine}`);
+    // Show connected accounts if any are running
+    const connectedConnections = [
+      connections.telegram && "Telegram",
+      connections.discord  && "Discord",
+      connections.slack    && "Slack",
+    ].filter(Boolean);
+    if (connectedConnections.length) {
+      console.log(`  Bots    ${ok("●")} ${connectedConnections.join(", ")}`);
+    }
+    console.log();
   });
 
 // ── login ────────────────────────────────────────────────────────────────────
@@ -1964,6 +1985,6 @@ async function resolveChatId(idOrPrefix: string) {
 
 // ── Entry ─────────────────────────────────────────────────────────────────────
 
-program.addHelpText("beforeAll", "\n" + brand + "  " + dim("local-first AI  ·  v3.1.5") + "\n");
+program.addHelpText("beforeAll", "\n" + brand + "  " + dim("local-first AI  ·  v3.1.6") + "\n");
 program.parse(process.argv);
 if (!process.argv.slice(2).length) program.help();
