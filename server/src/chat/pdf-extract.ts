@@ -1,5 +1,15 @@
-import { createCanvas } from "@napi-rs/canvas";
+import { createCanvas, DOMMatrix, ImageData, Path2D } from "@napi-rs/canvas";
 import { createWorker } from "tesseract.js";
+
+// pdfjs-dist assumes browser globals that Node doesn't provide — most
+// notably DOMMatrix ("DOMMatrix is not defined" on PDF upload in the
+// packaged app, whose Electron-bundled Node lacks it). Polyfill them from
+// @napi-rs/canvas, which we already ship for the OCR path, before pdfjs is
+// ever imported.
+const g = globalThis as any;
+if (!g.DOMMatrix) g.DOMMatrix = DOMMatrix;
+if (!g.ImageData) g.ImageData = ImageData;
+if (!g.Path2D) g.Path2D = Path2D;
 
 /**
  * Direct text-layer extraction via pdfjs-dist's low-level getTextContent() API,

@@ -1,6 +1,6 @@
 {
   "name": "enzo-ai",
-  "version": "3.1.6",
+  "version": "3.1.7",
   "private": true,
   "description": "Enzo AI - a self-hosted, local-first AI chat experience",
   "workspaces": [
@@ -24,10 +24,12 @@
     "create:icons": "npx tsx scripts/create-icons.ts",
     "download:ollama": "npx tsx scripts/download-ollama.ts",
     "smoke:test": "npx tsx scripts/smoke-test.ts",
-    "fix:sqlite": "node -e \"process.chdir('node_modules/better-sqlite3'); require('child_process').execSync('node ../../prebuild-install/bin.js', {stdio:'inherit'})\"",
-    "dist:win": "yarn build && yarn build:desktop && yarn workspace @enzo-ai/desktop dist:win && yarn fix:sqlite",
-    "dist:mac": "yarn build && yarn build:desktop && yarn workspace @enzo-ai/desktop dist:mac && yarn fix:sqlite",
-    "dist:linux": "yarn build && yarn build:desktop && yarn workspace @enzo-ai/desktop dist:linux && yarn fix:sqlite"
+    "fix:sqlite": "node -e \"process.chdir('node_modules/better-sqlite3'); require('child_process').execSync('node ../prebuild-install/bin.js', {stdio:'inherit'})\"",
+    "clean:sqlite": "node -e \"const fs=require('fs'); fs.rmSync('node_modules/better-sqlite3/build',{recursive:true,force:true}); fs.rmSync('node_modules/.cache',{recursive:true,force:true})\"",
+    "verify:sqlite-electron": "node -e \"try { process.dlopen(module, require('path').resolve('desktop/dist/win-unpacked/resources/node_modules/better-sqlite3/build/Release/better_sqlite3.node')); console.error('FATAL: packaged sqlite loads under system Node — Node ABI was shipped, installer is broken'); process.exit(1); } catch (e) { if (/NODE_MODULE_VERSION/.test(e.message)) { console.log('OK: packaged sqlite is Electron-ABI'); } else { throw e; } }\"",
+    "dist:win": "yarn build:all && yarn clean:sqlite && yarn workspace @enzo-ai/desktop dist:win && yarn verify:sqlite-electron && yarn fix:sqlite",
+    "dist:mac": "yarn build:all && yarn clean:sqlite && yarn workspace @enzo-ai/desktop dist:mac && yarn fix:sqlite",
+    "dist:linux": "yarn build:all && yarn clean:sqlite && yarn workspace @enzo-ai/desktop dist:linux && yarn fix:sqlite"
   },
   "devDependencies": {
     "@vercel/ncc": "^0.38.4",

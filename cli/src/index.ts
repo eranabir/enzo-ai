@@ -17,12 +17,40 @@ if (process.platform === "win32") {
   try { execSync("chcp 65001", { stdio: "ignore" }); } catch { /* best effort */ }
 }
 
+// chcp alone has proven unreliable (still mojibake in plain cmd.exe), so on
+// legacy Windows consoles fall back to ASCII for every decorative glyph —
+// same terminal detection the ecosystem's is-unicode-supported package uses.
+// Modern terminals (Windows Terminal, VS Code, ConEmu…) keep the real glyphs.
+// Only the known decorative characters are swapped: real content (e.g.
+// Hebrew chat replies) passes through untouched.
+const legacyWinConsole =
+  process.platform === "win32" &&
+  !process.env.WT_SESSION &&          // Windows Terminal
+  !process.env.ConEmuTask &&          // ConEmu / Cmder
+  process.env.TERM_PROGRAM !== "vscode" &&
+  process.env.TERMINAL_EMULATOR !== "JetBrains-JediTerm";
+if (legacyWinConsole) {
+  const GLYPHS: Record<string, string> = {
+    "⬡": "#", "─": "-", "✓": "+", "✗": "x", "…": "...", "—": "-", "·": ".",
+    "●": "*", "○": "o", "🔒": "[lock]", "⚠": "!", "️": "", "→": "->",
+    "★": "*", "⚡": "*", "›": ">", "⬇": "v",
+    "⠋": "|", "⠙": "/", "⠹": "-", "⠸": "\\", "⠼": "|",
+    "⠴": "/", "⠦": "-", "⠧": "\\", "⠇": "|", "⠏": "/",
+  };
+  const glyphRe = new RegExp(`[${Object.keys(GLYPHS).join("")}]`, "gu");
+  for (const stream of [process.stdout, process.stderr] as const) {
+    const original = stream.write.bind(stream);
+    (stream as any).write = (chunk: any, ...rest: any[]) =>
+      original(typeof chunk === "string" ? chunk.replace(glyphRe, (m) => GLYPHS[m] ?? m) : chunk, ...rest);
+  }
+}
+
 const program = new Command();
 
 program
   .name("enzo-ai")
   .description("Enzo AI — local-first AI assistant CLI")
-  .version("3.1.6");
+  .version("3.1.7");
 
 // ── config ────────────────────────────────────────────────────────────────────
 
@@ -1985,6 +2013,6 @@ async function resolveChatId(idOrPrefix: string) {
 
 // ── Entry ─────────────────────────────────────────────────────────────────────
 
-program.addHelpText("beforeAll", "\n" + brand + "  " + dim("local-first AI  ·  v3.1.6") + "\n");
+program.addHelpText("beforeAll", "\n" + brand + "  " + dim("local-first AI  ·  v3.1.7") + "\n");
 program.parse(process.argv);
 if (!process.argv.slice(2).length) program.help();
