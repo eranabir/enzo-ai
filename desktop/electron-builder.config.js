@@ -99,6 +99,11 @@ module.exports = {
   win: {
     icon: "assets/icon.ico",
     target: [{ target: "nsis", arch: ["x64"] }],
+    // Standalone console-subsystem CLI (Node SEA, see scripts/build-cli-sea.ts).
+    // Lands in the install root next to the legacy enzo-ai.cmd and shadows it —
+    // cmd.exe's PATHEXT prefers .EXE over .CMD. The .cmd's Electron-as-Node
+    // approach broke console I/O on Windows (mojibake output, dead stdin).
+    extraFiles: [{ from: "../cli/dist/sea/enzo-ai.exe", to: "enzo-ai.exe" }],
   },
 
   nsis: {

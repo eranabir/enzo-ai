@@ -52,6 +52,19 @@ export class SettingsService {
     this.set("chat_tools_enabled", enabled ? "1" : "0");
   }
 
+  /** Context window (num_ctx) for local Ollama requests. Capped by default at
+   *  8192: left at the model's own max, a big model can be forced to split
+   *  between GPU and much slower CPU inference. Larger values need the VRAM
+   *  to back them. */
+  getNumCtx(): number {
+    const n = parseInt(this.get("num_ctx") ?? "", 10);
+    return Number.isFinite(n) && n >= 2048 ? n : 8192;
+  }
+
+  setNumCtx(n: number): void {
+    this.set("num_ctx", String(n));
+  }
+
   // ── Connections (admin can globally enable/disable a connection type) ────────
   getDisabledConnections(): string[] {
     const raw = this.get("disabled_connections");

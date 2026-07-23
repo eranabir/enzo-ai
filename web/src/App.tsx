@@ -36,6 +36,14 @@ function markFailedReplies(msgs: Message[]): Message[] {
 export function App() {
   const [user, setUser] = useState<User | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
+  // CLI browser sign-in: `enzo-ai login` opens the UI with ?cliAuth=<code>.
+  // Captured once on mount (router redirects drop query params) and cleaned
+  // from the URL; the approval overlay renders once the user is signed in.
+  const [cliAuthCode, setCliAuthCode] = useState<string | null>(() => {
+    const code = new URLSearchParams(window.location.search).get("cliAuth");
+    if (code) window.history.replaceState(null, "", window.location.pathname);
+    return code;
+  });
   // null = unknown, true = vault configured but locked, false = ready/unlocked
   const [vaultLocked, setVaultLocked] = useState<boolean | null>(null);
   const [chats, setChats] = useState<Chat[]>([]);
@@ -599,6 +607,14 @@ export function App() {
   );
 
   return (
+    <>
+      {user && cliAuthCode && (
+        <CliAuthPrompt
+          code={cliAuthCode}
+          username={user.displayName || user.username}
+          onClose={() => setCliAuthCode(null)}
+        />
+      )}
     <Routes>
       <Route
         path="/login"
@@ -626,5 +642,64 @@ export function App() {
         }
       />
     </Routes>
+    </>
+  );
+}
+
+/** Overlay asking the signed-in user to authorize a waiting `enzo-ai login`. */
+function CliAuthPrompt({ code, username, onClose }: {
+  code: string;
+  username: string;
+  onClose: () => void;
+}) {
+  const [state, setState] = useState<"idle" | "busy" | "done" | "error">("idle");
+  const [error, setError] = useState("");
+
+  async function approve() {
+    setState("busy");
+    try {
+      await api.cliApprove(code);
+      setState("done");
+    } catch (e) {
+      setError((e as Error).message);
+      setState("error");
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+      <div className="w-full max-w-sm rounded-2xl border border-border bg-surface p-6 shadow-2xl">
+        <h2 className="text-lg font-semibold text-fg">Terminal sign-in request</h2>
+        {state === "done" ? (
+          <>
+            <p className="mt-2 text-sm text-muted">
+              ✓ Approved — you can return to the terminal.
+            </p>
+            <button onClick={onClose}
+              className="mt-4 w-full rounded-xl bg-accent py-2.5 text-sm font-semibold text-white hover:bg-accent-2">
+              Close
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="mt-2 text-sm text-muted">
+              The EnzoAI CLI on this machine is asking to sign in as <span className="text-fg font-semibold">{username}</span>.
+              Only approve if you just ran <code className="rounded bg-surface-2 px-1">enzo-ai login</code> yourself.
+            </p>
+            {state === "error" && <p className="mt-2 text-xs text-danger">{error}</p>}
+            <div className="mt-4 flex gap-2">
+              <button onClick={onClose}
+                className="flex-1 rounded-xl border border-border py-2.5 text-sm text-muted hover:text-fg">
+                Deny
+              </button>
+              <button onClick={approve} disabled={state === "busy"}
+                className="flex-1 rounded-xl bg-accent py-2.5 text-sm font-semibold text-white hover:bg-accent-2 disabled:opacity-50">
+                {state === "busy" ? "Approving…" : "Approve"}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
   );
 }

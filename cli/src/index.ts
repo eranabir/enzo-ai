@@ -50,7 +50,7 @@ const program = new Command();
 program
   .name("enzo-ai")
   .description("Enzo AI — local-first AI assistant CLI")
-  .version("3.1.7");
+  .version("3.2.0");
 
 // ── config ────────────────────────────────────────────────────────────────────
 
@@ -161,26 +161,77 @@ program
 
 // ── login ────────────────────────────────────────────────────────────────────
 
+/** Open a URL in the default browser, best-effort (the URL is always printed too). */
+function openBrowser(url: string): void {
+  try {
+    if (process.platform === "win32") execSync(`start "" "${url}"`, { stdio: "ignore", shell: "cmd.exe" } as any);
+    else if (process.platform === "darwin") execSync(`open "${url}"`, { stdio: "ignore" });
+    else execSync(`xdg-open "${url}"`, { stdio: "ignore" });
+  } catch { /* user can click the printed URL */ }
+}
+
 program
   .command("login")
-  .description("Sign in to Enzo AI")
-  .option("-u, --username <name>")
+  .description("Sign in to Enzo AI (opens the web UI; use -u for terminal login)")
+  .option("-u, --username <name>", "Sign in by typing credentials in the terminal instead")
   .option("-p, --password <pass>")
   .action(async (opts) => {
     header("sign in");
-    const username = opts.username || await prompt("  Username: ");
-    const password = opts.password || await promptSecret("  Password: ");
-    const stop = spinner("Signing in…");
-    try {
-      const { token, user } = await api.login(username, password);
-      stop();
-      saveConfig({ token, username: user.username });
-      console.log(ok(`\n  ✓ Signed in as `) + accent(user.displayName) + dim(` (${user.role})`) + "\n");
-    } catch (e) {
-      stop();
-      console.error(error(`\n  ✗ ${(e as Error).message}\n`));
-      process.exit(1);
+
+    // Terminal flow when credentials are given explicitly.
+    if (opts.username || opts.password) {
+      const username = opts.username || await prompt("  Username: ");
+      const password = opts.password || await promptSecret("  Password: ");
+      const stop = spinner("Signing in…");
+      try {
+        const { token, user } = await api.login(username, password);
+        stop();
+        saveConfig({ token, username: user.username });
+        console.log(ok(`\n  ✓ Signed in as `) + accent(user.displayName) + dim(` (${user.role})`) + "\n");
+      } catch (e) {
+        stop();
+        console.error(error(`\n  ✗ ${(e as Error).message}\n`));
+        process.exit(1);
+      }
+      return;
     }
+
+    // Default: browser flow — approve the sign-in in the web UI, no password
+    // typed in the terminal. (Terminal alternative: enzo-ai login -u <name>)
+    const cfg = loadConfig();
+    let code: string, expiresInSeconds: number;
+    try {
+      ({ code, expiresInSeconds } = await api.cliAuthStart());
+    } catch {
+      console.error(error(`\n  ✗ Cannot reach server at ${cfg.serverUrl}\n`));
+      process.exit(1);
+      return;
+    }
+    const base = (await api.servesFrontend()) ? cfg.serverUrl : cfg.serverUrl.replace(/:\d+$/, ":5310");
+    const url = `${base}/?cliAuth=${code}`;
+
+    console.log(`\n  Opening your browser to approve this sign-in…`);
+    console.log(dim(`  If it doesn't open, go to: `) + accent(url));
+    console.log(dim(`  (or run: enzo-ai login -u <username>  to sign in here instead)\n`));
+    openBrowser(url);
+
+    const stop = spinner("Waiting for approval in the browser…");
+    const deadline = Date.now() + expiresInSeconds * 1000;
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 1500));
+      let res;
+      try { res = await api.cliAuthPoll(code); } catch { continue; }
+      if (res.status === "approved" && res.token) {
+        stop();
+        saveConfig({ token: res.token, username: res.user?.username ?? null });
+        console.log(ok(`\n  ✓ Signed in as `) + accent(res.user?.displayName ?? res.user?.username ?? "user") + dim(res.user ? ` (${res.user.role})` : "") + "\n");
+        return;
+      }
+      if (res.status === "unknown") break;
+    }
+    stop();
+    console.error(error("\n  ✗ Sign-in was not approved in time — run enzo-ai login to try again.\n"));
+    process.exit(1);
   });
 
 // ── register / setup wizard ────────────────────────────────────────────────────
@@ -2013,6 +2064,6 @@ async function resolveChatId(idOrPrefix: string) {
 
 // ── Entry ─────────────────────────────────────────────────────────────────────
 
-program.addHelpText("beforeAll", "\n" + brand + "  " + dim("local-first AI  ·  v3.1.7") + "\n");
+program.addHelpText("beforeAll", "\n" + brand + "  " + dim("local-first AI  ·  v3.2.0") + "\n");
 program.parse(process.argv);
 if (!process.argv.slice(2).length) program.help();

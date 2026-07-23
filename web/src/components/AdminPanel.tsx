@@ -5,6 +5,8 @@ import type { ModelInfo, User, SystemAnalysis } from "../types";
 import { ModalHeader } from "./ui/ModalHeader";
 import { TierBadge } from "./ui/TierBadge";
 import { useConfirm } from "./ui/ConfirmProvider";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/Select";
+import { Tooltip } from "./ui/Tooltip";
 
 const inputCls =
   "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-fg outline-none focus:border-accent placeholder:text-muted";
@@ -188,6 +190,7 @@ function ModelsTab() {
   const [pullProgress, setPullProgress] = useState<{ completed: number; total: number } | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [numCtx, setNumCtx] = useState<number | null>(null);
 
   function load() {
     api.admin
@@ -199,8 +202,17 @@ function ModelsTab() {
         setConfiguredProviders(res.configuredProviders ?? []);
       })
       .catch(() => {});
+    api.admin.getSettings().then((s) => setNumCtx(s.numCtx)).catch(() => {});
   }
   useEffect(load, []);
+
+  function changeNumCtx(n: number) {
+    const prev = numCtx;
+    setNumCtx(n);
+    api.admin.updateSettings({ numCtx: n })
+      .then((s) => setNumCtx(s.numCtx))
+      .catch(() => setNumCtx(prev));
+  }
 
   async function saveProviderKey(provider: string) {
     const key = (keyInputs[provider] ?? "").trim();
@@ -331,6 +343,28 @@ function ModelsTab() {
             </div>
           ))}
         </div>
+
+        {/* Context length (num_ctx) — how much conversation the local model keeps in view */}
+        {numCtx !== null && (
+          <div className="mb-3 flex items-center justify-between gap-2 rounded-lg border border-border bg-surface-2 px-3 py-2.5">
+            <div className="flex flex-col">
+              <span className="text-sm font-medium">Context length</span>
+              <span className="text-[11px] text-muted">Tokens the local model keeps in view. Higher = more memory of the conversation, but needs more VRAM and can slow replies.</span>
+            </div>
+            <Tooltip label="Context window (num_ctx) for local models" side="bottom">
+              <Select value={String(numCtx)} onValueChange={(v) => changeNumCtx(Number(v))}>
+                <SelectTrigger className="w-28 flex-shrink-0">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[2048, 4096, 8192, 16384, 32768, 65536].map((n) => (
+                    <SelectItem key={n} value={String(n)}>{n / 1024}K ({n})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Tooltip>
+          </div>
+        )}
 
         {/* Embedding / utility models — not chat-capable, kept separate */}
         {utilityModels.length > 0 && (

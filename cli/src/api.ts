@@ -166,6 +166,15 @@ export const api = {
       "POST", "/api/auth/login", { username, password }
     ),
 
+  // Browser sign-in flow: mint a code, open the web UI, poll for approval.
+  cliAuthStart: () =>
+    request<{ code: string; expiresInSeconds: number }>("POST", "/api/auth/cli/start"),
+
+  cliAuthPoll: (code: string) =>
+    request<{ status: "pending" | "approved" | "unknown"; token?: string; user?: { username: string; displayName: string; role: string } }>(
+      "POST", "/api/auth/cli/poll", { code }
+    ),
+
   register: (body: { username: string; password: string; firstName?: string; lastName?: string }) =>
     request<{ token: string; user: { username: string; displayName: string; role: string; isAdmin?: boolean } }>(
       "POST", "/api/auth/register", body

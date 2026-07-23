@@ -149,15 +149,24 @@ export class AdminController {
     return {
       defaultModel: this.settings.getDefaultModel(),
       chatToolsEnabled: this.settings.getChatToolsEnabled(),
+      numCtx: this.settings.getNumCtx(),
     };
   }
 
   @Patch("settings")
-  updateSettings(@Body() body: { chatToolsEnabled?: boolean }) {
+  updateSettings(@Body() body: { chatToolsEnabled?: boolean; numCtx?: number }) {
     if (body.chatToolsEnabled !== undefined) this.settings.setChatToolsEnabled(!!body.chatToolsEnabled);
+    if (body.numCtx !== undefined) {
+      const n = Number(body.numCtx);
+      if (!Number.isFinite(n) || n < 2048 || n > 131072) {
+        throw new BadRequestException("numCtx must be between 2048 and 131072");
+      }
+      this.settings.setNumCtx(n);
+    }
     return {
       defaultModel: this.settings.getDefaultModel(),
       chatToolsEnabled: this.settings.getChatToolsEnabled(),
+      numCtx: this.settings.getNumCtx(),
     };
   }
 

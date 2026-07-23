@@ -109,22 +109,30 @@ export class ChatService {
       lines.push("\n\nYou have no tools enabled for this chat. If asked what tools you have, say so plainly and do not invent any.");
     }
 
-    if (!user || !memoryEnabled) return lines.join(" ");
-
     // ── Inject durable personal memories ONLY ──────────────────────────────
     // Facts / preferences / decisions about the *person* — deliberately NOT
     // summaries of other chats, which caused unrelated conversations to bleed
     // into new ones. `work_context` is per-chat activity, so it's excluded too:
     // each chat keeps its own conversation context, while personalization stays.
-    const memories = this.memoriesService
-      .recent(user.id, 8)
-      .filter((m) => m.type !== "work_context");
-    if (memories.length > 0) {
-      lines.push("\n\nWhat you remember about this person:");
-      for (const m of memories) {
-        lines.push(`- [${m.type}] ${m.content}`);
+    if (user && memoryEnabled) {
+      const memories = this.memoriesService
+        .recent(user.id, 8)
+        .filter((m) => m.type !== "work_context");
+      if (memories.length > 0) {
+        lines.push("\n\nWhat you remember about this person:");
+        for (const m of memories) {
+          lines.push(`- [${m.type}] ${m.content}`);
+        }
       }
     }
+
+    // Language directive LAST so it's the final, strongest instruction the
+    // model reads before generating. Placed here on purpose: a non-English
+    // agent persona (e.g. Hebrew instructions) otherwise gets outweighed by
+    // the English tool-rules / profile / memory blocks appended above, and a
+    // small local model then tilts English even for a Hebrew question. The
+    // reply should follow the *user's* language, not the prompt's bulk.
+    lines.push("\n\nIMPORTANT: Always write your reply in the same language the user's latest message is written in. If they write in Hebrew, reply entirely in Hebrew; if in English, reply in English. This overrides the language of these instructions.");
 
     return lines.join(" ");
   }
@@ -521,7 +529,7 @@ export class ChatService {
           const ollamaUrl = "http://127.0.0.1:11434";
           const res = await this.fetchOllamaChatWithRetry(
             `${ollamaUrl}/api/chat`,
-            { model: model.replace(/^ollama:/, ""), messages: loopMessages, tools: toolDefs, stream: false, options: { num_ctx: 8192, temperature: 0.2 } },
+            { model: model.replace(/^ollama:/, ""), messages: loopMessages, tools: toolDefs, stream: false, keep_alive: -1, options: { num_ctx: this.settings.getNumCtx(), temperature: 0.2 } },
             signal,
           );
           if (!res.ok) throw new Error(`Ollama tool call failed: ${res.status}`);
@@ -584,7 +592,7 @@ export class ChatService {
           ];
           const res2 = await this.fetchOllamaChatWithRetry(
             "http://127.0.0.1:11434/api/chat",
-            { model: model.replace(/^ollama:/, ""), messages: cleanMessages, stream: false, options: { num_ctx: 8192, temperature: 0.2 } },
+            { model: model.replace(/^ollama:/, ""), messages: cleanMessages, stream: false, keep_alive: -1, options: { num_ctx: this.settings.getNumCtx(), temperature: 0.2 } },
             signal,
           );
           if (res2.ok) {
@@ -597,7 +605,7 @@ export class ChatService {
         }
       } else {
         // Standard streaming (no tools or external provider)
-        for await (const token of provider.streamChat({ model, messages, signal })) {
+        for await (const token of provider.streamChat({ model, messages, signal, numCtx: this.settings.getNumCtx() })) {
           assistant += token;
           yield { token };
         }

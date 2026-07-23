@@ -157,7 +157,7 @@ export class OllamaProvider implements ChatProvider {
       // inventing plausible-sounding but false details instead of sticking to
       // the provided source text — observed directly (same question, same
       // context, correct answer on one run and a fabricated one on another).
-      body: JSON.stringify({ model: opts.model, messages, stream: true, options: { num_ctx: 8192, temperature: 0.2 } }),
+      body: JSON.stringify({ model: opts.model, messages, stream: true, keep_alive: -1, options: { num_ctx: opts.numCtx ?? 8192, temperature: 0.2 } }),
       signal: opts.signal,
     });
 

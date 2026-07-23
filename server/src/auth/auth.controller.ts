@@ -115,4 +115,31 @@ export class AuthController {
   logout(@Headers("x-enzo-ai-token") token: string) {
     if (token) this.auth.destroySession(token);
   }
+
+  // ── CLI browser sign-in (see AuthService for the flow) ──────────────────────
+
+  /** CLI: mint a one-time code to show in the browser. Public. */
+  @Post("cli/start")
+  cliStart() {
+    return this.auth.cliAuthStart();
+  }
+
+  /** Web UI: a signed-in user approves the waiting CLI. */
+  @Post("cli/approve")
+  @UseGuards(AuthGuard)
+  cliApprove(@UserId() userId: string, @Body() body: { code?: string }) {
+    const ok = this.auth.cliAuthApprove(String(body?.code ?? ""), userId);
+    if (!ok) throw new BadRequestException("This sign-in request is invalid, expired, or already used.");
+    return { ok: true };
+  }
+
+  /** CLI: poll until approved. Public — the code itself is the secret. */
+  @Post("cli/poll")
+  cliPoll(@Body() body: { code?: string }) {
+    const res = this.auth.cliAuthPoll(String(body?.code ?? ""));
+    if (res.status !== "approved") return { status: res.status };
+    const userId = this.auth.resolveUserId(res.token)!;
+    const user = this.users.findById(userId);
+    return { status: "approved", token: res.token, user: user ? this.users.toPublic(user) : undefined };
+  }
 }

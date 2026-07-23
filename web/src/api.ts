@@ -84,6 +84,14 @@ export const api = {
 
   logout: () => fetch("/api/auth/logout", { method: "POST", headers: headers() }),
 
+  /** Approve a CLI browser sign-in request (see ?cliAuth=<code> handling in App.tsx). */
+  cliApprove: (code: string) =>
+    fetch("/api/auth/cli/approve", {
+      method: "POST",
+      headers: headers(true),
+      body: JSON.stringify({ code }),
+    }).then(parse<{ ok: boolean }>),
+
   // ---- chats ----
   listChats: () =>
     fetch("/api/chats", { headers: headers() }).then(parse<Chat[]>),
@@ -333,11 +341,11 @@ export const api = {
 
     getSettings: () =>
       fetch("/api/admin/settings", { headers: headers() })
-        .then(parse<{ defaultModel: string; chatToolsEnabled: boolean }>),
+        .then(parse<{ defaultModel: string; chatToolsEnabled: boolean; numCtx: number }>),
 
-    updateSettings: (body: { chatToolsEnabled?: boolean }) =>
+    updateSettings: (body: { chatToolsEnabled?: boolean; numCtx?: number }) =>
       fetch("/api/admin/settings", { method: "PATCH", headers: headers(true), body: JSON.stringify(body) })
-        .then(parse<{ defaultModel: string; chatToolsEnabled: boolean }>),
+        .then(parse<{ defaultModel: string; chatToolsEnabled: boolean; numCtx: number }>),
 
     listTools: () =>
       fetch("/api/admin/tools", { headers: headers() })

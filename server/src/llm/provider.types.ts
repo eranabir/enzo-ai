@@ -31,6 +31,9 @@ export interface ChatOptions {
   model: string;
   messages: ChatMessage[];
   signal?: AbortSignal;
+  /** Context window for local Ollama requests (admin-configurable);
+   *  providers that don't support it ignore it. */
+  numCtx?: number;
 }
 
 /**
