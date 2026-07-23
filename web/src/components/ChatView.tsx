@@ -11,6 +11,27 @@ const SUGGESTIONS = [
   { icon: "🔍", text: "Summarize this text for me" },
 ];
 
+// Inline tool-activity markers streamed into the reply, e.g. `🔧 get_datetime`.
+// Stripping them tells us whether any *real* answer text has started yet — a
+// reply that's still only tool badges (or empty) is still "in progress".
+const TOOL_MARKER_RE = /`🔧[^`]*`/g;
+
+/** Animated "Thinking…" indicator — the one signal that work is happening in
+ *  the background. Shown continuously from send until the answer text starts,
+ *  through model reasoning and tool calls, so the chat is never silently idle. */
+function ThinkingIndicator() {
+  return (
+    <span className="flex items-center gap-2 text-sm text-muted">
+      <span className="flex gap-1">
+        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-accent-2 [animation-delay:-0.3s]" />
+        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-accent-2 [animation-delay:-0.15s]" />
+        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-accent-2" />
+      </span>
+      Thinking…
+    </span>
+  );
+}
+
 export function ChatView({
   messages,
   busy,
@@ -217,24 +238,27 @@ function MessageBubble({ m, busy, onRegenerate, onEditMessage }: {
         <div dir="auto" className="inline-block whitespace-pre-wrap break-words rounded-[10px] bg-user px-3.5 py-2.5 leading-relaxed">
           {m.content}
         </div>
-      ) : (
-        <div dir="auto" className="break-words leading-relaxed">
-          {m.content ? (
-            <Markdown content={m.content} />
-          ) : busy ? (
-            <span className="flex items-center gap-2 text-sm text-muted">
-              <span className="flex gap-1">
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-accent-2 [animation-delay:-0.3s]" />
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-accent-2 [animation-delay:-0.15s]" />
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-accent-2" />
-              </span>
-              Thinking…
-            </span>
-          ) : (
-            ""
-          )}
-        </div>
-      )}
+      ) : (() => {
+        // A reply is "in progress" while a local turn is streaming (busy) or a
+        // remote (Telegram/Discord) reply is being generated (placeholder id).
+        const inProgress = busy || m.id === "__remote-thinking__";
+        // Real answer text has started only once there's content beyond tool badges.
+        const proseStarted = !!m.content && m.content.replace(TOOL_MARKER_RE, "").trim().length > 0;
+        return (
+          <div dir="auto" className="break-words leading-relaxed">
+            {proseStarted ? (
+              <Markdown content={m.content} />
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                {/* any tool badges streamed so far, so the user sees what it's doing */}
+                {m.content && <Markdown content={m.content} />}
+                {/* the always-on signal until the answer text arrives */}
+                {inProgress && <ThinkingIndicator />}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {m.role === "assistant" && m.error && (
         <div className="mt-2 flex items-center gap-2.5 rounded-xl border border-danger/40 bg-danger/10 px-3.5 py-2.5">
