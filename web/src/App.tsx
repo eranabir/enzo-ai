@@ -235,6 +235,12 @@ export function App() {
     if (!activeConvo?.connection) return; // only for integration chats
 
     const t = setInterval(async () => {
+      // A locally-sent turn that just failed isn't persisted server-side, so
+      // overwriting messages from the server here would silently erase the
+      // red error/retry box the user needs to see (they'd be left staring at
+      // just their own message). Hold that state until they retry or send
+      // again (both reset turnFailedRef), then resume live polling.
+      if (turnFailedRef.current) return;
       try {
         const detail = await api.getChat(activeId);
         let msgs = markFailedReplies(detail.messages);

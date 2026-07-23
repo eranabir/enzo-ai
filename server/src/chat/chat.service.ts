@@ -202,16 +202,27 @@ export class ChatService {
       }
     };
 
-    try {
-      const res = await attempt();
-      if (res.ok) return res;
-      this.logger.warn(`Ollama request failed (${res.status}) — retrying once in 2s`);
-    } catch (err) {
-      if (signal?.aborted) throw err;
-      this.logger.warn(`Ollama request failed (${(err as Error).message}) — retrying once in 2s`);
+    // On a driver that crashes ~1-in-5 loads, a single retry still leaves ~4%
+    // of messages failing (two crashes in a row). 3 attempts total drops that
+    // to well under 1% — the difference between "usually works" and "reliable".
+    const MAX_ATTEMPTS = 3;
+    let lastErr: unknown;
+    for (let i = 1; i <= MAX_ATTEMPTS; i++) {
+      try {
+        const res = await attempt();
+        if (res.ok) return res;
+        lastErr = new Error(`Ollama returned ${res.status}`);
+        if (i >= MAX_ATTEMPTS) return res; // out of tries — let the caller surface the status
+        this.logger.warn(`Ollama request failed (${res.status}) — attempt ${i}/${MAX_ATTEMPTS}, retrying in 2s`);
+      } catch (err) {
+        if (signal?.aborted) throw err;
+        lastErr = err;
+        if (i >= MAX_ATTEMPTS) throw err;
+        this.logger.warn(`Ollama request failed (${(err as Error).message}) — attempt ${i}/${MAX_ATTEMPTS}, retrying in 2s`);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 2_000));
     }
-    await new Promise((resolve) => setTimeout(resolve, 2_000));
-    return attempt();
+    throw lastErr instanceof Error ? lastErr : new Error("Ollama request failed");
   }
 
   /**

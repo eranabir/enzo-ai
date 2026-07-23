@@ -96,10 +96,18 @@ export class OllamaProvider implements ChatProvider {
 
   /** Embed one or more texts with an embedding model (e.g. nomic-embed-text). */
   async embed(model: string, input: string[]): Promise<number[][]> {
+    // num_gpu: 0 forces the embedding model onto the CPU. On a VRAM-tight box
+    // (e.g. a 24B chat model already using ~14.4GB of 16GB), loading an
+    // embedding model on the GPU for each RAG lookup evicts the chat model,
+    // forcing a cold GPU reload of it on the next message — the exact op that
+    // intermittently crashes llama-server ("CUDA error"). Keeping embeddings
+    // on CPU (they're small and fast for short queries) leaves the chat model
+    // resident, eliminating that eviction/reload/crash cycle. keep_alive: 0
+    // unloads the embedding runner right after so it never lingers in RAM.
     const res = await fetch(`${this.baseUrl}/api/embed`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ model: model.replace(/^ollama:/, ""), input }),
+      body: JSON.stringify({ model: model.replace(/^ollama:/, ""), input, keep_alive: 0, options: { num_gpu: 0 } }),
     });
     if (!res.ok) {
       const detail = await res.text().catch(() => "");

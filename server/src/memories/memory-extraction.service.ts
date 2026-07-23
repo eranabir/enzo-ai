@@ -130,11 +130,22 @@ export class MemoryExtractionService {
     model: string,
     prompt: string,
   ): Promise<string> {
+    // CRITICAL: use the SAME num_ctx + keep_alive as the chat path
+    // (chat.service.ts / ollama.provider.ts). This background extraction runs
+    // after chats using getDefaultModel() — the same big local model. If it
+    // omits num_ctx, Ollama loads that model at its native context (e.g. 65K)
+    // instead of the chat's cap, which is a DIFFERENT runner config, so Ollama
+    // unloads and reloads the model. Each reload is a cold GPU init — the exact
+    // operation that intermittently crashes llama-server. Matching options
+    // keeps a single instance resident and eliminates that reload churn.
     const res = await fetch(`${baseUrl}/api/generate`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ model, prompt, stream: false }),
-      signal: AbortSignal.timeout(30_000),
+      body: JSON.stringify({
+        model, prompt, stream: false, keep_alive: -1,
+        options: { num_ctx: this.settings.getNumCtx() },
+      }),
+      signal: AbortSignal.timeout(60_000),
     });
     if (!res.ok) throw new Error(`Ollama generate failed: ${res.status}`);
     const data = await res.json() as { response?: string };
