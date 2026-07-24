@@ -151,6 +151,7 @@ const inputCls = "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 
 // shown in this picker (see FOLDER_TOOL_DEFINITIONS in tools.service.ts).
 const TOOL_ICONS: Partial<Record<ToolName, React.ReactNode>> = {
   get_datetime:    <Clock className="h-3.5 w-3.5" />,
+  date_calc:       <Calendar className="h-3.5 w-3.5" />,
   calculator:      <Calculator className="h-3.5 w-3.5" />,
   web_search:      <Globe className="h-3.5 w-3.5" />,
   read_url:        <Zap className="h-3.5 w-3.5" />,

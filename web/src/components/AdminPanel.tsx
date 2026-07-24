@@ -667,6 +667,7 @@ function ToolsTab() {
 
   const TOOL_DESC: Record<string, string> = {
     get_datetime: "Returns the current date and time",
+    date_calc: "Deterministic date math (add/subtract, difference, week number) — e.g. due dates",
     calculator: "Evaluates math expressions",
     web_search: "Searches the web via DuckDuckGo",
     read_url: "Fetches and reads a web page",

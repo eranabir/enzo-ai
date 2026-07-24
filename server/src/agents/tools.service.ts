@@ -17,7 +17,7 @@ const SAFE_GIT_SUBCOMMANDS = new Set([
   "ls-tree", "rev-parse", "rev-list", "config", "stash",
 ]);
 
-export type ToolName = "get_datetime" | "calculator" | "web_search" | "read_url" | "git" | "calendar" | "search_emails" | "read_email" | "list_directory" | "read_file" | "api_request";
+export type ToolName = "get_datetime" | "date_calc" | "calculator" | "web_search" | "read_url" | "git" | "calendar" | "search_emails" | "read_email" | "list_directory" | "read_file" | "api_request";
 
 /** Resolve a subpath against the chat's attached project folder, rejecting
  *  anything that would escape it (e.g. "../../etc/passwd"). */
@@ -57,6 +57,29 @@ export const ALL_TOOL_DEFINITIONS: ToolDefinition[] = [
       name: "get_datetime",
       description: "Get the current date and time",
       parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "date_calc",
+      description:
+        "Deterministic date arithmetic — ALWAYS use this instead of doing date math yourself, which is error-prone. " +
+        "action \"add\": add/subtract a duration to a date (use a negative amount to subtract), e.g. an estimated due date is date=LMP, amount=280, unit=days. " +
+        "action \"diff\": whole units between two dates (e.g. current pregnancy week = diff between LMP and today in weeks). " +
+        "action \"info\": weekday, ISO week number, day-of-year for a date. " +
+        "Dates are ISO YYYY-MM-DD; if you need 'today', call get_datetime first.",
+      parameters: {
+        type: "object",
+        properties: {
+          action: { type: "string", enum: ["add", "diff", "info"], description: "add | diff | info" },
+          date: { type: "string", description: "Base date, ISO YYYY-MM-DD" },
+          amount: { type: "number", description: "For add: how many units (negative to subtract)" },
+          unit: { type: "string", enum: ["days", "weeks", "months", "years"], description: "For add/diff: the unit" },
+          date2: { type: "string", description: "For diff: the second date, ISO YYYY-MM-DD" },
+        },
+        required: ["action", "date"],
+      },
     },
   },
   {
@@ -316,6 +339,8 @@ export class ToolsService {
       switch (name as ToolName) {
         case "get_datetime":
           return this.getDatetime();
+        case "date_calc":
+          return this.dateCalc(args);
         case "calculator":
           return this.calculate(String(args.expression ?? ""));
         case "web_search":
@@ -349,6 +374,79 @@ export class ToolsService {
       weekday: "long", year: "numeric", month: "long", day: "numeric",
       hour: "2-digit", minute: "2-digit", timeZoneName: "short",
     });
+  }
+
+  /**
+   * Deterministic date arithmetic so the model never does error-prone date
+   * math in its head (adding 280 days across month boundaries, leap years,
+   * etc.). All computation is in UTC to avoid DST/timezone drift — these are
+   * calendar-date operations, not wall-clock ones.
+   */
+  private dateCalc(args: Record<string, unknown>): string {
+    const action = String(args.action ?? "").trim();
+    const parse = (v: unknown, label: string): Date => {
+      const s = String(v ?? "").trim();
+      const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/); // accept ISO datetime too, take the date
+      if (!m) throw new Error(`${label} must be an ISO date (YYYY-MM-DD), got "${s}"`);
+      const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+      if (Number.isNaN(d.getTime()) || d.getUTCMonth() !== Number(m[2]) - 1) {
+        throw new Error(`${label} "${s}" is not a valid calendar date`);
+      }
+      return d;
+    };
+    const iso = (d: Date) => d.toISOString().slice(0, 10);
+    const weekday = (d: Date) => ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][d.getUTCDay()];
+    // ISO-8601 week number.
+    const isoWeek = (d: Date): number => {
+      const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+      const day = (t.getUTCDay() + 6) % 7; // Mon=0
+      t.setUTCDate(t.getUTCDate() - day + 3); // nearest Thursday
+      const firstThu = new Date(Date.UTC(t.getUTCFullYear(), 0, 4));
+      const firstDay = (firstThu.getUTCDay() + 6) % 7;
+      firstThu.setUTCDate(firstThu.getUTCDate() - firstDay + 3);
+      return 1 + Math.round((t.getTime() - firstThu.getTime()) / (7 * 86400000));
+    };
+
+    try {
+      if (action === "add") {
+        const base = parse(args.date, "date");
+        const amount = Number(args.amount);
+        if (!Number.isFinite(amount)) return "add requires a numeric \"amount\".";
+        const unit = String(args.unit ?? "days");
+        const r = new Date(base.getTime());
+        if (unit === "days") r.setUTCDate(r.getUTCDate() + amount);
+        else if (unit === "weeks") r.setUTCDate(r.getUTCDate() + amount * 7);
+        else if (unit === "months") r.setUTCMonth(r.getUTCMonth() + amount);
+        else if (unit === "years") r.setUTCFullYear(r.getUTCFullYear() + amount);
+        else return `Unknown unit "${unit}" — use days, weeks, months, or years.`;
+        return `${iso(base)} ${amount >= 0 ? "+" : "-"} ${Math.abs(amount)} ${unit} = ${iso(r)} (${weekday(r)})`;
+      }
+      if (action === "diff") {
+        const a = parse(args.date, "date");
+        const b = parse(args.date2, "date2");
+        const unit = String(args.unit ?? "days");
+        const days = Math.round((b.getTime() - a.getTime()) / 86400000);
+        if (unit === "days") return `${iso(a)} to ${iso(b)} = ${days} days`;
+        if (unit === "weeks") return `${iso(a)} to ${iso(b)} = ${Math.floor(Math.abs(days) / 7) * Math.sign(days)} whole weeks (${days} days)`;
+        if (unit === "months" || unit === "years") {
+          let months = (b.getUTCFullYear() - a.getUTCFullYear()) * 12 + (b.getUTCMonth() - a.getUTCMonth());
+          if (b.getUTCDate() < a.getUTCDate()) months -= 1; // not a full month yet
+          return unit === "months"
+            ? `${iso(a)} to ${iso(b)} = ${months} whole months (${days} days)`
+            : `${iso(a)} to ${iso(b)} = ${Math.trunc(months / 12)} whole years (${days} days)`;
+        }
+        return `Unknown unit "${unit}" — use days, weeks, months, or years.`;
+      }
+      if (action === "info") {
+        const d = parse(args.date, "date");
+        const startOfYear = Date.UTC(d.getUTCFullYear(), 0, 1);
+        const dayOfYear = Math.floor((d.getTime() - startOfYear) / 86400000) + 1;
+        return `${iso(d)}: ${weekday(d)}, ISO week ${isoWeek(d)}, day ${dayOfYear} of ${d.getUTCFullYear()}`;
+      }
+      return 'Invalid action — use "add", "diff", or "info".';
+    } catch (err) {
+      return `date_calc error: ${(err as Error).message}`;
+    }
   }
 
   private calculate(expression: string): string {
