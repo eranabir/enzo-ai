@@ -3,6 +3,7 @@ import { Copy, Check, Pencil, RefreshCw, FileText, Download, AlertTriangle } fro
 import type { Message } from "../types";
 import { getToken } from "../api";
 import { Markdown } from "./Markdown";
+import { Tooltip } from "./ui/Tooltip";
 
 const SUGGESTIONS = [
   { icon: "✍️", text: "Help me write a professional email" },
@@ -11,7 +12,7 @@ const SUGGESTIONS = [
   { icon: "🔍", text: "Summarize this text for me" },
 ];
 
-// Inline tool-activity markers streamed into the reply, e.g. `🔧 get_datetime`.
+// Inline tool-activity markers streamed into the reply, e.g. `🔧 dates`.
 // Stripping them tells us whether any *real* answer text has started yet — a
 // reply that's still only tool badges (or empty) is still "in progress".
 const TOOL_MARKER_RE = /`🔧[^`]*`/g;
@@ -130,14 +131,16 @@ function ActionButton({ onClick, title, disabled, children }: {
   onClick: () => void; title: string; disabled?: boolean; children: React.ReactNode;
 }) {
   return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      title={title}
-      className="flex h-7 w-7 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-2 hover:text-fg disabled:opacity-40"
-    >
-      {children}
-    </button>
+    <Tooltip label={title} side="top">
+      <button
+        onClick={onClick}
+        disabled={disabled}
+        aria-label={title}
+        className="flex h-7 w-7 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-2 hover:text-fg disabled:opacity-40"
+      >
+        {children}
+      </button>
+    </Tooltip>
   );
 }
 
@@ -286,8 +289,15 @@ function MessageBubble({ m, busy, onRegenerate, onEditMessage }: {
               <Pencil className="h-3.5 w-3.5" />
             </ActionButton>
           )}
+          {/* Retry: re-send this exact message and regenerate the reply. Reuses
+              the edit path with unchanged content (drops anything after it). */}
+          {m.role === "user" && onEditMessage && (
+            <ActionButton onClick={() => onEditMessage(m.id, m.content)} title="Retry" disabled={busy}>
+              <RefreshCw className="h-3.5 w-3.5" />
+            </ActionButton>
+          )}
           {m.role === "assistant" && onRegenerate && (
-            <ActionButton onClick={() => onRegenerate(m.id)} title="Regenerate" disabled={busy}>
+            <ActionButton onClick={() => onRegenerate(m.id)} title="Retry" disabled={busy}>
               <RefreshCw className="h-3.5 w-3.5" />
             </ActionButton>
           )}

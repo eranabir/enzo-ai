@@ -666,8 +666,7 @@ function ToolsTab() {
   }
 
   const TOOL_DESC: Record<string, string> = {
-    get_datetime: "Returns the current date and time",
-    date_calc: "Deterministic date math (add/subtract, difference, week number) — e.g. due dates",
+    dates: "Deterministic date math (add/subtract, difference, week number) — e.g. due dates",
     calculator: "Evaluates math expressions",
     web_search: "Searches the web via DuckDuckGo",
     read_url: "Fetches and reads a web page",
@@ -693,18 +692,20 @@ function ToolsTab() {
         </div>
         <span className="text-xs text-muted">{TOOL_DESC[t.name] ?? t.description}</span>
       </div>
+      <Tooltip label={t.enabled ? "Click to disable" : "Click to enable"} side="left">
       <button
         disabled={busy === t.name}
         onClick={() => toggle(t.name, !t.enabled)}
         className={`relative h-6 w-11 flex-shrink-0 rounded-full transition-colors ${
           t.enabled ? "bg-accent" : "bg-surface"
         } border border-border disabled:opacity-50`}
-        title={t.enabled ? "Click to disable" : "Click to enable"}
+        aria-label={t.enabled ? "Disable tool" : "Enable tool"}
       >
         <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
           t.enabled ? "left-[22px]" : "left-0.5"
         }`} />
       </button>
+      </Tooltip>
     </div>
   );
 
@@ -732,14 +733,16 @@ function ToolsTab() {
               Off by default — keeps plain chats fast (replies stream instantly). Agents always use their own tools regardless. Turn on to let tool-less chats call tools, at the cost of slower first responses.
             </span>
           </div>
+          <Tooltip label={chatTools ? "Click to disable" : "Click to enable"} side="left">
           <button
             disabled={chatTools === null}
             onClick={toggleChatTools}
             className={`relative h-6 w-11 flex-shrink-0 rounded-full border border-border transition-colors disabled:opacity-50 ${chatTools ? "bg-accent" : "bg-surface"}`}
-            title={chatTools ? "Click to disable" : "Click to enable"}
+            aria-label={chatTools ? "Disable" : "Enable"}
           >
             <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${chatTools ? "left-[22px]" : "left-0.5"}`} />
           </button>
+          </Tooltip>
         </div>
       </Section>
 
@@ -812,14 +815,16 @@ function ConnectionsTab() {
         {conns.map((c) => (
           <div key={c.id} className="flex items-center justify-between rounded-xl border border-border bg-surface-2 px-4 py-3">
             <span className={`text-sm font-semibold ${c.enabled ? "text-fg" : "text-muted line-through"}`}>{c.name}</span>
+            <Tooltip label={c.enabled ? "Click to disable" : "Click to enable"} side="left">
             <button
               disabled={busy === c.id}
               onClick={() => toggle(c.id, !c.enabled)}
               className={`relative h-6 w-11 flex-shrink-0 rounded-full transition-colors ${c.enabled ? "bg-accent" : "bg-surface"} border border-border disabled:opacity-50`}
-              title={c.enabled ? "Click to disable" : "Click to enable"}
+              aria-label={c.enabled ? "Disable" : "Enable"}
             >
               <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${c.enabled ? "left-[22px]" : "left-0.5"}`} />
             </button>
+            </Tooltip>
           </div>
         ))}
       </div>

@@ -42,23 +42,21 @@ export function Header({
 
       <div className="flex items-center gap-3">
         {/* Engine status */}
-        <div
-          className={`flex items-center gap-1.5 text-xs font-semibold ${statusColor}`}
-          title={
-            online ? "Local engine connected"
-            : online === false ? "Ollama not running"
-            : "Checking…"
-          }
+        <Tooltip
+          label={online ? "Local engine connected" : online === false ? "Ollama not running" : "Checking…"}
+          side="bottom"
         >
-          <span className="text-[10px]">●</span>
-          {online ? "Local" : online === false ? "Offline" : "…"}
-        </div>
+          <div className={`flex items-center gap-1.5 text-xs font-semibold ${statusColor}`}>
+            <span className="text-[10px]">●</span>
+            {online ? "Local" : online === false ? "Offline" : "…"}
+          </div>
+        </Tooltip>
 
         {/* Memory toggle — only shown when a chat is active */}
         {activeChat && (
+          <Tooltip label={memoryOn ? "Memory on — click to disable for this chat" : "Memory off — click to enable"} side="bottom">
           <button
             onClick={() => onToggleMemory(!memoryOn)}
-            title={memoryOn ? "Memory on — click to disable for this chat" : "Memory off — click to enable"}
             className="flex cursor-pointer items-center gap-2 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted transition-colors hover:border-accent/40 hover:bg-surface-2 hover:text-fg"
           >
             <Brain className={`h-3.5 w-3.5 transition-colors ${memoryOn ? "text-accent-2" : "text-muted"}`} />
@@ -68,6 +66,7 @@ export function Header({
               <div className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow-sm transition-transform duration-200 ${memoryOn ? "translate-x-3.5" : "translate-x-0.5"}`} />
             </div>
           </button>
+          </Tooltip>
         )}
 
         {/* Model picker — locked when this chat belongs to an agent, since the

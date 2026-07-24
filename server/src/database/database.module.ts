@@ -237,6 +237,14 @@ export type DatabaseConnection = Database.Database;
            WHERE connection IS NOT NULL AND (title LIKE '💬 %' OR title LIKE '🎮 %')`
         ).run();
 
+        // Tool renames stored as JSON strings in agents.tools — plain string
+        // replaces keep any agent that had them enabled working under the new
+        // name. date_calc → dates, and get_datetime → dates (the dates tool's
+        // "now" action absorbed it). A rare agent that had both ends up with a
+        // duplicate "dates" in its list, which is harmless (membership check).
+        db.prepare(`UPDATE agents SET tools = REPLACE(tools, '"date_calc"', '"dates"') WHERE tools LIKE '%"date_calc"%'`).run();
+        db.prepare(`UPDATE agents SET tools = REPLACE(tools, '"get_datetime"', '"dates"') WHERE tools LIKE '%"get_datetime"%'`).run();
+
         if (!colExists("messages", "image_mime")) db.exec(`ALTER TABLE messages ADD COLUMN image_mime TEXT`);
         if (!colExists("messages", "attachment_name")) db.exec(`ALTER TABLE messages ADD COLUMN attachment_name TEXT`);
         if (!colExists("messages", "attachment_mime")) db.exec(`ALTER TABLE messages ADD COLUMN attachment_mime TEXT`);

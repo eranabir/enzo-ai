@@ -109,7 +109,7 @@ const SAFE_GIT_SUBCOMMANDS = new Set([
   "ls-tree", "rev-parse", "rev-list", "config", "stash",
 ]);
 
-export type ToolName = "get_datetime" | "date_calc" | "calculator" | "web_search" | "read_url" | "git" | "calendar" | "search_emails" | "read_email" | "list_directory" | "read_file" | "api_request";
+export type ToolName = "dates" | "calculator" | "web_search" | "read_url" | "git" | "calendar" | "search_emails" | "read_email" | "list_directory" | "read_file" | "api_request";
 
 /** Resolve a subpath against the chat's attached project folder, rejecting
  *  anything that would escape it (e.g. "../../etc/passwd"). */
@@ -146,31 +146,24 @@ export const ALL_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     type: "function",
     function: {
-      name: "get_datetime",
-      description: "Get the current date and time",
-      parameters: { type: "object", properties: {} },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "date_calc",
+      name: "dates",
       description:
-        "Deterministic date arithmetic — ALWAYS use this instead of doing date math yourself, which is error-prone. " +
-        "action \"add\": add/subtract a duration to a date (use a negative amount to subtract), e.g. an estimated due date is date=LMP, amount=280, unit=days. " +
-        "action \"diff\": whole units between two dates (e.g. current pregnancy week = diff between LMP and today in weeks). " +
-        "action \"info\": weekday, ISO week number, day-of-year for a date. " +
-        "Dates are ISO YYYY-MM-DD; if you need 'today', call get_datetime first.",
+        "The single tool for everything about dates and times — ALWAYS use it instead of working out dates yourself, which is error-prone. " +
+        "action \"now\": the current date and time (use this for any 'today'/'what day is it' question). " +
+        "action \"add\": add/subtract a duration to a date (negative amount subtracts), e.g. an estimated due date is date=LMP, amount=280, unit=days. " +
+        "action \"diff\": whole units between two dates, e.g. current pregnancy week = diff between LMP and today in weeks. " +
+        "action \"info\": weekday, ISO week number and day-of-year for a date. " +
+        "Any date accepts either an ISO date (YYYY-MM-DD) or the word \"today\", so you never need a separate step to find the current date.",
       parameters: {
         type: "object",
         properties: {
-          action: { type: "string", enum: ["add", "diff", "info"], description: "add | diff | info" },
-          date: { type: "string", description: "Base date, ISO YYYY-MM-DD" },
+          action: { type: "string", enum: ["now", "add", "diff", "info"], description: "now | add | diff | info" },
+          date: { type: "string", description: "A date: ISO YYYY-MM-DD, or \"today\". Not needed for action \"now\"." },
           amount: { type: "number", description: "For add: how many units (negative to subtract)" },
           unit: { type: "string", enum: ["days", "weeks", "months", "years"], description: "For add/diff: the unit" },
-          date2: { type: "string", description: "For diff: the second date, ISO YYYY-MM-DD" },
+          date2: { type: "string", description: "For diff: the second date (ISO or \"today\")" },
         },
-        required: ["action", "date"],
+        required: ["action"],
       },
     },
   },
@@ -433,9 +426,7 @@ export class ToolsService {
     this.logger.debug(`Executing tool: ${name}(${JSON.stringify(args)})`);
     try {
       switch (name as ToolName) {
-        case "get_datetime":
-          return this.getDatetime();
-        case "date_calc":
+        case "dates":
           return this.dateCalc(args);
         case "calculator":
           return this.calculate(String(args.expression ?? ""));
@@ -465,25 +456,27 @@ export class ToolsService {
     }
   }
 
-  private getDatetime(): string {
-    return new Date().toLocaleString("en-US", {
-      weekday: "long", year: "numeric", month: "long", day: "numeric",
-      hour: "2-digit", minute: "2-digit", timeZoneName: "short",
-    });
-  }
-
   /**
-   * Deterministic date arithmetic so the model never does error-prone date
-   * math in its head (adding 280 days across month boundaries, leap years,
-   * etc.). All computation is in UTC to avoid DST/timezone drift — these are
-   * calendar-date operations, not wall-clock ones.
+   * The one date/time tool. Handles "now" (current date & time), plus
+   * deterministic calendar arithmetic (add/diff/info) so the model never does
+   * error-prone date math in its head (280 days across month boundaries, leap
+   * years, etc.). Arithmetic is in UTC to avoid DST drift — these are
+   * calendar-date operations, not wall-clock ones. Any date arg accepts the
+   * word "today", resolved to the current local date, so no separate
+   * "what's today" call is ever needed.
    */
   private dateCalc(args: Record<string, unknown>): string {
     const action = String(args.action ?? "").trim();
+    // Current local date as a UTC-midnight anchor for calendar math.
+    const todayUtc = (): Date => {
+      const n = new Date();
+      return new Date(Date.UTC(n.getFullYear(), n.getMonth(), n.getDate()));
+    };
     const parse = (v: unknown, label: string): Date => {
       const s = String(v ?? "").trim();
+      if (/^(today|now)$/i.test(s)) return todayUtc();
       const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/); // accept ISO datetime too, take the date
-      if (!m) throw new Error(`${label} must be an ISO date (YYYY-MM-DD), got "${s}"`);
+      if (!m) throw new Error(`${label} must be an ISO date (YYYY-MM-DD) or "today", got "${s}"`);
       const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
       if (Number.isNaN(d.getTime()) || d.getUTCMonth() !== Number(m[2]) - 1) {
         throw new Error(`${label} "${s}" is not a valid calendar date`);
@@ -504,6 +497,14 @@ export class ToolsService {
     };
 
     try {
+      if (action === "now") {
+        const now = new Date();
+        const pretty = now.toLocaleString("en-US", {
+          weekday: "long", year: "numeric", month: "long", day: "numeric",
+          hour: "2-digit", minute: "2-digit", timeZoneName: "short",
+        });
+        return `${pretty} (today = ${iso(todayUtc())})`;
+      }
       if (action === "add") {
         const base = parse(args.date, "date");
         const amount = Number(args.amount);
@@ -539,9 +540,9 @@ export class ToolsService {
         const dayOfYear = Math.floor((d.getTime() - startOfYear) / 86400000) + 1;
         return `${iso(d)}: ${weekday(d)}, ISO week ${isoWeek(d)}, day ${dayOfYear} of ${d.getUTCFullYear()}`;
       }
-      return 'Invalid action — use "add", "diff", or "info".';
+      return 'Invalid action — use "now", "add", "diff", or "info".';
     } catch (err) {
-      return `date_calc error: ${(err as Error).message}`;
+      return `dates error: ${(err as Error).message}`;
     }
   }
 

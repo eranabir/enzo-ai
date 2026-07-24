@@ -1,5 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { ArrowUp, Square, Paperclip, X, FileText, FolderGit2, Folder, CornerLeftUp, GitBranch } from "lucide-react"; // image + document upload
+import { Tooltip } from "./ui/Tooltip";
 
 export interface AttachedImage {
   base64: string;   // without data-URI prefix
@@ -151,15 +152,17 @@ function FolderRow({
             if (e.key === "Escape") setBrowsing(false);
           }}
         />
+        <Tooltip label="Up one level" side="top">
         <button
           type="button"
           disabled={!listing?.parent}
-          title="Up one level"
+          aria-label="Up one level"
           onClick={() => listing?.parent && loadDir(listing.parent)}
           className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-border text-muted hover:text-fg disabled:opacity-30"
         >
           <CornerLeftUp className="h-3.5 w-3.5" />
         </button>
+        </Tooltip>
       </div>
 
       {/* Subfolders — click to descend without typing */}
@@ -291,13 +294,15 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
               alt="attachment"
               className="max-h-32 max-w-48 rounded-xl border border-border object-cover shadow"
             />
+            <Tooltip label="Remove image" side="top">
             <button
               onClick={() => setImage(null)}
               className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-surface-2 border border-border text-muted hover:text-fg shadow"
-              title="Remove image"
+              aria-label="Remove image"
             >
               <X className="h-3 w-3" />
             </button>
+            </Tooltip>
           </div>
         </div>
       )}
@@ -308,13 +313,15 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           <FileText className="h-4 w-4 flex-shrink-0 text-accent" />
           <span className="min-w-0 flex-1 truncate text-fg" title={doc.name}>{doc.name}</span>
           <span className="flex-shrink-0 text-xs text-muted">{formatSize(doc.size)}</span>
+          <Tooltip label="Remove document" side="top">
           <button
             onClick={() => setDoc(null)}
             className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-muted hover:text-fg"
-            title="Remove document"
+            aria-label="Remove document"
           >
             <X className="h-3 w-3" />
           </button>
+          </Tooltip>
         </div>
       )}
 
@@ -322,9 +329,11 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
       {err && (
         <div className="mb-2 flex items-center gap-2 rounded-xl border border-danger/40 bg-danger/10 px-3 py-2 text-xs text-danger">
           <span className="min-w-0 flex-1">{err}</span>
-          <button onClick={() => setErr(null)} className="flex-shrink-0 hover:text-fg" title="Dismiss">
+          <Tooltip label="Dismiss" side="top">
+          <button onClick={() => setErr(null)} className="flex-shrink-0 hover:text-fg" aria-label="Dismiss">
             <X className="h-3 w-3" />
           </button>
+          </Tooltip>
         </div>
       )}
 
@@ -383,29 +392,34 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           {/* Action buttons: attach + send/stop */}
           <div className="flex flex-shrink-0 items-end gap-1 p-2">
             {!busy && (
+              <Tooltip label={canAttachImage ? "Attach a document or image" : "Attach a document (PDF, Word, Excel, text)"} side="top">
               <button
                 type="button"
                 disabled={disabled}
                 onClick={() => fileRef.current?.click()}
-                title={canAttachImage ? "Attach a document or image" : "Attach a document (PDF, Word, Excel, text)"}
+                aria-label="Attach"
                 className="flex h-9 w-9 items-center justify-center rounded-xl text-muted transition-colors hover:bg-surface hover:text-fg disabled:opacity-40"
               >
                 <Paperclip className="h-4 w-4" />
               </button>
+              </Tooltip>
             )}
             {busy ? (
+              <Tooltip label="Stop generating" side="top">
               <button
                 onClick={onStop}
-                title="Stop generating"
+                aria-label="Stop generating"
                 className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-surface text-muted transition-colors hover:border-danger hover:text-danger"
               >
                 <Square className="h-3.5 w-3.5 fill-current" />
               </button>
+              </Tooltip>
             ) : (
+              <Tooltip label="Send (Enter)" side="top">
               <button
                 onClick={submit}
                 disabled={!canSend}
-                title="Send (Enter)"
+                aria-label="Send"
                 className={`flex h-9 w-9 items-center justify-center rounded-xl transition-all duration-150 ${
                   canSend
                     ? "bg-accent text-white shadow-[0_0_12px_rgba(109,94,252,0.4)] hover:bg-accent-2 hover:shadow-[0_0_16px_rgba(139,125,255,0.5)]"
@@ -414,6 +428,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
               >
                 <ArrowUp className="h-4 w-4" />
               </button>
+              </Tooltip>
             )}
           </div>
         </div>

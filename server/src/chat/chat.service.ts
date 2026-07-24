@@ -141,7 +141,7 @@ export class ChatService {
    *  an identical call within the same turn. Anything that can write/send
    *  (api_request, git, calendar create/update) is deliberately excluded. */
   private static readonly DEDUPABLE_READONLY_TOOLS = new Set<string>([
-    "get_datetime", "calculator", "web_search", "read_url",
+    "dates", "calculator", "web_search", "read_url",
     "search_emails", "read_email", "list_directory", "read_file",
   ]);
 

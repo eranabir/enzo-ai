@@ -144,14 +144,14 @@ import { ModalHeader } from "./ui/ModalHeader";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "./ui/Select";
+import { Tooltip } from "./ui/Tooltip";
 
 const inputCls = "w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-fg outline-none focus:border-accent placeholder:text-muted";
 
 // Partial: list_directory/read_file are auto-injected per-chat tools, never
 // shown in this picker (see FOLDER_TOOL_DEFINITIONS in tools.service.ts).
 const TOOL_ICONS: Partial<Record<ToolName, React.ReactNode>> = {
-  get_datetime:    <Clock className="h-3.5 w-3.5" />,
-  date_calc:       <Calendar className="h-3.5 w-3.5" />,
+  dates:       <Calendar className="h-3.5 w-3.5" />,
   calculator:      <Calculator className="h-3.5 w-3.5" />,
   web_search:      <Globe className="h-3.5 w-3.5" />,
   read_url:        <Zap className="h-3.5 w-3.5" />,
@@ -718,20 +718,21 @@ export function AgentsPanel({ onStartChat, onClose }: Props) {
                       ? `Needs the ${t.requiresConnection} account connected`
                       : "Unavailable";
                   return (
-                    <button key={t.name} type="button"
-                      title={isAvailable ? t.description : unavailableReason}
-                      onClick={() => toggleTool(t.name as ToolName)}
-                      className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
-                        !isAvailable
-                          ? "border-warning/40 bg-warning/5 text-warning"
-                          : isSelected
-                            ? "border-accent bg-accent/10 text-accent-2"
-                            : "border-border bg-surface-2 text-muted hover:border-accent/40 hover:text-fg"
-                      }`}>
-                      {TOOL_ICONS[t.name as ToolName]}
-                      {t.name.replace(/_/g, " ")}
-                      {!isAvailable && <span className="text-[10px]">⚠</span>}
-                    </button>
+                    <Tooltip key={t.name} label={isAvailable ? t.description : unavailableReason} side="top">
+                      <button type="button"
+                        onClick={() => toggleTool(t.name as ToolName)}
+                        className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                          !isAvailable
+                            ? "border-warning/40 bg-warning/5 text-warning"
+                            : isSelected
+                              ? "border-accent bg-accent/10 text-accent-2"
+                              : "border-border bg-surface-2 text-muted hover:border-accent/40 hover:text-fg"
+                        }`}>
+                        {TOOL_ICONS[t.name as ToolName]}
+                        {t.name.replace(/_/g, " ")}
+                        {!isAvailable && <span className="text-[10px]">⚠</span>}
+                      </button>
+                    </Tooltip>
                   );
                 })}
               </div>

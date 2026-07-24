@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Lightbulb, X } from "lucide-react";
+import { Tooltip } from "./ui/Tooltip";
 import type { ModelInfo } from "../types";
 
 // Suggested upgrades — capable but still modest models the analyzer recommends.
@@ -50,9 +51,11 @@ export function ModelNudge({ model, models, onManageModels }: {
           <span className="font-semibold text-fg">{model}</span> is a small model — it may give unreliable answers or misuse tools. For sharper results, try{" "}
           <button onClick={onManageModels} className="font-semibold text-accent-2 hover:underline">{SUGGESTED}</button>.
         </span>
-        <button onClick={dismiss} className="flex-shrink-0 text-muted hover:text-fg" title="Dismiss">
+        <Tooltip label="Dismiss" side="left">
+        <button onClick={dismiss} className="flex-shrink-0 text-muted hover:text-fg" aria-label="Dismiss">
           <X className="h-3.5 w-3.5" />
         </button>
+        </Tooltip>
       </div>
     </div>
   );

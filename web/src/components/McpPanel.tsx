@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useConfirm } from "./ui/ConfirmProvider";
 import { Plus, Trash2, ToggleLeft, ToggleRight, Plug } from "lucide-react";
 import { ModalHeader } from "./ui/ModalHeader";
+import { Tooltip } from "./ui/Tooltip";
 import { api } from "../api";
 import type { McpServer } from "../types";
 import { ConnectorCard, ConnectorSectionLabel } from "./ui/ConnectorCard";
@@ -440,10 +441,12 @@ export function McpPanel({ onClose }: Props) {
                           className="text-[11px] text-muted hover:text-accent-2 transition-colors px-2">
                           {result === "loading" ? "…" : "Test"}
                         </button>
-                        <button onClick={() => toggleEnabled(server)} title={server.enabled ? "Disable" : "Enable"}
+                        <Tooltip label={server.enabled ? "Disable" : "Enable"} side="top">
+                        <button onClick={() => toggleEnabled(server)} aria-label={server.enabled ? "Disable" : "Enable"}
                           className="text-muted hover:text-fg transition-colors">
                           {server.enabled ? <ToggleRight className="h-5 w-5 text-ok" /> : <ToggleLeft className="h-5 w-5" />}
                         </button>
+                        </Tooltip>
                         <button onClick={() => remove(server.id)}
                           className="rounded-md p-1 text-muted hover:text-danger transition-colors">
                           <Trash2 className="h-3.5 w-3.5" />

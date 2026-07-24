@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useConfirm } from "./ui/ConfirmProvider";
 import { BookOpen, Trash2, FileText, Globe, Upload, MessageSquare, Pencil } from "lucide-react";
+import { Tooltip } from "./ui/Tooltip";
 import { api } from "../api";
 import type { KnowledgeBase, KnowledgeDocument } from "../types";
 import { ModalHeader } from "./ui/ModalHeader";
@@ -116,14 +117,18 @@ export function KnowledgePanel({ onClose, onStartChat }: Props) {
                       {b.document_count} document{b.document_count === 1 ? "" : "s"}{b.description ? ` · ${b.description}` : ""}
                     </span>
                   </button>
-                  <button onClick={() => onStartChat(b.id)} title="Chat with this knowledge base"
+                  <Tooltip label="Chat with this knowledge base" side="top">
+                  <button onClick={() => onStartChat(b.id)} aria-label="Chat with this knowledge base"
                     className="flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:bg-accent-2">
                     <MessageSquare className="h-3.5 w-3.5" /> Chat
                   </button>
-                  <button onClick={() => deleteBase(b.id)} title="Delete"
+                  </Tooltip>
+                  <Tooltip label="Delete" side="top">
+                  <button onClick={() => deleteBase(b.id)} aria-label="Delete"
                     className="rounded-lg border border-border p-1.5 text-muted hover:text-danger">
                     <Trash2 className="h-4 w-4" />
                   </button>
+                  </Tooltip>
                 </div>
               ))}
             </div>
@@ -294,16 +299,20 @@ function KnowledgeDetail({ kb, onClose, onBack, onStartChat }: {
             ) : docs.map((d) => (
               <div key={d.id} className="flex items-center gap-3 rounded-xl border border-border bg-surface-2 px-4 py-2.5">
                 {d.source_type === "url" ? <Globe className="h-4 w-4 flex-shrink-0 text-muted" /> : <FileText className="h-4 w-4 flex-shrink-0 text-muted" />}
-                <button className="min-w-0 flex-1 text-left" onClick={() => openDoc(d.id)} title="View contents">
+                <Tooltip label="View contents" side="top" wrapClassName="min-w-0 flex-1">
+                <button className="min-w-0 flex-1 text-left" onClick={() => openDoc(d.id)} aria-label="View contents">
                   <p className="truncate text-sm text-fg hover:text-accent-2">{d.title}</p>
                   <p className="text-xs text-muted">
                     {d.chunk_count} chunk{d.chunk_count === 1 ? "" : "s"}
                     {d.source_ref ? ` · ${d.source_ref}` : ""}
                   </p>
                 </button>
-                <button onClick={() => deleteDoc(d.id)} title="Remove" className="rounded-lg border border-border p-1.5 text-muted hover:text-danger">
+                </Tooltip>
+                <Tooltip label="Remove" side="top">
+                <button onClick={() => deleteDoc(d.id)} aria-label="Remove" className="rounded-lg border border-border p-1.5 text-muted hover:text-danger">
                   <Trash2 className="h-4 w-4" />
                 </button>
+                </Tooltip>
               </div>
             ))}
           </div>
@@ -321,10 +330,12 @@ function KnowledgeDetail({ kb, onClose, onBack, onStartChat }: {
             onClose={() => { setEditMode(false); setViewing(null); }}
             actions={
               viewing && !editMode ? (
-                <button onClick={startEdit} title="Edit"
+                <Tooltip label="Edit" side="bottom">
+                <button onClick={startEdit} aria-label="Edit"
                   className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm text-muted hover:text-fg">
                   <Pencil className="h-3.5 w-3.5" /> Edit
                 </button>
+                </Tooltip>
               ) : undefined
             }
           />

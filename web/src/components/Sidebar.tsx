@@ -72,8 +72,9 @@ function NewButton({ collapsed, onNew }: NewBtnProps) {
   useNewBtnStyles();
 
   if (collapsed) {
+    // Wrapped in a Tooltip by the collapsed-rail call site, so no title here.
     return (
-      <button title="New chat" onClick={onNew} className="nz-btn-sm relative">
+      <button aria-label="New chat" onClick={onNew} className="nz-btn-sm relative">
         <div style={{ position: "relative", overflow: "hidden", borderRadius: "12px", padding: "1.5px", width: "36px", height: "36px" }}>
           <div className="nz-spin" style={{ position: "absolute", inset: "-50%", background: "conic-gradient(from 0deg,#6d5efc 0%,#a78bfa 28%,#38bdf8 52%,#818cf8 76%,#6d5efc 100%)" }} />
           <div style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden", borderRadius: "9px", background: "#0e0b24", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -127,7 +128,7 @@ function ToolNavIcon({ icon, label, onClick }: { icon: React.ReactNode; label: s
   return (
     <Tooltip label={label} side="right">
       <button
-        title={label}
+        aria-label={label}
         onClick={onClick}
         className="flex h-9 w-9 items-center justify-center rounded-xl border border-border text-muted transition-colors hover:border-accent hover:text-fg"
       >
@@ -294,7 +295,7 @@ export function Sidebar({
         <Tooltip label="Expand sidebar" side="right">
           <button
             onClick={toggleCollapse}
-            title="Expand sidebar"
+            aria-label="Expand sidebar"
             className="flex h-9 w-9 items-center justify-center rounded-xl text-accent-2 transition-colors hover:bg-surface-2"
           >
             {/* ⬡ glyph ink sits a touch low in its line box; nudge up slightly to optically center it in the button. */}
@@ -321,7 +322,7 @@ export function Sidebar({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
-              title="Chats"
+              aria-label="Chats"
               className="flex h-9 w-9 items-center justify-center rounded-xl border border-border text-muted transition-colors hover:border-accent hover:text-fg"
             >
               <MessagesSquare className="h-4 w-4" />
@@ -376,7 +377,7 @@ export function Sidebar({
         <Tooltip label="Expand sidebar" side="right">
         <button
           onClick={toggleCollapse}
-          title="Expand sidebar"
+          aria-label="Expand sidebar"
           className="flex h-8 w-8 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-fg"
         >
           <PanelLeftOpen className="h-5 w-5" />
@@ -388,7 +389,7 @@ export function Sidebar({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
-              title={displayLabel}
+              aria-label={displayLabel}
               className="relative flex h-8 w-8 items-center justify-center rounded-full bg-accent/20 text-sm font-bold text-accent-2 transition-colors hover:bg-accent/30 focus:outline-none"
             >
               {user.username.charAt(0).toUpperCase()}
@@ -434,13 +435,15 @@ export function Sidebar({
         <div className="flex items-center gap-2 text-lg font-bold tracking-wide">
           <span className="inline-block text-4xl leading-none -translate-y-[1px] text-accent-2">⬡</span> EnzoAI
         </div>
+        <Tooltip label="Collapse sidebar" side="bottom">
         <button
           onClick={toggleCollapse}
-          title="Collapse sidebar"
+          aria-label="Collapse sidebar"
           className="flex h-7 w-7 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-2 hover:text-fg"
         >
           <PanelLeftClose className="h-5 w-5" />
         </button>
+        </Tooltip>
       </div>
 
       <NewButton onNew={onNew} />
