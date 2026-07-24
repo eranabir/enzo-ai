@@ -109,7 +109,7 @@ const SAFE_GIT_SUBCOMMANDS = new Set([
   "ls-tree", "rev-parse", "rev-list", "config", "stash",
 ]);
 
-export type ToolName = "dates" | "calculator" | "web_search" | "read_url" | "git" | "calendar" | "search_emails" | "read_email" | "list_directory" | "read_file" | "api_request";
+export type ToolName = "dates" | "calculator" | "web_search" | "read_url" | "git" | "calendar" | "search_emails" | "read_email" | "list_directory" | "read_file" | "api_request" | "load_skill";
 
 /** Resolve a subpath against the chat's attached project folder, rejecting
  *  anything that would escape it (e.g. "../../etc/passwd"). */
@@ -341,6 +341,32 @@ export const FOLDER_TOOL_DEFINITIONS: ToolDefinition[] = [
     },
   },
 ];
+
+/**
+ * The on-demand skills tool. Not part of ALL_TOOL_DEFINITIONS — it's injected
+ * by chat.service only when the attached agent has skills, and its calls are
+ * handled there (it needs that turn's resolved skill set, not global state).
+ * The `name` enum is filled in per-turn from the agent's actual skills.
+ */
+export function buildSkillToolDefinition(skillNames: string[]): ToolDefinition {
+  return {
+    type: "function",
+    function: {
+      name: "load_skill",
+      description:
+        "Load the full step-by-step instructions for one of your skills. Before doing a task that matches a skill's " +
+        "description, call this with that skill's exact name to get its instructions, then follow them. " +
+        "Only load a skill when the current task actually calls for it.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string", enum: skillNames, description: "The exact name of the skill to load" },
+        },
+        required: ["name"],
+      },
+    },
+  };
+}
 
 @Injectable()
 export class ToolsService {

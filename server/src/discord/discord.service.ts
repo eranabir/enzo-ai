@@ -113,6 +113,13 @@ export class DiscordService implements OnModuleDestroy {
     return !!this.clients.get(userId)?.client.isReady();
   }
 
+  /** Usable as an outbound delivery target: enabled by admin and a bot token is
+   *  saved. Does not require the bot to be actively connected (send needs only
+   *  the token). */
+  isConfigured(userId: string): boolean {
+    return this.settings.isConnectionEnabled("discord") && !!this.settings.get(K.token(userId));
+  }
+
   /** Stop every running bot (admin disabled the connection). */
   stopAllRunning(): void {
     for (const [, entry] of this.clients) entry.client.destroy();

@@ -1,6 +1,6 @@
 {
   "name": "@enzo-ai/server",
-  "version": "3.4.0",
+  "version": "4.0.0",
   "private": true,
   "scripts": {
     "dev": "cross-env ENZO_PORT=1716 ENZO_PASSPHRASE_FILE=../data/vault-passphrase nest start --watch",

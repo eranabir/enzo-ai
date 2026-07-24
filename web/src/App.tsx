@@ -11,11 +11,12 @@ import { AuthScreen } from "./components/AuthScreen";
 import { UnlockScreen } from "./components/UnlockScreen";
 import { AdminPanel } from "./components/AdminPanel";
 import { AgentsPanel } from "./components/AgentsPanel";
+import { SkillsPanel } from "./components/SkillsPanel";
 import { McpPanel } from "./components/McpPanel";
 import { KnowledgePanel } from "./components/KnowledgePanel";
 import { SettingsPanel } from "./components/SettingsPanel";
 
-const PANEL_PATHS = ["/settings", "/admin", "/agents", "/mcp", "/knowledge"];
+const PANEL_PATHS = ["/settings", "/admin", "/agents", "/skills", "/mcp", "/knowledge"];
 
 // Telegram/Discord/Slack save this exact text as a normal assistant message
 // when their own request to the AI fails (see telegram.service.ts etc.).
@@ -513,6 +514,9 @@ export function App() {
           onClose={() => { closePanel(); refreshAgents(); }}
         />
       )}
+      {onPanel && location.pathname.startsWith("/skills") && (
+        <SkillsPanel onClose={closePanel} />
+      )}
       {onPanel && location.pathname.startsWith("/admin") && user.isAdmin && (
         <AdminPanel
           currentUser={user}
@@ -557,6 +561,7 @@ export function App() {
         onLogout={logout}
         onAdminOpen={() => navigate("/admin")}
         onAgentsOpen={() => navigate("/agents")}
+        onSkillsOpen={() => navigate("/skills")}
         onMcpOpen={() => navigate("/mcp")}
         onKnowledgeOpen={() => navigate("/knowledge")}
         onSettingsOpen={() => navigate("/settings")}

@@ -18,6 +18,7 @@ export interface AgentRow {
   schedule_enabled: number;
   telegram_chat_ids: string | null; // comma-separated Telegram chat IDs
   knowledge_base_id: string | null;
+  skill_ids: string | null; // JSON array of skill ids
   last_run_at: number | null;
   created_at: number;
   updated_at: number;
@@ -35,6 +36,7 @@ export interface CreateAgentInput {
   scheduleEnabled?: boolean;
   telegramChatIds?: string; // comma-separated
   knowledgeBaseId?: string | null;
+  skillIds?: string[];
 }
 
 @Injectable()
@@ -71,8 +73,8 @@ export class AgentsService {
       .prepare(
         `INSERT INTO agents
           (id, user_id, name, emoji, description, instructions, model, tools,
-           schedule, schedule_prompt, schedule_enabled, telegram_chat_ids, knowledge_base_id, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           schedule, schedule_prompt, schedule_enabled, telegram_chat_ids, knowledge_base_id, skill_ids, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id, userId,
@@ -87,6 +89,7 @@ export class AgentsService {
         input.scheduleEnabled ? 1 : 0,
         input.telegramChatIds?.trim() || null,
         input.knowledgeBaseId || null,
+        JSON.stringify(input.skillIds ?? []),
         now, now,
       );
     return this.get(id, userId)!;
@@ -109,6 +112,7 @@ export class AgentsService {
     if (input.scheduleEnabled !== undefined) col("schedule_enabled", input.scheduleEnabled ? 1 : 0);
     if (input.telegramChatIds !== undefined) col("telegram_chat_ids", input.telegramChatIds?.trim() || null);
     if (input.knowledgeBaseId !== undefined) col("knowledge_base_id", input.knowledgeBaseId || null);
+    if (input.skillIds !== undefined)      col("skill_ids", JSON.stringify(input.skillIds));
     if (!sets.length) return existing;
     col("updated_at", Date.now());
     vals.push(id, userId);
@@ -118,6 +122,17 @@ export class AgentsService {
 
   delete(id: string, userId: string): void {
     this.db.prepare(`DELETE FROM agents WHERE id = ? AND user_id = ?`).run(id, userId);
+  }
+
+  /** Parse the skill_ids JSON column defensively (older rows have NULL). */
+  parseSkillIds(raw: string | null): string[] {
+    if (!raw) return [];
+    try {
+      const v = JSON.parse(raw);
+      return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+    } catch {
+      return [];
+    }
   }
 
   markLastRun(id: string): void {
@@ -138,6 +153,7 @@ export class AgentsService {
       scheduleEnabled: !!a.schedule_enabled,
       telegramChatIds: a.telegram_chat_ids ?? "",
       knowledgeBaseId: a.knowledge_base_id ?? null,
+      skillIds: this.parseSkillIds(a.skill_ids),
       lastRunAt: a.last_run_at,
       createdAt: a.created_at,
       updatedAt: a.updated_at,

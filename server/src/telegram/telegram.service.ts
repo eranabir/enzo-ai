@@ -109,6 +109,13 @@ export class TelegramService implements OnModuleDestroy {
     return this.bots.has(userId);
   }
 
+  /** Usable as an outbound delivery target: the connection is enabled by admin
+   *  and the user has saved a bot token. Unlike isRunning() this does not require
+   *  the bot to be actively polling — sending a message only needs the token. */
+  isConfigured(userId: string): boolean {
+    return this.settings.isConnectionEnabled("telegram") && !!this.settings.get(K.token(userId));
+  }
+
   /** Stop every running bot (admin disabled the connection). Keeps per-user
    *  enabled flags so startAllEnabled() can restore them on re-enable. */
   stopAllRunning(): void {

@@ -253,6 +253,16 @@ export const api = {
       fetch(`/api/agents/${agentId}/credentials/${credId}`, { method: "DELETE", headers: headers() }),
   },
 
+  // ---- skills (reusable, on-demand instructions attached to agents) ----
+  skills: {
+    list: () => fetch("/api/skills", { headers: headers() }).then(parse<import("./types").Skill[]>),
+    create: (body: { name: string; description?: string; instructions: string }) =>
+      fetch("/api/skills", { method: "POST", headers: headers(true), body: JSON.stringify(body) }).then(parse<import("./types").Skill>),
+    update: (id: string, body: Partial<{ name: string; description: string; instructions: string }>) =>
+      fetch(`/api/skills/${id}`, { method: "PATCH", headers: headers(true), body: JSON.stringify(body) }).then(parse<import("./types").Skill>),
+    delete: (id: string) => fetch(`/api/skills/${id}`, { method: "DELETE", headers: headers() }),
+  },
+
   // ---- api keys ----
   keys: {
     list: () =>

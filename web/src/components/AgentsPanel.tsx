@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useConfirm } from "./ui/ConfirmProvider";
-import { Pencil, Trash2, Play, Clock, Zap, Globe, Calculator, Calendar, ChevronDown, ChevronRight, GitBranch, Key, ShieldAlert, Send, Mail } from "lucide-react";
+import { Pencil, Trash2, Play, Clock, Zap, Globe, Calculator, Calendar, ChevronDown, ChevronRight, GitBranch, Key, ShieldAlert, Send, Mail, Sparkles } from "lucide-react";
 import { SiTelegram, SiDiscord } from "react-icons/si";
 import { SlackIcon } from "./ui/SlackIcon";
 import { Plus, X } from "lucide-react";
@@ -162,6 +162,21 @@ const TOOL_ICONS: Partial<Record<ToolName, React.ReactNode>> = {
   read_email:      <Mail className="h-3.5 w-3.5" />,
 };
 
+// Short one-line hints for the tool-picker tooltips. The tools' own
+// `description` fields are long (they're written for the model), which made
+// the tooltips huge and overflow the modal — keep the hover hint concise.
+const TOOL_HINTS: Partial<Record<ToolName, string>> = {
+  dates:         "Dates & times — current time, due dates, differences",
+  calculator:    "Exact math — arithmetic, powers, %, average/min/max",
+  web_search:    "Search the web",
+  read_url:      "Fetch and read a web page",
+  git:           "Read-only git commands in the attached folder",
+  api_request:   "Make an HTTP API request (using a saved credential)",
+  calendar:      "Google Calendar — list, create, update events",
+  search_emails: "Search your Gmail",
+  read_email:    "Read a specific Gmail message",
+};
+
 const EMOJI_OPTIONS = [
   "🤖","🔧","⏰","🧠","💡","📊","🔍","💻","📝","🎯",
   "🚀","⚡","🌐","📚","🔬","💬","🛡️","⚙️","🎨","📈",
@@ -282,7 +297,11 @@ function IntegrationEntries({ value, onChange, availableOptions }: {
           )}
 
           {entries.map((entry, i) => {
-            const opt = availableOptions.find(o => o.type === entry.type) ?? availableOptions[0];
+            // Resolve the badge/placeholder from the full static list, not the
+            // connected-only `availableOptions` — a saved entry's type is always
+            // known even if that platform isn't currently connected in Admin
+            // (otherwise the Type badge renders blank).
+            const opt = ALL_INTEGRATION_OPTIONS.find(o => o.type === entry.type) ?? availableOptions[0];
             return (
               <div key={i} className="flex items-center gap-1.5">
                 {entry.locked ? (
@@ -436,6 +455,7 @@ export function AgentsPanel({ onStartChat, onClose }: Props) {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [tools, setTools] = useState<ToolDefinition[]>([]);
   const [knowledgeBases, setKnowledgeBases] = useState<{ id: string; name: string }[]>([]);
+  const [skills, setSkills] = useState<{ id: string; name: string; description: string }[]>([]);
   const [availableModels, setAvailableModels] = useState<ModelInfo[]>([]);
   const [defaultModelId, setDefaultModelId] = useState<string>("");
   const [connectedIntegrations, setConnectedIntegrations] = useState<typeof ALL_INTEGRATION_OPTIONS>([]);
@@ -449,6 +469,7 @@ export function AgentsPanel({ onStartChat, onClose }: Props) {
     model: "",
     tools: [] as ToolName[],
     knowledgeBaseId: "",
+    skillIds: [] as string[],
     schedulePrompt: "", scheduleEnabled: false, telegramChatIds: "",
   });
   const [busy, setBusy] = useState(false);
@@ -458,6 +479,7 @@ export function AgentsPanel({ onStartChat, onClose }: Props) {
     api.agents.list().then(setAgents).catch(() => {});
     api.agents.tools().then(setTools).catch(() => {});
     api.knowledge.listBases().then((bs) => setKnowledgeBases(bs.map((b) => ({ id: b.id, name: b.name })))).catch(() => {});
+    api.skills.list().then((ss) => setSkills(ss.map((s) => ({ id: s.id, name: s.name, description: s.description })))).catch(() => {});
     api.models().then(({ models, default: def }) => {
       setAvailableModels(models);
       setDefaultModelId(def);
@@ -474,7 +496,7 @@ export function AgentsPanel({ onStartChat, onClose }: Props) {
   function openCreate() {
     setEditing(null);
     setForm({ name: "", emoji: "🤖", description: "", instructions: "",
-               model: "", tools: [], knowledgeBaseId: "", schedulePrompt: "", scheduleEnabled: false, telegramChatIds: "" });
+               model: "", tools: [], knowledgeBaseId: "", skillIds: [], schedulePrompt: "", scheduleEnabled: false, telegramChatIds: "" });
     setScheduleState(defaultSchedule());
     setScheduleOpen(false);
     setEmojiOpen(false);
@@ -489,6 +511,7 @@ export function AgentsPanel({ onStartChat, onClose }: Props) {
       instructions: agent.instructions, model: agent.model ?? "",
       tools: agent.tools,
       knowledgeBaseId: agent.knowledgeBaseId ?? "",
+      skillIds: agent.skillIds ?? [],
       schedulePrompt: agent.schedulePrompt ?? "",
       scheduleEnabled: agent.scheduleEnabled,
       telegramChatIds: agent.telegramChatIds ?? "",
@@ -514,6 +537,7 @@ export function AgentsPanel({ onStartChat, onClose }: Props) {
         model: form.model || undefined,
         tools: form.tools,
         knowledgeBaseId: form.knowledgeBaseId || null,
+        skillIds: form.skillIds,
         schedule: scheduleOpen ? toCron(scheduleState) : undefined,
         schedulePrompt: scheduleOpen && form.schedulePrompt.trim() ? form.schedulePrompt.trim() : undefined,
         scheduleEnabled: scheduleOpen ? form.scheduleEnabled : false,
@@ -540,6 +564,10 @@ export function AgentsPanel({ onStartChat, onClose }: Props) {
 
   function toggleTool(t: ToolName) {
     setForm(f => ({ ...f, tools: f.tools.includes(t) ? f.tools.filter(x => x !== t) : [...f.tools, t] }));
+  }
+
+  function toggleSkill(id: string) {
+    setForm(f => ({ ...f, skillIds: f.skillIds.includes(id) ? f.skillIds.filter(x => x !== id) : [...f.skillIds, id] }));
   }
 
   const showTools = modelSupportsTools(form.model, availableModels);
@@ -660,7 +688,7 @@ export function AgentsPanel({ onStartChat, onClose }: Props) {
           {/* Instructions */}
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold text-muted">Instructions</label>
-            <textarea className={`${inputCls} resize-none`} rows={4}
+            <textarea className={`${inputCls} min-h-[220px] resize-y leading-relaxed`} rows={12}
               placeholder="Tell the agent how to behave, what to focus on, and how to respond…"
               value={form.instructions} onChange={e => setForm(f => ({...f, instructions: e.target.value}))} />
           </div>
@@ -718,7 +746,7 @@ export function AgentsPanel({ onStartChat, onClose }: Props) {
                       ? `Needs the ${t.requiresConnection} account connected`
                       : "Unavailable";
                   return (
-                    <Tooltip key={t.name} label={isAvailable ? t.description : unavailableReason} side="top">
+                    <Tooltip key={t.name} label={isAvailable ? (TOOL_HINTS[t.name as ToolName] ?? t.description) : unavailableReason} side="top">
                       <button type="button"
                         onClick={() => toggleTool(t.name as ToolName)}
                         className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
@@ -742,6 +770,40 @@ export function AgentsPanel({ onStartChat, onClose }: Props) {
             </div>
             );
           })()}
+
+          {/* Skills — reusable, on-demand instructions. Delivered via the
+              load_skill tool, so they need a function-calling model, same as
+              Tools above. */}
+          {showTools && skills.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-semibold text-muted">
+                Skills
+                {!form.model && <span className="ml-1 font-normal">(available when model supports function calling)</span>}
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {skills.map(s => {
+                  const isSelected = form.skillIds.includes(s.id);
+                  return (
+                    <Tooltip key={s.id} label={s.description || "No description"} side="top">
+                      <button type="button"
+                        onClick={() => toggleSkill(s.id)}
+                        className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                          isSelected
+                            ? "border-accent bg-accent/10 text-accent-2"
+                            : "border-border bg-surface-2 text-muted hover:border-accent/40 hover:text-fg"
+                        }`}>
+                        <Sparkles className="h-3.5 w-3.5" />
+                        {s.name}
+                      </button>
+                    </Tooltip>
+                  );
+                })}
+              </div>
+              {form.skillIds.length > 0 && (
+                <p className="text-[11px] text-muted">The agent loads a skill's full instructions on demand, only when a task matches it.</p>
+              )}
+            </div>
+          )}
 
           {/* Credentials — only for an already-saved agent, since a new one has no id yet. */}
           {editing && <AgentCredentialsSection agentId={editing.id} />}

@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from "react";
-import { Settings, Shield, LogOut, ChevronUp, PanelLeftClose, PanelLeftOpen, Users, MoreHorizontal, Pencil, Trash2, MessagesSquare, Bot, Server, BookOpen } from "lucide-react";
+import { Settings, Shield, LogOut, ChevronUp, PanelLeftClose, PanelLeftOpen, Users, MoreHorizontal, Pencil, Trash2, MessagesSquare, Bot, Server, BookOpen, Sparkles } from "lucide-react";
 import { SiTelegram, SiDiscord } from "react-icons/si";
 import { SlackIcon } from "./ui/SlackIcon";
 import type { Chat, User } from "../types";
@@ -227,6 +227,7 @@ export function Sidebar({
   onLogout,
   onAdminOpen,
   onAgentsOpen,
+  onSkillsOpen,
   onMcpOpen,
   onKnowledgeOpen,
   onSettingsOpen,
@@ -240,6 +241,7 @@ export function Sidebar({
   onDelete: (id: string) => void;
   onRename: (id: string, title: string) => void;
   onAgentsOpen: () => void;
+  onSkillsOpen: () => void;
   onMcpOpen: () => void;
   onKnowledgeOpen: () => void;
   onLogout: () => void;
@@ -312,6 +314,7 @@ export function Sidebar({
 
         {/* Tool panels — always one click away */}
         <ToolNavIcon icon={<Bot className="h-4 w-4" />} label="Agents" onClick={onAgentsOpen} />
+        <ToolNavIcon icon={<Sparkles className="h-4 w-4" />} label="Skills" onClick={onSkillsOpen} />
         <ToolNavIcon icon={<BookOpen className="h-4 w-4" />} label="Knowledge" onClick={onKnowledgeOpen} />
         <ToolNavIcon icon={<Server className="h-4 w-4" />} label="MCP Servers" onClick={onMcpOpen} />
 
@@ -452,6 +455,7 @@ export function Sidebar({
           distance from the last icon above it as from the chat list below it. */}
       <div className="flex flex-col gap-0.5 border-b border-border pb-3">
         <ToolNavButton icon={<Bot className="h-4 w-4" />} label="Agents" onClick={onAgentsOpen} />
+        <ToolNavButton icon={<Sparkles className="h-4 w-4" />} label="Skills" onClick={onSkillsOpen} />
         <ToolNavButton icon={<BookOpen className="h-4 w-4" />} label="Knowledge" onClick={onKnowledgeOpen} />
         <ToolNavButton icon={<Server className="h-4 w-4" />} label="MCP Servers" onClick={onMcpOpen} />
       </div>

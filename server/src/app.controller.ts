@@ -18,14 +18,18 @@ export class AppController {
     return { ok: true, name: "enzo-ai" };
   }
 
-  /** Returns which integrations are currently connected (auth-gated, not admin-only). */
+  /** Which integrations are usable as outbound delivery targets for this user:
+   *  enabled by admin and configured with a token. This is intentionally NOT
+   *  isRunning() — sending a scheduled result only needs the token, so a
+   *  configured-but-not-polling bot (common in dev, or when another process
+   *  holds the poll) must still be selectable. Auth-gated, not admin-only. */
   @Get("/integrations")
   @UseGuards(AuthGuard)
   integrations(@UserId() userId: string) {
     return {
-      telegram: this.telegram.isRunning(userId),
-      discord:  this.discord.isRunning(userId),
-      slack:    this.slack.isRunning(userId),
+      telegram: this.telegram.isConfigured(userId),
+      discord:  this.discord.isConfigured(userId),
+      slack:    this.slack.isConfigured(userId),
     };
   }
 }

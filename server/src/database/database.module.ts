@@ -144,6 +144,16 @@ export type DatabaseConnection = Database.Database;
             updated_at       INTEGER NOT NULL
           );
 
+          CREATE TABLE IF NOT EXISTS skills (
+            id           TEXT PRIMARY KEY,
+            user_id      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            name         TEXT NOT NULL,
+            description  TEXT NOT NULL DEFAULT '',
+            instructions TEXT NOT NULL,
+            created_at   INTEGER NOT NULL,
+            updated_at   INTEGER NOT NULL
+          );
+
           CREATE TABLE IF NOT EXISTS mcp_servers (
             id         TEXT PRIMARY KEY,
             user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -205,6 +215,8 @@ export type DatabaseConnection = Database.Database;
             ON agents(user_id, created_at);
           CREATE INDEX IF NOT EXISTS idx_memories_user
             ON memories(user_id, created_at);
+          CREATE INDEX IF NOT EXISTS idx_skills_user
+            ON skills(user_id, created_at);
           CREATE INDEX IF NOT EXISTS idx_mcp_servers_user
             ON mcp_servers(user_id, created_at);
           CREATE INDEX IF NOT EXISTS idx_knowledge_bases_user
@@ -225,6 +237,7 @@ export type DatabaseConnection = Database.Database;
         if (!colExists("chats", "knowledge_base_id")) db.exec(`ALTER TABLE chats ADD COLUMN knowledge_base_id TEXT`);
         if (!colExists("chats", "folder_path"))     db.exec(`ALTER TABLE chats ADD COLUMN folder_path TEXT`);
         if (!colExists("agents", "knowledge_base_id")) db.exec(`ALTER TABLE agents ADD COLUMN knowledge_base_id TEXT`);
+        if (!colExists("agents", "skill_ids"))         db.exec(`ALTER TABLE agents ADD COLUMN skill_ids TEXT`);
 
         const agentCols = db.prepare(`PRAGMA table_info(agents)`).all() as { name: string }[];
         if (!agentCols.some((c) => c.name === "telegram_chat_ids")) {

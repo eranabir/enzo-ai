@@ -8,9 +8,10 @@ import { SettingsService } from "../settings/settings.service";
 import { MemoriesService } from "../memories/memories.service";
 import { MemoryExtractionService } from "../memories/memory-extraction.service";
 import { AgentsService } from "../agents/agents.service";
-import { ToolsService, type ToolName } from "../agents/tools.service";
+import { ToolsService, buildSkillToolDefinition, type ToolName } from "../agents/tools.service";
 import { McpService } from "../mcp/mcp.service";
 import { KnowledgeService } from "../knowledge/knowledge.service";
+import { SkillsService, type SkillRow } from "../skills/skills.service";
 import { VaultService } from "../vault/vault.service";
 import type { ChatMessage } from "../llm/provider.types";
 import type { ChatRow } from "../database/database.types";
@@ -40,6 +41,7 @@ export class ChatService {
     private readonly toolsService: ToolsService,
     private readonly mcpService: McpService,
     private readonly knowledge: KnowledgeService,
+    private readonly skillsService: SkillsService,
     private readonly vault: VaultService,
   ) {}
 
@@ -71,6 +73,7 @@ export class ChatService {
     memoryEnabled: boolean,
     agentInstructions?: string,
     availableTools?: { name: string; description: string }[],
+    availableSkills?: { name: string; description: string }[],
   ): string {
     // Agent instructions take priority — they define the persona
     const lines = agentInstructions
@@ -109,6 +112,19 @@ export class ChatService {
       lines.push("\n\nYou have no tools enabled for this chat. If asked what tools you have, say so plainly and do not invent any.");
     }
 
+    // ── Describe on-demand skills (progressive disclosure) ─────────────────
+    // The model sees only each skill's name + description here; it pulls in the
+    // full instructions with load_skill exactly when a task matches — so many
+    // skills can be attached without bloating every request's context.
+    if (availableSkills && availableSkills.length > 0) {
+      lines.push("\n\nYou have these skills — reusable instructions for specific kinds of task:");
+      for (const s of availableSkills) lines.push(`- ${s.name}: ${s.description || "(no description)"}`);
+      lines.push(
+        "When the user's request matches a skill, FIRST call the load_skill tool with that skill's exact name to get its full instructions, then follow them to complete the task. " +
+        "Do not guess a skill's contents — always load it. Load a skill only when the current task actually needs it, and reuse instructions you've already loaded this conversation instead of loading the same skill again.",
+      );
+    }
+
     // ── Inject durable personal memories ONLY ──────────────────────────────
     // Facts / preferences / decisions about the *person* — deliberately NOT
     // summaries of other chats, which caused unrelated conversations to bleed
@@ -143,6 +159,7 @@ export class ChatService {
   private static readonly DEDUPABLE_READONLY_TOOLS = new Set<string>([
     "dates", "calculator", "web_search", "read_url",
     "search_emails", "read_email", "list_directory", "read_file",
+    "load_skill",
   ]);
 
   /**
@@ -395,6 +412,16 @@ export class ChatService {
       ? (JSON.parse(agent.tools) as ToolName[])
       : this.toolsService.getChatToolNames(userId);
 
+    // On-demand skills attached to the agent. Resolved once per turn; the model
+    // sees name+description in the system prompt and loads full instructions via
+    // the load_skill tool (handled inline in the tool-loop below).
+    const agentSkills: SkillRow[] = agent
+      ? this.skillsService.getByIds(this.agentsService.parseSkillIds(agent.skill_ids), userId)
+      : [];
+    const skillDefs = agentSkills.length
+      ? [buildSkillToolDefinition(agentSkills.map((s) => s.name))]
+      : [];
+
     // An agent's configured model is authoritative for its own chats — it must not
     // be silently overridden by a stale per-chat picker value or a Telegram/Discord/
     // Slack connection's own default model, both of which are sent as requestedModel.
@@ -471,7 +498,7 @@ export class ChatService {
     // Resolve the tools available this turn so we can both describe them in the
     // system prompt (so the model can answer "what can you do?") and offer them
     // for function-calling below.
-    const builtinDefs = [...this.toolsService.getDefinitions(agentTools), ...folderDefs];
+    const builtinDefs = [...this.toolsService.getDefinitions(agentTools), ...folderDefs, ...skillDefs];
     // Agents always get tools; agent-less chats only when the admin enabled it
     // (mirrors getChatToolNames). Skipping MCP here keeps plain chats on the
     // fast streaming path instead of the non-streaming tool-detection loop.
@@ -486,6 +513,7 @@ export class ChatService {
 
     let systemPrompt = this.buildSystemPrompt(
       user, convo.id, memoryEnabled, agent?.instructions, availableTools,
+      agentSkills.map((s) => ({ name: s.name, description: s.description })),
     );
 
     // Retrieval-augmented generation: if a knowledge base is attached to this
@@ -516,7 +544,11 @@ export class ChatService {
       // ── Tool-use loop ─────────────────────────────────────────────────────
       const hasMcpTools = mcpTools.length > 0;
 
-      if ((agentTools.length > 0 || hasMcpTools || folderDefs.length > 0) && provider.id === "ollama") {
+      if ((agentTools.length > 0 || hasMcpTools || folderDefs.length > 0 || skillDefs.length > 0) && provider.id === "ollama") {
+        // Case-insensitive lookup of a skill's full instructions by name, for
+        // resolving load_skill calls inline (no round-trip through ToolsService,
+        // which has no per-turn skill context).
+        const skillsByName = new Map(agentSkills.map((s) => [s.name.toLowerCase(), s]));
         // Strip _mcp metadata before sending to LLM (it only needs type/function)
         const mcpDefs = mcpTools.map(({ type, function: fn }) => ({ type, function: fn }));
         const toolDefs = [...builtinDefs, ...mcpDefs];
@@ -582,6 +614,14 @@ export class ChatService {
             let result: string;
             if (cacheKey && toolResultCache.has(cacheKey)) {
               result = toolResultCache.get(cacheKey)!;
+            } else if (toolName === "load_skill") {
+              // Progressive disclosure: return the requested skill's full
+              // instructions so the model can follow them this turn.
+              const wanted = String(toolArgs.name ?? "").trim().toLowerCase();
+              const skill = skillsByName.get(wanted);
+              result = skill
+                ? `Skill "${skill.name}" instructions:\n\n${skill.instructions}`
+                : `No skill named "${toolArgs.name ?? ""}". Available skills: ${agentSkills.map((s) => s.name).join(", ") || "(none)"}.`;
             } else if (this.mcpService.isMcpTool(toolName)) {
               result = await this.mcpService.callTool(userId, toolName, toolArgs);
             } else {

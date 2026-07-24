@@ -28,6 +28,7 @@ import { GmailModule } from "./gmail/gmail.module";
 import { AppsModule } from "./apps/apps.module";
 import { McpModule } from "./mcp/mcp.module";
 import { KnowledgeModule } from "./knowledge/knowledge.module";
+import { SkillsModule } from "./skills/skills.module";
 import { VaultModule } from "./vault/vault.module";
 import { VaultService } from "./vault/vault.service";
 
@@ -54,6 +55,7 @@ import { VaultService } from "./vault/vault.service";
     AppsModule,
     McpModule,
     KnowledgeModule,
+    SkillsModule,
     VaultModule,
   ],
   controllers: [AppController],

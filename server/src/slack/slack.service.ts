@@ -101,6 +101,12 @@ export class SlackService implements OnModuleDestroy {
     return this.apps.has(userId);
   }
 
+  /** Usable as an outbound delivery target: enabled by admin and a bot token is
+   *  saved. Does not require Socket Mode to be actively connected. */
+  isConfigured(userId: string): boolean {
+    return this.settings.isConnectionEnabled("slack") && !!this.settings.get(K.botToken(userId));
+  }
+
   /** Stop every running app (admin disabled the connection). */
   async stopAllRunning(): Promise<void> {
     for (const [, entry] of this.apps) await entry.app.stop().catch(() => {});

@@ -31,7 +31,17 @@ export interface Agent {
   scheduleEnabled: boolean;
   telegramChatIds: string; // comma-separated Telegram chat IDs
   knowledgeBaseId: string | null;
+  skillIds: string[];
   lastRunAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface Skill {
+  id: string;
+  name: string;
+  description: string;
+  instructions: string;
   createdAt: number;
   updatedAt: number;
 }
