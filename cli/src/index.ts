@@ -50,7 +50,7 @@ const program = new Command();
 program
   .name("enzo-ai")
   .description("Enzo AI — local-first AI assistant CLI")
-  .version("3.3.0");
+  .version("3.3.1");
 
 // ── config ────────────────────────────────────────────────────────────────────
 
@@ -2064,6 +2064,6 @@ async function resolveChatId(idOrPrefix: string) {
 
 // ── Entry ─────────────────────────────────────────────────────────────────────
 
-program.addHelpText("beforeAll", "\n" + brand + "  " + dim("local-first AI  ·  v3.3.0") + "\n");
+program.addHelpText("beforeAll", "\n" + brand + "  " + dim("local-first AI  ·  v3.3.1") + "\n");
 program.parse(process.argv);
 if (!process.argv.slice(2).length) program.help();

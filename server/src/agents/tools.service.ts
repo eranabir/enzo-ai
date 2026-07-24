@@ -10,6 +10,98 @@ import { promisify } from "util";
 
 const execFileAsync = promisify(execFile);
 
+// ── Safe math expression evaluator ──────────────────────────────────────────
+// A hand-written recursive-descent parser — deliberately NOT eval/new Function,
+// which would be a remote-code-execution hole once function names (sqrt, …) are
+// allowed through. Supports: + - * / , ^ (power, right-assoc), unary minus,
+// postfix % (percent = /100, so "340*15%" = 51), parentheses, constants
+// (pi, e), and functions: sqrt, cbrt, abs, round, floor, ceil, sign, ln, log
+// (base 10), log2, exp, sin, cos, tan, asin, acos, atan, mod(a,b), pow(a,b),
+// and variadic min, max, sum, avg/mean, median. Throws on anything else.
+const MATH_CONSTS: Record<string, number> = { pi: Math.PI, e: Math.E };
+const MATH_FUNCS: Record<string, (...a: number[]) => number> = {
+  sqrt: Math.sqrt, cbrt: Math.cbrt, abs: Math.abs, round: Math.round,
+  floor: Math.floor, ceil: Math.ceil, sign: Math.sign, exp: Math.exp,
+  ln: Math.log, log: (x) => Math.log10(x), log2: Math.log2,
+  sin: Math.sin, cos: Math.cos, tan: Math.tan,
+  asin: Math.asin, acos: Math.acos, atan: Math.atan,
+  pow: (a, b) => Math.pow(a, b), mod: (a, b) => a % b,
+  min: (...a) => Math.min(...a), max: (...a) => Math.max(...a),
+  sum: (...a) => a.reduce((s, x) => s + x, 0),
+  avg: (...a) => a.reduce((s, x) => s + x, 0) / a.length,
+  mean: (...a) => a.reduce((s, x) => s + x, 0) / a.length,
+  median: (...a) => { const s = [...a].sort((x, y) => x - y); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; },
+};
+
+function evalMathExpression(input: string): number {
+  // Tokenize: numbers, identifiers, operators, parens, comma.
+  const tokens = input.match(/\d*\.?\d+(?:[eE][+-]?\d+)?|[A-Za-z_]\w*|[+\-*/^(),%]/g);
+  if (!tokens || tokens.join("").replace(/\s/g, "").length !== input.replace(/\s/g, "").length) {
+    throw new Error("contains characters that aren't valid math");
+  }
+  let pos = 0;
+  const peek = () => tokens[pos];
+  const next = () => tokens[pos++];
+
+  // expr := term (('+'|'-') term)*
+  const parseExpr = (): number => {
+    let v = parseTerm();
+    while (peek() === "+" || peek() === "-") { const op = next(); const r = parseTerm(); v = op === "+" ? v + r : v - r; }
+    return v;
+  };
+  // term := power (('*'|'/') power)*
+  const parseTerm = (): number => {
+    let v = parsePower();
+    while (peek() === "*" || peek() === "/") { const op = next(); const r = parsePower(); v = op === "*" ? v * r : v / r; }
+    return v;
+  };
+  // power := unary ('^' power)?   (right-associative)
+  const parsePower = (): number => {
+    const b = parseUnary();
+    if (peek() === "^") { next(); return Math.pow(b, parsePower()); }
+    return b;
+  };
+  // unary := ('+'|'-') unary | postfix
+  const parseUnary = (): number => {
+    if (peek() === "+") { next(); return parseUnary(); }
+    if (peek() === "-") { next(); return -parseUnary(); }
+    return parsePostfix();
+  };
+  // postfix := primary '%'*
+  const parsePostfix = (): number => {
+    let v = parsePrimary();
+    while (peek() === "%") { next(); v = v / 100; }
+    return v;
+  };
+  const parsePrimary = (): number => {
+    const t = peek();
+    if (t === undefined) throw new Error("unexpected end of expression");
+    if (t === "(") { next(); const v = parseExpr(); if (next() !== ")") throw new Error("missing closing parenthesis"); return v; }
+    if (/^[A-Za-z_]/.test(t)) {
+      next();
+      const key = t.toLowerCase();
+      if (peek() === "(") { // function call
+        next();
+        const args: number[] = [];
+        if (peek() !== ")") { args.push(parseExpr()); while (peek() === ",") { next(); args.push(parseExpr()); } }
+        if (next() !== ")") throw new Error(`missing ')' after ${t}(`);
+        // Object.hasOwn (not `in`/truthiness) so inherited names like
+        // "constructor" or "toString" are treated as unknown, never called.
+        if (!Object.hasOwn(MATH_FUNCS, key)) throw new Error(`unknown function "${t}"`);
+        return MATH_FUNCS[key](...args);
+      }
+      if (!Object.hasOwn(MATH_CONSTS, key)) throw new Error(`unknown name "${t}"`);
+      return MATH_CONSTS[key];
+    }
+    if (/^\d|^\./.test(t)) { next(); return parseFloat(t); }
+    throw new Error(`unexpected "${t}"`);
+  };
+
+  const result = parseExpr();
+  if (pos !== tokens.length) throw new Error(`unexpected "${peek()}"`);
+  return result;
+}
+
 // Read-only git subcommands — write operations (push, commit, reset, etc.) are intentionally excluded
 const SAFE_GIT_SUBCOMMANDS = new Set([
   "status", "log", "diff", "show", "branch", "blame",
@@ -86,11 +178,15 @@ export const ALL_TOOL_DEFINITIONS: ToolDefinition[] = [
     type: "function",
     function: {
       name: "calculator",
-      description: "Safely evaluate a mathematical expression and return the result",
+      description:
+        "Evaluate a math expression exactly — ALWAYS use this for arithmetic instead of computing in your head. " +
+        "Supports + - * / , ^ (power), parentheses, postfix % (percent: 340*15% = 51), constants pi and e, and functions: " +
+        "sqrt, cbrt, abs, round, floor, ceil, sign, ln, log (base 10), log2, exp, sin, cos, tan, pow(a,b), mod(a,b), " +
+        "and lists min/max/sum/avg/median(1,2,3).",
       parameters: {
         type: "object",
         properties: {
-          expression: { type: "string", description: "Math expression (e.g. '2 + 2 * 3')" },
+          expression: { type: "string", description: "Math expression, e.g. 'sqrt(16) + 2^10', 'avg(4, 8, 15)', '340 * 15%'" },
         },
         required: ["expression"],
       },
@@ -450,16 +546,16 @@ export class ToolsService {
   }
 
   private calculate(expression: string): string {
-    // Safe math evaluation — only allow numbers and operators
-    const clean = expression.replace(/[^0-9+\-*/().%\s]/g, "");
-    if (!clean.trim()) return "Invalid expression";
+    const expr = String(expression ?? "").trim();
+    if (!expr) return "Provide a math expression, e.g. sqrt(16) + 15% of 340 → 340*15%.";
     try {
-      // Use Function constructor instead of eval for slightly better isolation
-      // eslint-disable-next-line no-new-func
-      const result = new Function(`"use strict"; return (${clean})`)();
-      return String(result);
-    } catch {
-      return "Could not evaluate expression";
+      const result = evalMathExpression(expr);
+      if (!Number.isFinite(result)) return "Result is undefined (e.g. divide by zero or invalid input).";
+      // Trim floating-point noise (0.1+0.2) without lying about real precision.
+      const rounded = Math.round(result * 1e10) / 1e10;
+      return String(rounded);
+    } catch (err) {
+      return `Could not evaluate "${expr}": ${(err as Error).message}`;
     }
   }
 
